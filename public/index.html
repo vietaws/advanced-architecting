@@ -45,24 +45,6 @@
         </main>
 
         <main id="products-dax" class="tab-content">
-            <div class="actions">
-                <button class="btn-primary" onclick="showProductDaxForm()">+ Add Product (DAX)</button>
-            </div>
-            
-            <div id="product-dax-form" class="form-card hidden">
-                <h3>Add Product via DAX</h3>
-                <input type="text" id="product_dax_id" placeholder="Product ID" required>
-                <input type="text" id="product_dax_name" placeholder="Product Name" required>
-                <textarea id="description_dax" placeholder="Description"></textarea>
-                <input type="file" id="image_file_dax" accept="image/*">
-                <input type="number" id="price_dax" placeholder="Price" step="0.01">
-                <input type="number" id="remaining_sku_dax" placeholder="Stock Quantity">
-                <div class="form-actions">
-                    <button class="btn-primary" onclick="createProductDax()">Save</button>
-                    <button class="btn-secondary" onclick="hideProductDaxForm()">Cancel</button>
-                </div>
-            </div>
-
             <div id="products-dax-list" class="grid"></div>
         </main>
 

@@ -86,46 +86,8 @@ async function loadProductsDax() {
             <p>Stock: ${p.remaining_sku}</p>
             <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
             <p style="font-size:11px;color:#ff6b6b;margin-top:8px;">⚡ DAX: ${p.responseTime}ms</p>
-            <button class="btn-delete" onclick="deleteProductDax('${p.id}')">Delete</button>
         </div>
     `).join('');
-}
-
-function showProductDaxForm() {
-    document.getElementById('product-dax-form').classList.remove('hidden');
-}
-
-function hideProductDaxForm() {
-    document.getElementById('product-dax-form').classList.add('hidden');
-    document.querySelectorAll('#product-dax-form input, #product-dax-form textarea').forEach(i => i.value = '');
-}
-
-async function createProductDax() {
-    const formData = new FormData();
-    formData.append('id', document.getElementById('product_dax_id').value);
-    formData.append('product_name', document.getElementById('product_dax_name').value);
-    formData.append('description', document.getElementById('description_dax').value);
-    formData.append('price', document.getElementById('price_dax').value);
-    formData.append('remaining_sku', document.getElementById('remaining_sku_dax').value);
-    
-    const imageFile = document.getElementById('image_file_dax').files[0];
-    if (imageFile) {
-        formData.append('image', imageFile);
-    }
-
-    await fetch(`${API_URL}/products-dax`, {
-        method: 'POST',
-        body: formData
-    });
-    hideProductDaxForm();
-    loadProductsDax();
-}
-
-async function deleteProductDax(id) {
-    if (confirm('Delete this product via DAX?')) {
-        await fetch(`${API_URL}/products-dax/${id}`, {method: 'DELETE'});
-        loadProductsDax();
-    }
 }
 
 
