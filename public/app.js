@@ -75,19 +75,36 @@ async function deleteProduct(id) {
 
 // Products DAX
 async function loadProductsDax() {
-    const res = await fetch(`${API_URL}/products-dax`);
-    const products = await res.json();
-    document.getElementById('products-dax-list').innerHTML = products.map(p => `
-        <div class="card">
-            ${p.image_url ? `<img src="${p.image_url}" alt="${p.product_name}" style="width:100%;height:200px;object-fit:cover;border-radius:8px 8px 0 0;margin:-16px -16px 12px -16px;">` : ''}
-            <h3>${p.product_name}</h3>
-            <p>${p.description || ''}</p>
-            <div class="price">$${p.price}</div>
-            <p>Stock: ${p.remaining_sku}</p>
-            <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
-            <p style="font-size:11px;color:#ff6b6b;margin-top:8px;">⚡ DAX: ${p.responseTime}ms</p>
-        </div>
-    `).join('');
+    try {
+        const res = await fetch(`${API_URL}/products-dax`);
+        const products = await res.json();
+        
+        if (!res.ok) {
+            console.error('Error loading products via DAX:', products);
+            document.getElementById('products-dax-list').innerHTML = '<p style="text-align:center;color:red;padding:20px;">Error loading products via DAX</p>';
+            return;
+        }
+        
+        if (products.length === 0) {
+            document.getElementById('products-dax-list').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No products found. Add products in the Products tab first.</p>';
+            return;
+        }
+        
+        document.getElementById('products-dax-list').innerHTML = products.map(p => `
+            <div class="card">
+                ${p.image_url ? `<img src="${p.image_url}" alt="${p.product_name}" style="width:100%;height:200px;object-fit:cover;border-radius:8px 8px 0 0;margin:-16px -16px 12px -16px;">` : ''}
+                <h3>${p.product_name}</h3>
+                <p>${p.description || ''}</p>
+                <div class="price">$${p.price}</div>
+                <p>Stock: ${p.remaining_sku}</p>
+                <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
+                <p style="font-size:11px;color:#ff6b6b;margin-top:8px;">⚡ DAX: ${p.responseTime}ms</p>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading products via DAX:', error);
+        document.getElementById('products-dax-list').innerHTML = '<p style="text-align:center;color:red;padding:20px;">Error: ' + error.message + '</p>';
+    }
 }
 
 
