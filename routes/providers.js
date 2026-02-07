@@ -26,7 +26,10 @@ router.get('/', async (req, res) => {
   try {
     console.log('Fetching all providers...');
     const startTime = Date.now();
-    const result = await pool.query('SELECT * FROM providers');
+    
+    // Force fresh query - no prepared statement caching
+    const result = await pool.query('SELECT * FROM providers ORDER BY provider_id');
+    
     const responseTime = Date.now() - startTime;
     console.log(`Found ${result.rows.length} providers in ${responseTime}ms`);
     
@@ -36,6 +39,14 @@ router.get('/', async (req, res) => {
     }));
     
     console.log('Sample provider with responseTime:', providers[0]);
+    
+    // Disable HTTP caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     res.json(providers);
   } catch (error) {
     console.error('Provider fetch error:', error);

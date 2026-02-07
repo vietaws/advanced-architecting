@@ -111,7 +111,14 @@ async function loadProductsDax() {
 // Providers
 async function loadProviders() {
     try {
-        const res = await fetch(`${API_URL}/providers`);
+        // Add cache-busting parameter to force fresh request
+        const res = await fetch(`${API_URL}/providers?_=${Date.now()}`, {
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
         const providers = await res.json();
         console.log('Providers loaded:', providers);
         console.log('First provider responseTime:', providers[0]?.responseTime);
