@@ -7,6 +7,7 @@ MOUNT_POINT="/data/efs"
 AWS_REGION="us-east-1"
 DYNAMODB_PRODUCTS_TABLE="products_table"
 DYNAMODB_ORDERS_TABLE="orders_table"
+DAX_ENDPOINT="dax-demo.wfcknw.dax-clusters.us-east-1.amazonaws.com:8111"
 S3_BUCKET="demo-product-images-123456"
 SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
 RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com" # store providers data
@@ -52,6 +53,9 @@ cat > app_config.json <<EOF
     "region": "${AWS_REGION}",
     "productsTableName": "${DYNAMODB_PRODUCTS_TABLE}",
     "ordersTableName": "${DYNAMODB_ORDERS_TABLE}"
+  },
+  "dax": {
+    "endpoint": "${DAX_ENDPOINT}"
   },
   "rds": {
     "host": "${RDS_HOST}",

@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const config = require('./app_config.json');
 const productRoutes = require('./routes/products');
+const productsDaxRoutes = require('./routes/products-dax');
 const providerRoutes = require('./routes/providers');
 const stressRoutes = require('./routes/stress');
 const efsRoutes = require('./routes/efs');
@@ -14,6 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/products', productRoutes);
+app.use('/products-dax', productsDaxRoutes);
 app.use('/providers', providerRoutes);
 app.use('/stress', stressRoutes);
 app.use('/efs', efsRoutes);
