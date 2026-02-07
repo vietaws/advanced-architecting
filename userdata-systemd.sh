@@ -21,7 +21,7 @@ dnf update -y
 dnf install -y nodejs22 git postgresql17 amazon-efs-utils
 
 # Setup EFS mount
-echo "Setting up EFS..."
+echo "Setting up EFS"
 mkdir -p $MOUNT_POINT
 
 # nslookup $EFS_ID.efs.$AWS_REGION.amazonaws.com
