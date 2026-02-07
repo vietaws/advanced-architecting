@@ -5,11 +5,11 @@ set -e
 EFS_ID="fs-0df1a5706ceb8608f"  # Your EFS File System ID
 MOUNT_POINT="/data/efs"
 AWS_REGION="us-east-1"
-DYNAMODB_TABLE="demo_table"
+DYNAMODB_TABLE="demo_table3"
 ORDERS_TABLE="orders_table"
 S3_BUCKET="demo-product-images-123456"
 SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
-RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com"
+RDS_HOST="database-3.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com"
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"
@@ -36,8 +36,8 @@ chmod 777 $MOUNT_POINT
 
 # Clone application from GitHub
 cd /home/ec2-user
-git clone https://github.com/vietaws/architecting.git
-cd architecting
+git clone https://github.com/vietaws/advanced-architecting.git
+cd advanced-architecting
 
 # Run the SQL script
 psql -h $RDS_HOST -U $RDS_USER -d $RDS_DATABASE -f setup.sql || true
@@ -78,7 +78,7 @@ EOF
 npm install
 
 # Set ownership
-chown -R ec2-user:ec2-user /home/ec2-user/architecting
+chown -R ec2-user:ec2-user /home/ec2-user/advanced-architecting
 
 # Create systemd service
 cat > /etc/systemd/system/product-app.service <<'EOFS'
