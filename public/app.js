@@ -370,7 +370,8 @@ async function getOrderStatus() {
                                 <th style="padding:10px;border:1px solid #ddd;">Price</th>
                                 <th style="padding:10px;border:1px solid #ddd;">Customer</th>
                                 <th style="padding:10px;border:1px solid #ddd;">Status</th>
-                                <th style="padding:10px;border:1px solid #ddd;">Time</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Created</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Completed</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -381,8 +382,13 @@ async function getOrderStatus() {
                                     <td style="padding:10px;border:1px solid #ddd;">${order.qty}</td>
                                     <td style="padding:10px;border:1px solid #ddd;">$${order.price}</td>
                                     <td style="padding:10px;border:1px solid #ddd;">${order.customer_id}</td>
-                                    <td style="padding:10px;border:1px solid #ddd;"><span style="background:#ffc107;padding:3px 8px;border-radius:4px;font-size:12px;">${order.status}</span></td>
+                                    <td style="padding:10px;border:1px solid #ddd;">
+                                        <span style="background:${order.status === 'completed' ? '#4caf50' : '#ffc107'};color:${order.status === 'completed' ? 'white' : 'black'};padding:3px 8px;border-radius:4px;font-size:12px;">
+                                            ${order.status}
+                                        </span>
+                                    </td>
                                     <td style="padding:10px;border:1px solid #ddd;">${new Date(order.time).toLocaleString()}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;">${order.completion_date ? new Date(order.completion_date).toLocaleString() : '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
