@@ -1,6 +1,7 @@
 const express = require('express');
 const { daxClient, productsTableName } = require('../db/dax');
 const { getImageUrl } = require('../db/s3');
+const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -16,7 +17,10 @@ router.get('/', async (req, res) => {
     
     console.log('Products-DAX: Found', result.Items?.length || 0, 'items in', responseTime, 'ms');
     
-    const products = await Promise.all((result.Items || []).map(async (item) => ({
+    // Unmarshall DynamoDB format to plain JavaScript objects
+    const items = (result.Items || []).map(item => unmarshall(item));
+    
+    const products = await Promise.all(items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key),
       responseTime: responseTime
