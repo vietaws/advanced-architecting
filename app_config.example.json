@@ -1,18 +1,23 @@
 {
   "dynamodb": {
     "region": "us-east-1",
-    "tableName": "demo_table"
+    "productsTableName": "products_table",
+    "ordersTableName": "orders_table"
   },
   "rds": {
     "host": "your-rds-endpoint.rds.amazonaws.com",
     "port": 5432,
-    "database": "products_db",
+    "database": "providers_db",
     "user": "admin",
     "password": "your-password"
   },
   "s3": {
     "region": "us-east-1",
-    "bucketName": "demo_product_images_bucket"
+    "bucketName": "demo-product-images-bucket"
+  },
+  "sqs": {
+    "region": "us-east-1",
+    "queueUrl": "https://sqs.us-east-1.amazonaws.com/YOUR_ACCOUNT_ID/sqs_queue_demo"
   },
   "server": {
     "port": 3000

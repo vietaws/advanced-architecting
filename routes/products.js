@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { docClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, ScanCommand, tableName } = require('../db/dynamodb');
+const { docClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, ScanCommand, productsTableName } = require('../db/dynamodb');
 const { uploadImage, getImageUrl, deleteImage } = require('../db/s3');
 const router = express.Router();
 
@@ -20,7 +20,7 @@ router.post('/', upload.single('image'), async (req, res) => {
     }
 
     await docClient.send(new PutCommand({
-      TableName: tableName,
+      TableName: productsTableName,
       Item: { 
         product_id, 
         product_name, 
@@ -41,7 +41,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const result = await docClient.send(new ScanCommand({ TableName: tableName }));
+    const result = await docClient.send(new ScanCommand({ TableName: productsTableName }));
     const products = await Promise.all(result.Items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key)
@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const result = await docClient.send(new GetCommand({
-      TableName: tableName,
+      TableName: productsTableName,
       Key: { product_id: req.params.id }
     }));
     if (result.Item) {
@@ -71,7 +71,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { product_name, description, image_url, price, remaining_sku } = req.body;
     await docClient.send(new UpdateCommand({
-      TableName: tableName,
+      TableName: productsTableName,
       Key: { product_id: req.params.id },
       UpdateExpression: 'set product_name = :n, description = :d, price = :p, remaining_sku = :s',
       ExpressionAttributeValues: { ':n': product_name, ':d': description, ':p': price, ':s': remaining_sku }
@@ -86,7 +86,7 @@ router.delete('/:id', async (req, res) => {
   try {
     // Get product to retrieve image_key
     const result = await docClient.send(new GetCommand({
-      TableName: tableName,
+      TableName: productsTableName,
       Key: { product_id: req.params.id }
     }));
 
@@ -97,7 +97,7 @@ router.delete('/:id', async (req, res) => {
 
     // Delete product from DynamoDB
     await docClient.send(new DeleteCommand({
-      TableName: tableName,
+      TableName: productsTableName,
       Key: { product_id: req.params.id }
     }));
 

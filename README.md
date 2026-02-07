@@ -3,8 +3,11 @@
 ## Architecture
 - **Application Tier**: Node.js on EC2 with Auto Scaling
 - **Load Balancer**: Application Load Balancer (ALB)
-- **Databases**: DynamoDB (products) + RDS PostgreSQL (providers)
-- **Storage**: S3 (product images)
+- **Databases**: 
+  - DynamoDB: `products_table` (products), `orders_table` (orders)
+  - RDS PostgreSQL: `providers_db` (providers)
+- **Storage**: S3 (product images), EFS (shared images)
+- **Queue**: SQS (order processing)
 
 ## Setup Instructions
 
@@ -13,16 +16,27 @@
 - IAM role attached to EC2 with policies:
   - `AmazonDynamoDBFullAccess`
   - `AmazonS3FullAccess`
+  - `AmazonSQSFullAccess`
 
 ### 2. Database Setup
 
-**DynamoDB Table:**
+**DynamoDB Tables:**
 ```bash
+# Products table
 aws dynamodb create-table \
-  --table-name demo_table \
+  --table-name products_table \
   --attribute-definitions AttributeName=product_id,AttributeType=S \
   --key-schema AttributeName=product_id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+
+# Orders table
+aws dynamodb create-table \
+  --table-name orders_table \
+  --attribute-definitions AttributeName=id,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
 
 **RDS PostgreSQL:**

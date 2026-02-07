@@ -5,11 +5,11 @@ set -e
 EFS_ID="fs-0df1a5706ceb8608f"  # Your EFS File System ID
 MOUNT_POINT="/data/efs"
 AWS_REGION="us-east-1"
-DYNAMODB_TABLE="demo_table3"
-ORDERS_TABLE="orders_table"
+DYNAMODB_PRODUCTS_TABLE="products_table"
+DYNAMODB_ORDERS_TABLE="orders_table"
 S3_BUCKET="demo-product-images-123456"
 SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
-RDS_HOST="database-3.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com"
+RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com" # store providers data
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"
@@ -50,8 +50,8 @@ cat > app_config.json <<EOF
 {
   "dynamodb": {
     "region": "${AWS_REGION}",
-    "tableName": "${DYNAMODB_TABLE}",
-    "ordersTableName": "${ORDERS_TABLE}"
+    "productsTableName": "${DYNAMODB_PRODUCTS_TABLE}",
+    "ordersTableName": "${DYNAMODB_ORDERS_TABLE}"
   },
   "rds": {
     "host": "${RDS_HOST}",
