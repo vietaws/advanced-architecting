@@ -6,7 +6,7 @@
 **Purpose**: Store product information
 
 **Schema**:
-- **Partition Key**: `product_id` (String)
+- **Partition Key**: `id` (String)
 - **Attributes**:
   - `product_name` (String)
   - `description` (String)
@@ -18,8 +18,8 @@
 ```bash
 aws dynamodb create-table \
   --table-name products_table \
-  --attribute-definitions AttributeName=product_id,AttributeType=S \
-  --key-schema AttributeName=product_id,KeyType=HASH \
+  --attribute-definitions AttributeName=id,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
   --region us-east-1
 ```

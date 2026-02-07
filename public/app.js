@@ -28,8 +28,8 @@ async function loadProducts() {
             <p>${p.description || ''}</p>
             <div class="price">$${p.price}</div>
             <p>Stock: ${p.remaining_sku}</p>
-            <p style="font-size:12px;color:#999;">ID: ${p.product_id}</p>
-            <button class="btn-delete" onclick="deleteProduct('${p.product_id}')">Delete</button>
+            <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
+            <button class="btn-delete" onclick="deleteProduct('${p.id}')">Delete</button>
         </div>
     `).join('');
 }
@@ -45,7 +45,7 @@ function hideProductForm() {
 
 async function createProduct() {
     const formData = new FormData();
-    formData.append('product_id', document.getElementById('product_id').value);
+    formData.append('id', document.getElementById('product_id').value);
     formData.append('product_name', document.getElementById('product_name').value);
     formData.append('description', document.getElementById('description').value);
     formData.append('price', document.getElementById('price').value);

@@ -8,21 +8,21 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { product_id, product_name, description, price, remaining_sku } = req.body;
+    const { id, product_name, description, price, remaining_sku } = req.body;
     
-    if (!product_id || !product_name) {
-      return res.status(400).json({ error: 'product_id and product_name are required' });
+    if (!id || !product_name) {
+      return res.status(400).json({ error: 'id and product_name are required' });
     }
 
     let image_key = '';
     if (req.file) {
-      image_key = await uploadImage(req.file, product_id);
+      image_key = await uploadImage(req.file, id);
     }
 
     await docClient.send(new PutCommand({
       TableName: productsTableName,
       Item: { 
-        product_id, 
+        id, 
         product_name, 
         description: description || '', 
         image_key, 
@@ -32,7 +32,7 @@ router.post('/', upload.single('image'), async (req, res) => {
     }));
     
     const image_url = image_key ? await getImageUrl(image_key) : '';
-    res.json({ message: 'Product created', product_id, image_url });
+    res.json({ message: 'Product created', id, image_url });
   } catch (error) {
     console.error('Product creation error:', error);
     res.status(500).json({ error: error.message });
@@ -56,7 +56,7 @@ router.get('/:id', async (req, res) => {
   try {
     const result = await docClient.send(new GetCommand({
       TableName: productsTableName,
-      Key: { product_id: req.params.id }
+      Key: { id: req.params.id }
     }));
     if (result.Item) {
       result.Item.image_url = await getImageUrl(result.Item.image_key);
@@ -72,7 +72,7 @@ router.put('/:id', async (req, res) => {
     const { product_name, description, image_url, price, remaining_sku } = req.body;
     await docClient.send(new UpdateCommand({
       TableName: productsTableName,
-      Key: { product_id: req.params.id },
+      Key: { id: req.params.id },
       UpdateExpression: 'set product_name = :n, description = :d, price = :p, remaining_sku = :s',
       ExpressionAttributeValues: { ':n': product_name, ':d': description, ':p': price, ':s': remaining_sku }
     }));
@@ -87,7 +87,7 @@ router.delete('/:id', async (req, res) => {
     // Get product to retrieve image_key
     const result = await docClient.send(new GetCommand({
       TableName: productsTableName,
-      Key: { product_id: req.params.id }
+      Key: { id: req.params.id }
     }));
 
     // Delete image from S3 if exists
@@ -98,7 +98,7 @@ router.delete('/:id', async (req, res) => {
     // Delete product from DynamoDB
     await docClient.send(new DeleteCommand({
       TableName: productsTableName,
-      Key: { product_id: req.params.id }
+      Key: { id: req.params.id }
     }));
 
     res.json({ message: 'Product deleted' });
