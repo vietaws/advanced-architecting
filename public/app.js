@@ -11,6 +11,7 @@ document.querySelectorAll('.tab').forEach(tab => {
         
         if (target === 'products') loadProducts();
         else if (target === 'providers') loadProviders();
+        else if (target === 'orders') {} // Orders tab - no auto-load
         else if (target === 'stress') loadStressStatus();
         else if (target === 'efs') loadEFSImages();
     });
