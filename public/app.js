@@ -324,7 +324,7 @@ async function generateOrders() {
     statusEl.style.color = '#666';
     
     try {
-        const response = await fetch('/orders/generate', { method: 'POST' });
+        const response = await fetch(`${API_URL}/orders/generate`, { method: 'POST' });
         const data = await response.json();
         
         if (response.ok) {
@@ -349,7 +349,7 @@ async function getOrderStatus() {
     statusEl.style.color = '#666';
     
     try {
-        const response = await fetch('/orders');
+        const response = await fetch(`${API_URL}/orders`);
         const orders = await response.json();
         
         if (response.ok) {

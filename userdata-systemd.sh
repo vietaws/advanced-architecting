@@ -81,7 +81,7 @@ npm install
 chown -R ec2-user:ec2-user /home/ec2-user/advanced-architecting
 
 # Create systemd service
-cat > /etc/systemd/system/product-app.service <<'EOFS'
+cat > /etc/systemd/system/demo-app.service <<'EOFS'
 [Unit]
 Description=Product Provider Application
 After=network.target
@@ -89,13 +89,13 @@ After=network.target
 [Service]
 Type=simple
 User=ec2-user
-WorkingDirectory=/home/ec2-user/architecting
+WorkingDirectory=/home/ec2-user/advanced-architecting
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=product-app
+SyslogIdentifier=demo-app
 
 [Install]
 WantedBy=multi-user.target
@@ -103,11 +103,11 @@ EOFS
 
 # Enable and start service
 systemctl daemon-reload
-systemctl enable product-app
-systemctl start product-app
+systemctl enable demo-app
+systemctl start demo-app
 
 # Wait for app to start
 sleep 5
 
 # Check status
-systemctl status product-app --no-pager
+systemctl status demo-app --no-pager
