@@ -29,6 +29,7 @@ async function loadProducts() {
             <div class="price">$${p.price}</div>
             <p>Stock: ${p.remaining_sku}</p>
             <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
+            <p style="font-size:11px;color:#4caf50;margin-top:8px;">⚡ DynamoDB: ${p.responseTime}ms</p>
             <button class="btn-delete" onclick="deleteProduct('${p.id}')">Delete</button>
         </div>
     `).join('');
