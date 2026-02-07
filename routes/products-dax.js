@@ -1,5 +1,5 @@
 const express = require('express');
-const { daxDocClient, ScanCommand, productsTableName } = require('../db/dax');
+const { daxClient, productsTableName } = require('../db/dax');
 const { getImageUrl } = require('../db/s3');
 const router = express.Router();
 
@@ -7,7 +7,11 @@ router.get('/', async (req, res) => {
   try {
     console.log('Products-DAX: Scanning table:', productsTableName);
     const startTime = Date.now();
-    const result = await daxDocClient.send(new ScanCommand({ TableName: productsTableName }));
+    
+    const result = await daxClient.scan({
+      TableName: productsTableName
+    }).promise();
+    
     const responseTime = Date.now() - startTime;
     
     console.log('Products-DAX: Found', result.Items?.length || 0, 'items in', responseTime, 'ms');
@@ -25,3 +29,4 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+
