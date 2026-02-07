@@ -315,3 +315,90 @@ async function loadStressStatus() {
     }
 }
 
+// Orders
+async function generateOrders() {
+    const statusEl = document.getElementById('order-status');
+    const btn = event.target;
+    btn.disabled = true;
+    statusEl.textContent = 'Generating orders...';
+    statusEl.style.color = '#666';
+    
+    try {
+        const response = await fetch('/orders/generate', { method: 'POST' });
+        const data = await response.json();
+        
+        if (response.ok) {
+            statusEl.textContent = `✓ ${data.message}`;
+            statusEl.style.color = 'green';
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        statusEl.textContent = `✗ Error: ${error.message}`;
+        statusEl.style.color = 'red';
+    } finally {
+        btn.disabled = false;
+        setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    }
+}
+
+async function getOrderStatus() {
+    const statusEl = document.getElementById('order-status');
+    const listEl = document.getElementById('orders-list');
+    statusEl.textContent = 'Loading orders...';
+    statusEl.style.color = '#666';
+    
+    try {
+        const response = await fetch('/orders');
+        const orders = await response.json();
+        
+        if (response.ok) {
+            statusEl.textContent = `✓ Loaded ${orders.length} orders`;
+            statusEl.style.color = 'green';
+            
+            if (orders.length === 0) {
+                listEl.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No orders found</p>';
+            } else {
+                listEl.innerHTML = `
+                    <table style="width:100%;border-collapse:collapse;margin-top:10px;">
+                        <thead>
+                            <tr style="background:#f0f0f0;text-align:left;">
+                                <th style="padding:10px;border:1px solid #ddd;">Order ID</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Product</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Qty</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Price</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Customer</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Status</th>
+                                <th style="padding:10px;border:1px solid #ddd;">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${orders.map(order => `
+                                <tr>
+                                    <td style="padding:10px;border:1px solid #ddd;">${order.id}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;">${order.product_name}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;">${order.qty}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;">$${order.price}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;">${order.customer_id}</td>
+                                    <td style="padding:10px;border:1px solid #ddd;"><span style="background:#ffc107;padding:3px 8px;border-radius:4px;font-size:12px;">${order.status}</span></td>
+                                    <td style="padding:10px;border:1px solid #ddd;">${new Date(order.time).toLocaleString()}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+        } else {
+            throw new Error(orders.error);
+        }
+    } catch (error) {
+        statusEl.textContent = `✗ Error: ${error.message}`;
+        statusEl.style.color = 'red';
+        listEl.innerHTML = '';
+    } finally {
+        setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    }
+}
+
+
+

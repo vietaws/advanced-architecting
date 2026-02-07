@@ -5,6 +5,7 @@ const productRoutes = require('./routes/products');
 const providerRoutes = require('./routes/providers');
 const stressRoutes = require('./routes/stress');
 const efsRoutes = require('./routes/efs');
+const orderRoutes = require('./routes/orders');
 const http = require('http');
 
 const app = express();
@@ -16,6 +17,7 @@ app.use('/products', productRoutes);
 app.use('/providers', providerRoutes);
 app.use('/stress', stressRoutes);
 app.use('/efs', efsRoutes);
+app.use('/orders', orderRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });

@@ -14,6 +14,7 @@
             <nav>
                 <button class="tab active" data-tab="products">Products</button>
                 <button class="tab" data-tab="providers">Providers</button>
+                <button class="tab" data-tab="orders">Orders</button>
                 <button class="tab" data-tab="stress">Stress Test</button>
                 <button class="tab" data-tab="efs">EFS Images</button>
             </nav>
@@ -102,6 +103,20 @@
                     <p style="text-align:center;color:#999;">Loading images...</p>
                 </div>
             </div>
+        </main>
+
+        <main id="orders" class="tab-content">
+            <div class="actions">
+                <button class="btn-primary" onclick="generateOrders()">📦 Generate 10 Orders to SQS</button>
+                <button class="btn-primary" onclick="getOrderStatus()" style="margin-left:10px;">📋 Get Order Status</button>
+                <span id="order-status" style="margin-left:15px;color:#666;"></span>
+            </div>
+            <div style="margin-top:20px;padding:20px;background:#f5f5f5;border-radius:8px;">
+                <h3>Order Management</h3>
+                <p>Generate 10 sample orders to SQS or view order status from DynamoDB.</p>
+                <p style="color:#666;font-size:14px;">Each order includes: ID, Product Name, Quantity, Price, Customer ID, Status, and Timestamp.</p>
+            </div>
+            <div id="orders-list" style="margin-top:20px;"></div>
         </main>
     </div>
 

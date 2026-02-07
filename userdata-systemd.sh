@@ -6,7 +6,9 @@ EFS_ID="fs-0df1a5706ceb8608f"  # Your EFS File System ID
 MOUNT_POINT="/data/efs"
 AWS_REGION="us-east-1"
 DYNAMODB_TABLE="demo_table"
+ORDERS_TABLE="orders_table"
 S3_BUCKET="demo-product-images-123456"
+SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
 RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com"
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
@@ -48,7 +50,8 @@ cat > app_config.json <<EOF
 {
   "dynamodb": {
     "region": "${AWS_REGION}",
-    "tableName": "${DYNAMODB_TABLE}"
+    "tableName": "${DYNAMODB_TABLE}",
+    "ordersTableName": "${ORDERS_TABLE}"
   },
   "rds": {
     "host": "${RDS_HOST}",
@@ -60,6 +63,10 @@ cat > app_config.json <<EOF
   "s3": {
     "region": "${AWS_REGION}",
     "bucketName": "${S3_BUCKET}"
+  },
+  "sqs": {
+    "region": "${AWS_REGION}",
+    "queueUrl": "${SQS_QUEUE_URL}"
   },
   "server": {
     "port": 3000
