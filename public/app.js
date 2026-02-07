@@ -98,7 +98,7 @@ async function loadProductsDax() {
                 <div class="price">$${p.price}</div>
                 <p>Stock: ${p.remaining_sku}</p>
                 <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
-                <p style="font-size:11px;color:#ff6b6b;margin-top:8px;">⚡ DAX: ${p.responseTime}ms</p>
+                <p style="font-size:11px;color:#ff6b6b;margin-top:8px;">⚡ DAX: ${p.responseTime}μs</p>
             </div>
         `).join('');
     } catch (error) {

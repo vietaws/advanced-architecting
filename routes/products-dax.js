@@ -7,15 +7,16 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     console.log('Products-DAX: Scanning table:', productsTableName);
-    const startTime = Date.now();
+    const startTime = process.hrtime.bigint();
     
     const result = await daxClient.scan({
       TableName: productsTableName
     }).promise();
     
-    const responseTime = Date.now() - startTime;
+    const endTime = process.hrtime.bigint();
+    const responseTime = Number(endTime - startTime) / 1000; // Convert nanoseconds to microseconds
     
-    console.log('Products-DAX: Found', result.Items?.length || 0, 'items in', responseTime, 'ms');
+    console.log('Products-DAX: Found', result.Items?.length || 0, 'items in', responseTime.toFixed(0), 'μs');
     
     // Unmarshall DynamoDB format to plain JavaScript objects
     const items = (result.Items || []).map(item => unmarshall(item));
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
     const products = await Promise.all(items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key),
-      responseTime: responseTime
+      responseTime: Math.round(responseTime)
     })));
     res.json(products);
   } catch (error) {
