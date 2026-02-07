@@ -114,6 +114,7 @@ async function loadProviders() {
         const res = await fetch(`${API_URL}/providers`);
         const providers = await res.json();
         console.log('Providers loaded:', providers);
+        console.log('First provider responseTime:', providers[0]?.responseTime);
         
         if (!Array.isArray(providers)) {
             console.error('Providers response is not an array:', providers);
@@ -126,7 +127,7 @@ async function loadProviders() {
                     <h3>${p.provider_name}</h3>
                     <p>${p.provider_city || ''}</p>
                     <p style="font-size:12px;color:#999;">ID: ${p.provider_id}</p>
-                    <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime}ms</p>
+                    <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime || 'N/A'}ms</p>
                 </div>
                 <button class="btn-delete" onclick="deleteProvider('${p.provider_id}')">Delete</button>
             </div>

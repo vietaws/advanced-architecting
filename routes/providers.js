@@ -34,6 +34,8 @@ router.get('/', async (req, res) => {
       ...row,
       responseTime: responseTime
     }));
+    
+    console.log('Sample provider with responseTime:', providers[0]);
     res.json(providers);
   } catch (error) {
     console.error('Provider fetch error:', error);
