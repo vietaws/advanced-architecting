@@ -1,6 +1,7 @@
 import json
 import boto3
 from datetime import datetime
+import time
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('orders_table')
@@ -16,6 +17,9 @@ def lambda_handler(event, context):
         
         # Put order into DynamoDB
         table.put_item(Item=order)
+
+        #processing time
+        time.sleep(7)
         
         print(f"Order {order['id']} processed and saved to DynamoDB")
     
