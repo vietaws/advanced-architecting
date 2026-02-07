@@ -25,9 +25,16 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     console.log('Fetching all providers...');
+    const startTime = Date.now();
     const result = await pool.query('SELECT * FROM providers');
-    console.log(`Found ${result.rows.length} providers`);
-    res.json(result.rows);
+    const responseTime = Date.now() - startTime;
+    console.log(`Found ${result.rows.length} providers in ${responseTime}ms`);
+    
+    const providers = result.rows.map(row => ({
+      ...row,
+      responseTime: responseTime
+    }));
+    res.json(providers);
   } catch (error) {
     console.error('Provider fetch error:', error);
     res.status(500).json({ error: error.message });
