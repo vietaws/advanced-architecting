@@ -1,0 +1,501 @@
+## AWS KMS Key Types
+
+### 1. AWS Managed Keys
+
+Description: Created and managed automatically by AWS services
+
+Naming: aws/service-name (e.g., aws/s3, aws/rds, aws/ebs)
+
+Pros:
+- Free (no monthly charge)
+- Automatic creation when you enable encryption
+- Automatic rotation every year
+- No management overhead
+- Integrated with AWS services
+
+Cons:
+- Cannot delete or disable
+- Cannot change key policy
+- Cannot use across accounts
+- Cannot use for custom applications
+- Limited to specific AWS service
+- Cannot export
+
+Use Cases:
+- Default encryption for S3 buckets
+- RDS database encryption
+- EBS volume encryption
+- Simple encryption needs
+- No compliance requirements for key control
+
+Example:
+bash
+# S3 automatically creates aws/s3 key
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules": [{
+      "ApplyServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "aws:kms"
+      }
+    }]
+  }'
+
+# Cost: $0 (free)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+### 2. Customer Managed Keys (CMK)
+
+Description: Keys you create and fully control
+
+Naming: Custom alias (e.g., alias/my-app-key)
+
+Pros:
+- Full control over key policy
+- Can enable/disable
+- Can delete (with 7-30 day waiting period)
+- Cross-account access
+- Custom rotation schedule
+- Audit with CloudTrail
+- Use in custom applications
+- Granular permissions
+
+Cons:
+- $1/month per key
+- $0.03 per 10,000 requests
+- Manual management required
+- Must configure rotation manually
+
+Use Cases:
+- Application-level encryption
+- Cross-account data sharing
+- Compliance requirements (HIPAA, PCI-DSS)
+- Custom key policies
+- Envelope encryption
+- Multi-region applications
+
+Example:
+bash
+# Create customer managed key
+aws kms create-key \
+  --description "My application key" \
+  --key-usage ENCRYPT_DECRYPT \
+  --origin AWS_KMS
+
+# Create alias
+aws kms create-alias \
+  --alias-name alias/my-app-key \
+  --target-key-id 1234abcd-12ab-34cd-56ef-1234567890ab
+
+# Cost: $1/month + usage
+
+
+Key Policy Example:
+json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "Enable IAM User Permissions",
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "arn:aws:iam::ACCOUNT-ID:root"
+    },
+    "Action": "kms:*",
+    "Resource": "*"
+  }, {
+    "Sid": "Allow application to use key",
+    "Effect": "Allow",
+    "Principal": {
+      "AWS": "arn:aws:iam::ACCOUNT-ID:role/AppRole"
+    },
+    "Action": [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey"
+    ],
+    "Resource": "*"
+  }]
+}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+### 3. AWS Owned Keys
+
+Description: Keys owned and managed by AWS, shared across multiple accounts
+
+Naming: Not visible to you
+
+Pros:
+- Free
+- No management needed
+- No CloudTrail logs (less noise)
+- Automatic rotation
+
+Cons:
+- No visibility or control
+- Cannot view or audit
+- Cannot customize
+- Shared across AWS accounts
+- Cannot use directly
+
+Use Cases:
+- DynamoDB encryption (default)
+- S3 SSE-S3 encryption
+- SQS encryption (default)
+- Services that don't expose key selection
+
+Example:
+bash
+# DynamoDB uses AWS owned key by default
+aws dynamodb create-table \
+  --table-name my-table \
+  --attribute-definitions AttributeName=id,AttributeType=S \
+  --key-schema AttributeName=id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+  # Encrypted with AWS owned key automatically
+
+# Cost: $0 (free)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+### 4. Custom Key Store (CloudHSM)
+
+Description: Keys stored in your own CloudHSM cluster
+
+Pros:
+- Full control over hardware
+- Keys never leave HSM
+- FIPS 140-2 Level 3 compliance
+- Single-tenant hardware
+- Meet strict compliance requirements
+- Direct control over key material
+
+Cons:
+- Very expensive ($1.60/hour per HSM = ~$1,200/month)
+- Complex setup and management
+- Requires CloudHSM cluster (minimum 2 HSMs)
+- Higher latency than standard KMS
+- More operational overhead
+
+Use Cases:
+- Strict compliance (PCI-DSS Level 1)
+- Regulatory requirements for HSM
+- Government/defense applications
+- Financial services
+- Healthcare (HIPAA with HSM requirement)
+
+Example:
+bash
+# Create custom key store
+aws kms create-custom-key-store \
+  --custom-key-store-name my-hsm-store \
+  --cloud-hsm-cluster-id cluster-xxxxx \
+  --key-store-password MyPassword123 \
+  --trust-anchor-certificate file://customerCA.crt
+
+# Create key in custom key store
+aws kms create-key \
+  --origin AWS_CLOUDHSM \
+  --custom-key-store-id cks-xxxxx
+
+# Cost: $1/month (key) + $1,200/month (HSM) + usage
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+### 5. External Key (BYOK - Bring Your Own Key)
+
+Description: Import your own key material into KMS
+
+Pros:
+- Use existing keys
+- Key material never generated by AWS
+- Compliance with key generation requirements
+- Can delete key material without waiting period
+- Proof of key origin
+
+Cons:
+- You manage key material lifecycle
+- No automatic rotation
+- Must manually re-import for rotation
+- Responsible for key material backup
+- More complex management
+- If key material lost, data unrecoverable
+
+Use Cases:
+- Regulatory requirement to generate keys on-premises
+- Existing key management infrastructure
+- Need to prove key origin
+- Temporary encryption (can delete key material immediately)
+
+Example:
+bash
+# Create key without key material
+aws kms create-key \
+  --origin EXTERNAL \
+  --description "Imported key"
+
+# Get import parameters
+aws kms get-parameters-for-import \
+  --key-id 1234abcd-12ab-34cd-56ef-1234567890ab \
+  --wrapping-algorithm RSAES_OAEP_SHA_256 \
+  --wrapping-key-spec RSA_2048
+
+# Generate key material locally (256-bit)
+openssl rand -out key-material.bin 32
+
+# Encrypt key material with wrapping key
+openssl pkeyutl -encrypt \
+  -in key-material.bin \
+  -out encrypted-key-material.bin \
+  -inkey wrapping-key.pem \
+  -keyform DER \
+  -pubin \
+  -pkeyopt rsa_padding_mode:oaep \
+  -pkeyopt rsa_oaep_md:sha256
+
+# Import key material
+aws kms import-key-material \
+  --key-id 1234abcd-12ab-34cd-56ef-1234567890ab \
+  --encrypted-key-material fileb://encrypted-key-material.bin \
+  --import-token fileb://import-token.bin \
+  --expiration-model KEY_MATERIAL_DOES_NOT_EXPIRE
+
+# Cost: $1/month + usage
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+### 6. Multi-Region Keys
+
+Description: Keys replicated across multiple AWS regions
+
+Pros:
+- Same key ID in multiple regions
+- Encrypt in one region, decrypt in another
+- Disaster recovery
+- Global applications
+- Low-latency access in each region
+- Automatic replication
+
+Cons:
+- $1/month per region replica
+- More expensive than single-region
+- Cannot convert existing keys to multi-region
+- Slightly more complex management
+
+Use Cases:
+- Global applications
+- Disaster recovery
+- Multi-region data replication
+- Cross-region encrypted backups
+- Low-latency global access
+
+Example:
+bash
+# Create multi-region key
+aws kms create-key \
+  --description "Multi-region key" \
+  --multi-region true \
+  --region us-east-1
+
+# Replicate to another region
+aws kms replicate-key \
+  --key-id mrk-1234abcd12ab34cd56ef1234567890ab \
+  --replica-region eu-west-1
+
+# Use same key ID in both regions
+# Encrypt in us-east-1
+aws kms encrypt \
+  --key-id mrk-1234abcd12ab34cd56ef1234567890ab \
+  --plaintext "sensitive data" \
+  --region us-east-1
+
+# Decrypt in eu-west-1 (same key ID)
+aws kms decrypt \
+  --ciphertext-blob fileb://encrypted.dat \
+  --region eu-west-1
+
+# Cost: $1/month (primary) + $1/month (replica) + usage
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+## Comparison Table
+
+| Type | Cost | Control | Rotation | Cross-Account | Compliance | Use Case |
+|------|------|---------|----------|---------------|------------|----------|
+| AWS Managed | Free | None | Auto (yearly) | No | Basic | Default encryption |
+| Customer Managed | $1/mo | Full | Manual | Yes | High | Custom apps |
+| AWS Owned | Free | None | Auto | No | None | Invisible default |
+| CloudHSM | $1,200/mo | Full | Manual | Yes | Highest | Strict compliance |
+| External (BYOK) | $1/mo | Full | Manual | Yes | High | Existing keys |
+| Multi-Region | $1/mo/region | Full | Manual | Yes | High | Global apps |
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+## Decision Tree
+
+Do you need to see/control the key?
+├─ No → AWS Managed Key (free)
+└─ Yes → Continue
+
+Do you need cross-account access?
+├─ No → AWS Managed Key
+└─ Yes → Customer Managed Key
+
+Do you need HSM-level security?
+├─ No → Customer Managed Key
+└─ Yes → CloudHSM Custom Key Store
+
+Do you need to import your own key material?
+├─ No → Customer Managed Key
+└─ Yes → External Key (BYOK)
+
+Do you need multi-region support?
+├─ No → Customer Managed Key
+└─ Yes → Multi-Region Key
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+## Code Examples
+
+### Using Customer Managed Key
+
+javascript
+const { KMSClient, EncryptCommand, DecryptCommand } = require('@aws-sdk/client-kms');
+
+const kms = new KMSClient({ region: 'us-east-1' });
+
+// Encrypt data
+async function encryptData(plaintext) {
+  const command = new EncryptCommand({
+    KeyId: 'alias/my-app-key',
+    Plaintext: Buffer.from(plaintext)
+  });
+  
+  const response = await kms.send(command);
+  return response.CiphertextBlob;
+}
+
+// Decrypt data
+async function decryptData(ciphertext) {
+  const command = new DecryptCommand({
+    CiphertextBlob: ciphertext
+  });
+  
+  const response = await kms.send(command);
+  return response.Plaintext.toString();
+}
+
+
+### Envelope Encryption Pattern
+
+javascript
+const { GenerateDataKeyCommand } = require('@aws-sdk/client-kms');
+const crypto = require('crypto');
+
+// Generate data key for envelope encryption
+async function generateDataKey() {
+  const command = new GenerateDataKeyCommand({
+    KeyId: 'alias/my-app-key',
+    KeySpec: 'AES_256'
+  });
+  
+  const response = await kms.send(command);
+  return {
+    plaintext: response.Plaintext,      // Use this to encrypt data
+    encrypted: response.CiphertextBlob  // Store this with encrypted data
+  };
+}
+
+// Encrypt large file with envelope encryption
+async function encryptFile(fileData) {
+  // Generate data key
+  const dataKey = await generateDataKey();
+  
+  // Encrypt file with data key
+  const cipher = crypto.createCipheriv('aes-256-gcm', dataKey.plaintext, iv);
+  const encryptedData = Buffer.concat([cipher.update(fileData), cipher.final()]);
+  
+  // Store encrypted data key with encrypted file
+  return {
+    encryptedData: encryptedData,
+    encryptedDataKey: dataKey.encrypted,
+    authTag: cipher.getAuthTag()
+  };
+}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+## Best Practices
+
+### 1. Use Customer Managed Keys for Production
+bash
+# Better control and auditability
+aws kms create-key --description "Production app key"
+
+
+### 2. Enable Key Rotation
+bash
+aws kms enable-key-rotation --key-id 1234abcd-12ab-34cd-56ef-1234567890ab
+
+
+### 3. Use Aliases
+bash
+# Easier to reference and rotate
+aws kms create-alias --alias-name alias/prod-key --target-key-id KEY-ID
+
+
+### 4. Implement Least Privilege
+json
+{
+  "Effect": "Allow",
+  "Action": ["kms:Decrypt"],
+  "Resource": "arn:aws:kms:us-east-1:ACCOUNT:key/KEY-ID",
+  "Condition": {
+    "StringEquals": {
+      "kms:EncryptionContext:AppName": "MyApp"
+    }
+  }
+}
+
+
+### 5. Monitor Key Usage
+bash
+# CloudTrail logs all KMS operations
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=ResourceName,AttributeValue=KEY-ID
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+## Summary
+
+Most Common Choice: Customer Managed Key ($1/month)
+- Full control, cross-account, auditable, compliant
+
+Cheapest: AWS Managed Key (free)
+- Good for simple use cases
+
+Most Secure: CloudHSM Custom Key Store ($1,200/month)
+- For strict compliance requirements
+
+Most Flexible: Multi-Region Key ($1/month per region)
+- For global applications
