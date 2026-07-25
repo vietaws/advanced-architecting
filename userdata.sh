@@ -102,3 +102,7 @@ sleep 5
 
 # Check status
 systemctl status demo-app --no-pager
+
+# See logs
+# sudo journalctl -u demo-app -n 100
+# sudo journalctl -u demo-app -f
