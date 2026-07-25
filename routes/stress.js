@@ -14,7 +14,7 @@ const router = express.Router();
 let workers = [];
 let cachedInstanceId = null;
 
-const ec2Client = new EC2Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const ec2Client = new EC2Client({ region: process.env.AWS_REGION || 'ap-southeast-1' });
 
 async function getInstanceId() {
   if (cachedInstanceId) return cachedInstanceId;

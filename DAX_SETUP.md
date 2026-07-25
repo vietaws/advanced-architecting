@@ -74,7 +74,6 @@ Output example: `dax-demo.abc123.dax-clusters.us-east-1.amazonaws.com`
 
 ### 3. Update Configuration
 
-Update `app_config.json`:
 ```json
 {
   "dax": {
@@ -138,12 +137,12 @@ sudo systemctl restart demo-app
 ```bash
 # Load Products tab multiple times
 for i in {1..10}; do
-  curl -s http://<EC2-IP>:3000/products | jq -r '.[0].responseTime'
+  curl -s http://<EC2-IP>:3001/products | jq -r '.[0].responseTime'
 done
 
 # Load Products_DAX tab multiple times
 for i in {1..10}; do
-  curl -s http://<EC2-IP>:3000/products-dax | jq -r '.[0].responseTime'
+  curl -s http://<EC2-IP>:3001/products-dax | jq -r '.[0].responseTime'
 done
 ```
 
