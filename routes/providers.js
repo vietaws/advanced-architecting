@@ -4,18 +4,20 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { provider_id, provider_name, provider_city } = req.body;
+    const { name, city } = req.body;
     
-    if (!provider_id || !provider_name) {
-      return res.status(400).json({ error: 'provider_id and provider_name are required' });
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
     }
 
-    console.log('Creating provider:', { provider_id, provider_name, provider_city });
+    console.log('Creating provider:', { name, city });
     
-    await pool.query('INSERT INTO providers (provider_id, provider_name, provider_city) VALUES ($1, $2, $3)', 
-      [provider_id, provider_name, provider_city || null]);
+    const result = await pool.query(
+      'INSERT INTO providers (name, city) VALUES ($1, $2) RETURNING id',
+      [name, city || null]
+    );
     
-    res.json({ message: 'Provider created', provider_id });
+    res.json({ message: 'Provider created', id: result.rows[0].id });
   } catch (error) {
     console.error('Provider creation error:', error);
     res.status(500).json({ error: error.message, detail: error.detail });
@@ -28,7 +30,7 @@ router.get('/', async (req, res) => {
     const startTime = Date.now();
     
     // Force fresh query - no prepared statement caching
-    const result = await pool.query('SELECT * FROM providers ORDER BY provider_id');
+    const result = await pool.query('SELECT * FROM providers ORDER BY id');
     
     const responseTime = Date.now() - startTime;
     console.log(`Found ${result.rows.length} providers in ${responseTime}ms`);
@@ -56,7 +58,7 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM providers WHERE provider_id = $1', [req.params.id]);
+    const result = await pool.query('SELECT * FROM providers WHERE id = $1', [req.params.id]);
     res.json(result.rows[0] || {});
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -65,9 +67,11 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { provider_name, provider_city } = req.body;
-    await pool.query('UPDATE providers SET provider_name = $1, provider_city = $2 WHERE provider_id = $3',
-      [provider_name, provider_city, req.params.id]);
+    const { name, city } = req.body;
+    await pool.query(
+      'UPDATE providers SET name = $1, city = $2 WHERE id = $3',
+      [name, city, req.params.id]
+    );
     res.json({ message: 'Provider updated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -76,7 +80,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM providers WHERE provider_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM providers WHERE id = $1', [req.params.id]);
     res.json({ message: 'Provider deleted' });
   } catch (error) {
     res.status(500).json({ error: error.message });

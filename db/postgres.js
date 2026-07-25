@@ -1,8 +1,11 @@
 const { Pool } = require('pg');
-const config = require('../app_config.json');
 
 const pool = new Pool({
-  ...config.rds,
+  host:     process.env.RDS_HOST,
+  port:     parseInt(process.env.RDS_PORT || '5432'),
+  database: process.env.RDS_DATABASE,
+  user:     process.env.RDS_USER,
+  password: process.env.RDS_PASSWORD,
   ssl: {
     rejectUnauthorized: false
   }

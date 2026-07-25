@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const config = require('./app_config.json');
+require('dotenv').config();
 const productRoutes = require('./routes/products');
 const productsDaxRoutes = require('./routes/products-dax');
 const providerRoutes = require('./routes/providers');
@@ -64,6 +64,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-app.listen(config.server.port, () => {
-  console.log(`Server running on port ${config.server.port}`);
+app.listen(process.env.PORT || 3001, () => {
+  console.log(`Server running on port ${process.env.PORT || 3001}`);
 });

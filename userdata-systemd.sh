@@ -46,36 +46,20 @@ psql -h $RDS_HOST -U $RDS_USER -d $RDS_DATABASE -f setup.sql || true
 # Unset password
 unset PGPASSWORD
 
-# Create config file
-cat > app_config.json <<EOF
-{
-  "dynamodb": {
-    "region": "${AWS_REGION}",
-    "productsTableName": "${DYNAMODB_PRODUCTS_TABLE}",
-    "ordersTableName": "${DYNAMODB_ORDERS_TABLE}"
-  },
-  "dax": {
-    "endpoint": "${DAX_ENDPOINT}"
-  },
-  "rds": {
-    "host": "${RDS_HOST}",
-    "port": ${RDS_PORT},
-    "database": "${RDS_DATABASE}",
-    "user": "${RDS_USER}",
-    "password": "${RDS_PASSWORD}"
-  },
-  "s3": {
-    "region": "${AWS_REGION}",
-    "bucketName": "${S3_BUCKET}"
-  },
-  "sqs": {
-    "region": "${AWS_REGION}",
-    "queueUrl": "${SQS_QUEUE_URL}"
-  },
-  "server": {
-    "port": 3000
-  }
-}
+# Create .env file
+cat > .env <<EOF
+PORT=3001
+AWS_REGION=${AWS_REGION}
+DYNAMODB_PRODUCTS_TABLE=${DYNAMODB_PRODUCTS_TABLE}
+DYNAMODB_ORDERS_TABLE=${DYNAMODB_ORDERS_TABLE}
+DAX_ENDPOINT=${DAX_ENDPOINT}
+RDS_HOST=${RDS_HOST}
+RDS_PORT=${RDS_PORT}
+RDS_DATABASE=${RDS_DATABASE}
+RDS_USER=${RDS_USER}
+RDS_PASSWORD=${RDS_PASSWORD}
+S3_BUCKET=${S3_BUCKET}
+SQS_QUEUE_URL=${SQS_QUEUE_URL}
 EOF
 
 # Install dependencies
@@ -94,6 +78,7 @@ After=network.target
 Type=simple
 User=ec2-user
 WorkingDirectory=/home/ec2-user/architecting-pro
+EnvironmentFile=/home/ec2-user/architecting-pro/.env
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10

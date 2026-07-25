@@ -131,12 +131,12 @@ async function loadProviders() {
         document.getElementById('providers-list').innerHTML = providers.map(p => `
             <div class="list-item">
                 <div>
-                    <h3>${p.provider_name}</h3>
-                    <p>${p.provider_city || ''}</p>
-                    <p style="font-size:12px;color:#999;">ID: ${p.provider_id}</p>
+                    <h3>${p.name}</h3>
+                    <p>${p.city || ''}</p>
+                    <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
                     <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime || 'N/A'}ms</p>
                 </div>
-                <button class="btn-delete" onclick="deleteProvider('${p.provider_id}')">Delete</button>
+                <button class="btn-delete" onclick="deleteProvider('${p.id}')">Delete</button>
             </div>
         `).join('');
     } catch (error) {
@@ -157,9 +157,8 @@ function hideProviderForm() {
 async function createProvider() {
     try {
         const data = {
-            provider_id: document.getElementById('provider_id').value,
-            provider_name: document.getElementById('provider_name').value,
-            provider_city: document.getElementById('provider_city').value
+            name: document.getElementById('provider_name').value,
+            city: document.getElementById('provider_city').value
         };
         
         console.log('Creating provider:', data);

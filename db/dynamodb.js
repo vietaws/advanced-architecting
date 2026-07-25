@@ -1,8 +1,7 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
-const config = require('../app_config.json');
 
-const client = new DynamoDBClient({ region: config.dynamodb.region });
+const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
 module.exports = { 
@@ -12,5 +11,5 @@ module.exports = {
   UpdateCommand, 
   DeleteCommand, 
   ScanCommand, 
-  productsTableName: config.dynamodb.productsTableName 
+  productsTableName: process.env.DYNAMODB_PRODUCTS_TABLE
 };

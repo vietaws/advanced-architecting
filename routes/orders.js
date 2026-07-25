@@ -1,7 +1,6 @@
 const express = require('express');
 const { sendOrder } = require('../db/sqs');
 const { docClient, ScanCommand } = require('../db/dynamodb');
-const config = require('../app_config.json');
 const router = express.Router();
 
 const PRODUCT_NAMES = ['Laptop', 'Mouse', 'Keyboard', 'Monitor', 'Headset', 'Webcam', 'Desk', 'Chair'];
@@ -36,7 +35,7 @@ router.post('/generate', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const result = await docClient.send(new ScanCommand({ 
-      TableName: config.dynamodb.ordersTableName 
+      TableName: process.env.DYNAMODB_ORDERS_TABLE
     }));
     res.json(result.Items || []);
   } catch (error) {

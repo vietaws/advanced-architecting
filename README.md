@@ -18,6 +18,20 @@
   - `AmazonS3FullAccess`
   - `AmazonSQSFullAccess`
 
+- VPC Setup:
+  - VPC name: `lab-vpc`
+  - CIDR: `10.1.0.0/16`
+  - public subnets (public-1 and public-2): `10.1.1.0/24` and `10.1.2.0/24`
+  - app subnets (app-1 and app-2): `10.1.3.0/24` and `10.1.4.0/24`
+  - db subnets (db-1 and db-2): `10.1.5.0/24` and `10.1.6.0/24`
+
+- Firewall setup
+  - Public Security group: `public-sg`
+  - ELB Security group: `elb-sg`
+  - APP Security group: `app-sg`
+  - DB Security group: `db-sg`
+  - NACL: allow all inbound/outbound
+
 ### 2. Database Setup
 
 **DynamoDB Tables:**
@@ -37,12 +51,53 @@ aws dynamodb create-table \
   --key-schema AttributeName=id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
   --region ap-southeast-1
+
+# Create DB Subnet group
+aws rds create-db-subnet-group \
+  --db-subnet-group-name demo-aurora-subnet-group \
+  --db-subnet-group-description "Architecting Pro subnet group" \
+  --subnet-ids subnet-xxxxxxxxx subnet-yyyyyyyyy
+
+# Create RDS Aurora 
+aws rds create-db-cluster \
+  --db-cluster-identifier demo-aurora-cluster \
+  --engine aurora-postgresql \
+  --engine-version 16.6 \
+  --master-username dbadmin \
+  --master-user-password YourPassword \
+  --db-subnet-group-name demo-aurora-subnet-group \
+  --vpc-security-group-ids sg-xxxxxxxxx \
+  --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=1 \
+  --database-name products_db \
+  --no-deletion-protection
+
+aws rds create-db-instance \
+    --db-instance-identifier demo-aurora-instance \
+    --db-cluster-identifier demo-aurora-cluster \
+    --db-instance-class db.serverless \
+    --engine aurora-postgresql \
+    --no-publicly-accessible
 ```
 
 **RDS PostgreSQL:**
 Connect to your RDS instance and run:
 ```bash
-psql -h db.viet.vn -U admin -d products_db -f setup.sql
+psql -h db.viet.vn -U dbadmin -d products_db
+
+\dt;
+
+CREATE TABLE IF NOT EXISTS providers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  city VARCHAR(100)
+);
+
+SELECT * FROM providers;
+
+INSERT INTO providers (name, city) VALUES
+  ('Acme Supplies', 'Ho Chi Minh City'),
+  ('Miracle Tech', 'Hanoi'),
+  ('One Training', 'Da Nang');
 ```
 
 **S3 Bucket:**
@@ -83,8 +138,7 @@ Create Auto Scaling Group:
 ### 6. EC2 Security Group
 
 Ensure your EC2 security group allows:
-- Port 3000 (from ALB or 0.0.0.0/0 for testing)
-- Port 22 (SSH for management)
+- Port 3001 (from ALB or 0.0.0.0/0 for testing)
 
 ### 7. Quick Deploy to EC2
 

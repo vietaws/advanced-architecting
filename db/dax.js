@@ -1,9 +1,8 @@
 const AmazonDaxClient = require('amazon-dax-client');
-const config = require('../app_config.json');
 
-const dax = new AmazonDaxClient({ endpoints: [config.dax.endpoint], region: config.dynamodb.region });
+const dax = new AmazonDaxClient({ endpoints: [process.env.DAX_ENDPOINT], region: process.env.AWS_REGION });
 
 module.exports = { 
   daxClient: dax,
-  productsTableName: config.dynamodb.productsTableName 
+  productsTableName: process.env.DYNAMODB_PRODUCTS_TABLE
 };
