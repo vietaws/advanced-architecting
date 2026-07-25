@@ -4,6 +4,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import http from 'http';
+import logger from './logger.js';
 import productRoutes from './routes/products.js';
 import providerRoutes from './routes/providers.js';
 import stressRoutes from './routes/stress.js';
@@ -70,11 +71,11 @@ app.get('/instance-id', async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  logger.error({ err, url: req.url, method: req.method }, 'Unhandled error');
   res.status(500).json({ error: err.message });
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info({ port: PORT, env: process.env.NODE_ENV || 'production' }, 'Server started');
 });

@@ -1,6 +1,7 @@
 import express from 'express';
 import { sendOrder } from '../db/sqs.js';
 import { docClient, ScanCommand } from '../db/dynamodb.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 
@@ -25,10 +26,16 @@ router.post('/generate', async (req, res) => {
       const order = generateOrder();
       await sendOrder(order);
       orders.push(order);
+      logger.info(
+        { action: 'order.sent', order_id: order.id, product: order.product_name, qty: order.qty, customer_id: order.customer_id },
+        'Order sent to SQS'
+      );
     }
+
+    logger.info({ action: 'order.batch', count: orders.length }, 'Order batch sent to SQS');
     res.json({ message: '10 orders sent to SQS', count: orders.length });
   } catch (error) {
-    console.error('Order generation error:', error);
+    logger.error({ action: 'order.sent', error: error.message }, 'Failed to send order to SQS');
     res.status(500).json({ error: error.message });
   }
 });
@@ -40,7 +47,7 @@ router.get('/', async (req, res) => {
     }));
     res.json(result.Items || []);
   } catch (error) {
-    console.error('Order fetch error:', error);
+    logger.error({ action: 'order.list', error: error.message }, 'Failed to fetch orders');
     res.status(500).json({ error: error.message });
   }
 });

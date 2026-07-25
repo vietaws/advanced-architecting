@@ -10,6 +10,7 @@ import {
   productsTableName
 } from '../db/dynamodb.js';
 import { uploadImage, getImageUrl, deleteImage } from '../db/s3.js';
+import logger from '../logger.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -40,9 +41,12 @@ router.post('/', upload.single('image'), async (req, res) => {
     }));
 
     const image_url = image_key ? await getImageUrl(image_key) : '';
+
+    logger.info({ action: 'product.create', id, product_name, has_image: !!image_key }, 'Product created');
+
     res.json({ message: 'Product created', id, image_url });
   } catch (error) {
-    console.error('Product creation error:', error);
+    logger.error({ action: 'product.create', error: error.message }, 'Failed to create product');
     res.status(500).json({ error: error.message });
   }
 });
@@ -88,8 +92,12 @@ router.put('/:id', async (req, res) => {
       UpdateExpression: 'set product_name = :n, description = :d, price = :p, remaining_sku = :s',
       ExpressionAttributeValues: { ':n': product_name, ':d': description, ':p': price, ':s': remaining_sku }
     }));
+
+    logger.info({ action: 'product.update', id: req.params.id, product_name }, 'Product updated');
+
     res.json({ message: 'Product updated' });
   } catch (error) {
+    logger.error({ action: 'product.update', id: req.params.id, error: error.message }, 'Failed to update product');
     res.status(500).json({ error: error.message });
   }
 });
@@ -110,9 +118,11 @@ router.delete('/:id', async (req, res) => {
       Key: { id: req.params.id }
     }));
 
+    logger.info({ action: 'product.delete', id: req.params.id }, 'Product deleted');
+
     res.json({ message: 'Product deleted' });
   } catch (error) {
-    console.error('Product deletion error:', error);
+    logger.error({ action: 'product.delete', id: req.params.id, error: error.message }, 'Failed to delete product');
     res.status(500).json({ error: error.message });
   }
 });

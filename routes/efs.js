@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, extname } from 'path';
+import logger from '../logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,10 +18,8 @@ const upload = multer({ dest: '/tmp/' });
 async function ensureStorageDir() {
   try {
     await fs.access(EFS_MOUNT_POINT);
-    console.log('Using EFS mount point:', EFS_MOUNT_POINT);
     return EFS_MOUNT_POINT;
   } catch {
-    console.log('EFS not mounted, using fallback directory:', FALLBACK_DIR);
     if (!existsSync(FALLBACK_DIR)) {
       await fs.mkdir(FALLBACK_DIR, { recursive: true });
     }
@@ -47,15 +46,13 @@ router.get('/', async (req, res) => {
 
     res.json(imagesWithStats.sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate)));
   } catch (error) {
-    console.error('Error reading images:', error);
+    logger.error({ action: 'efs.list', error: error.message }, 'Failed to list EFS images');
     res.status(500).json({ error: error.message });
   }
 });
 
 router.post('/upload', upload.single('image'), async (req, res) => {
   try {
-    console.log('Upload request received:', req.file);
-
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -65,15 +62,17 @@ router.post('/upload', upload.single('image'), async (req, res) => {
     const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
     const destPath = join(storageDir, filename);
 
-    console.log('Moving file from', req.file.path, 'to', destPath);
-
     await fs.copyFile(req.file.path, destPath);
     await fs.unlink(req.file.path);
 
-    console.log('File uploaded successfully:', filename);
+    logger.info(
+      { action: 'efs.upload', filename, original: req.file.originalname, size: req.file.size, storage: storageDir },
+      'Image uploaded to EFS'
+    );
+
     res.json({ message: 'Image uploaded successfully', filename, url: `/efs/image/${filename}` });
   } catch (error) {
-    console.error('Error uploading image:', error);
+    logger.error({ action: 'efs.upload', original: req.file?.originalname, error: error.message }, 'Failed to upload image to EFS');
     if (req.file?.path) {
       try { await fs.unlink(req.file.path); } catch {}
     }
@@ -88,7 +87,7 @@ router.get('/image/:filename', async (req, res) => {
     await fs.access(filePath);
     res.sendFile(filePath);
   } catch (error) {
-    console.error('Error serving image:', error);
+    logger.error({ action: 'efs.serve', filename: req.params.filename, error: error.message }, 'Image not found');
     res.status(404).json({ error: 'Image not found' });
   }
 });
@@ -98,9 +97,12 @@ router.delete('/:filename', async (req, res) => {
     const storageDir = await ensureStorageDir();
     const filePath = join(storageDir, req.params.filename);
     await fs.unlink(filePath);
+
+    logger.info({ action: 'efs.delete', filename: req.params.filename }, 'Image deleted from EFS');
+
     res.json({ message: 'Image deleted successfully' });
   } catch (error) {
-    console.error('Error deleting image:', error);
+    logger.error({ action: 'efs.delete', filename: req.params.filename, error: error.message }, 'Failed to delete image from EFS');
     res.status(500).json({ error: error.message });
   }
 });
