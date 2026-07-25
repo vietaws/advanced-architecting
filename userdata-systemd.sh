@@ -4,7 +4,7 @@ set -e
 # Variables - UPDATE THESE
 EFS_ID="fs-0df1a5706ceb8608f"  # Your EFS File System ID
 MOUNT_POINT="/data/efs"
-AWS_REGION="us-east-1"
+AWS_REGION="ap-southeast-1"
 DYNAMODB_PRODUCTS_TABLE="products_table"
 DYNAMODB_ORDERS_TABLE="orders_table"
 DAX_ENDPOINT="daxs://dax-demo.wfcknw.dax-clusters.us-east-1.amazonaws.com"
@@ -33,12 +33,12 @@ mkdir -p $MOUNT_POINT
 
 echo "$EFS_ID.efs.$AWS_REGION.amazonaws.com:/ $MOUNT_POINT efs _netdev,tls,iam 0 0" >> /etc/fstab
 mount -a
-chmod 777 $MOUNT_POINT
+chmod 755 $MOUNT_POINT
 
 # Clone application from GitHub
 cd /home/ec2-user
-git clone https://github.com/vietaws/advanced-architecting.git
-cd advanced-architecting
+git clone -b appmod https://github.com/vietaws/architecting-pro.git
+cd architecting-pro
 
 # Run the SQL script
 psql -h $RDS_HOST -U $RDS_USER -d $RDS_DATABASE -f setup.sql || true
@@ -82,18 +82,18 @@ EOF
 npm install
 
 # Set ownership
-chown -R ec2-user:ec2-user /home/ec2-user/advanced-architecting
+chown -R ec2-user:ec2-user /home/ec2-user/architecting-pro
 
 # Create systemd service
 cat > /etc/systemd/system/demo-app.service <<'EOFS'
 [Unit]
-Description=Product Provider Application
+Description=AWS Architecting Pro Demo Application
 After=network.target
 
 [Service]
 Type=simple
 User=ec2-user
-WorkingDirectory=/home/ec2-user/advanced-architecting
+WorkingDirectory=/home/ec2-user/architecting-pro
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=10

@@ -28,7 +28,7 @@ aws dynamodb create-table \
   --attribute-definitions AttributeName=id,AttributeType=S \
   --key-schema AttributeName=id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
+  --region ap-southeast-1
 
 # Orders table
 aws dynamodb create-table \
@@ -36,7 +36,7 @@ aws dynamodb create-table \
   --attribute-definitions AttributeName=id,AttributeType=S \
   --key-schema AttributeName=id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
 **RDS PostgreSQL:**
