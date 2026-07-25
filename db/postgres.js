@@ -1,4 +1,6 @@
-const { Pool } = require('pg');
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const pool = new Pool({
   host:     process.env.RDS_HOST,
@@ -19,4 +21,4 @@ pool.on('connect', () => {
   console.log('Connected to PostgreSQL');
 });
 
-module.exports = pool;
+export default pool;

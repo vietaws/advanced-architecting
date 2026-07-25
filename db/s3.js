@@ -1,12 +1,13 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
 
-async function uploadImage(file, productId) {
+export async function uploadImage(file, productId) {
   try {
-    const key = `products/${productId}-${Date.now()}.${file.originalname.split('.').pop()}`;
-    
+    const ext = file.originalname.split('.').pop();
+    const key = `products/${productId}-${Date.now()}.${ext}`;
+
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.S3_BUCKET,
       Key: key,
@@ -21,7 +22,7 @@ async function uploadImage(file, productId) {
   }
 }
 
-async function getImageUrl(key) {
+export async function getImageUrl(key) {
   try {
     if (!key) return '';
     const command = new GetObjectCommand({
@@ -35,7 +36,7 @@ async function getImageUrl(key) {
   }
 }
 
-async function deleteImage(key) {
+export async function deleteImage(key) {
   try {
     if (!key) return;
     await s3Client.send(new DeleteObjectCommand({
@@ -46,5 +47,3 @@ async function deleteImage(key) {
     console.error('S3 delete error:', error);
   }
 }
-
-module.exports = { uploadImage, getImageUrl, deleteImage };

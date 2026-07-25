@@ -1,15 +1,23 @@
-const express = require('express');
-const multer = require('multer');
-const { docClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, ScanCommand, productsTableName } = require('../db/dynamodb');
-const { uploadImage, getImageUrl, deleteImage } = require('../db/s3');
-const router = express.Router();
+import express from 'express';
+import multer from 'multer';
+import {
+  docClient,
+  PutCommand,
+  GetCommand,
+  UpdateCommand,
+  DeleteCommand,
+  ScanCommand,
+  productsTableName
+} from '../db/dynamodb.js';
+import { uploadImage, getImageUrl, deleteImage } from '../db/s3.js';
 
+const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/', upload.single('image'), async (req, res) => {
   try {
     const { id, product_name, description, price, remaining_sku } = req.body;
-    
+
     if (!id || !product_name) {
       return res.status(400).json({ error: 'id and product_name are required' });
     }
@@ -21,16 +29,16 @@ router.post('/', upload.single('image'), async (req, res) => {
 
     await docClient.send(new PutCommand({
       TableName: productsTableName,
-      Item: { 
-        id, 
-        product_name, 
-        description: description || '', 
-        image_key, 
-        price: price ? parseFloat(price) : 0, 
-        remaining_sku: remaining_sku ? parseInt(remaining_sku) : 0 
+      Item: {
+        id,
+        product_name,
+        description: description || '',
+        image_key,
+        price: price ? parseFloat(price) : 0,
+        remaining_sku: remaining_sku ? parseInt(remaining_sku) : 0
       }
     }));
-    
+
     const image_url = image_key ? await getImageUrl(image_key) : '';
     res.json({ message: 'Product created', id, image_url });
   } catch (error) {
@@ -44,11 +52,11 @@ router.get('/', async (req, res) => {
     const startTime = Date.now();
     const result = await docClient.send(new ScanCommand({ TableName: productsTableName }));
     const responseTime = Date.now() - startTime;
-    
+
     const products = await Promise.all(result.Items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key),
-      responseTime: responseTime
+      responseTime
     })));
     res.json(products);
   } catch (error) {
@@ -73,7 +81,7 @@ router.get('/:id', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { product_name, description, image_url, price, remaining_sku } = req.body;
+    const { product_name, description, price, remaining_sku } = req.body;
     await docClient.send(new UpdateCommand({
       TableName: productsTableName,
       Key: { id: req.params.id },
@@ -88,18 +96,15 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    // Get product to retrieve image_key
     const result = await docClient.send(new GetCommand({
       TableName: productsTableName,
       Key: { id: req.params.id }
     }));
 
-    // Delete image from S3 if exists
-    if (result.Item && result.Item.image_key) {
+    if (result.Item?.image_key) {
       await deleteImage(result.Item.image_key);
     }
 
-    // Delete product from DynamoDB
     await docClient.send(new DeleteCommand({
       TableName: productsTableName,
       Key: { id: req.params.id }
@@ -112,4 +117,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,6 +1,7 @@
-const express = require('express');
-const { sendOrder } = require('../db/sqs');
-const { docClient, ScanCommand } = require('../db/dynamodb');
+import express from 'express';
+import { sendOrder } from '../db/sqs.js';
+import { docClient, ScanCommand } from '../db/dynamodb.js';
+
 const router = express.Router();
 
 const PRODUCT_NAMES = ['Laptop', 'Mouse', 'Keyboard', 'Monitor', 'Headset', 'Webcam', 'Desk', 'Chair'];
@@ -34,7 +35,7 @@ router.post('/generate', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const result = await docClient.send(new ScanCommand({ 
+    const result = await docClient.send(new ScanCommand({
       TableName: process.env.DYNAMODB_ORDERS_TABLE
     }));
     res.json(result.Items || []);
@@ -44,4 +45,4 @@ router.get('/', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

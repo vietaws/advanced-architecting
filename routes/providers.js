@@ -1,22 +1,23 @@
-const express = require('express');
-const pool = require('../db/postgres');
+import express from 'express';
+import pool from '../db/postgres.js';
+
 const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
     const { name, city } = req.body;
-    
+
     if (!name) {
       return res.status(400).json({ error: 'name is required' });
     }
 
     console.log('Creating provider:', { name, city });
-    
+
     const result = await pool.query(
       'INSERT INTO providers (name, city) VALUES ($1, $2) RETURNING id',
       [name, city || null]
     );
-    
+
     res.json({ message: 'Provider created', id: result.rows[0].id });
   } catch (error) {
     console.error('Provider creation error:', error);
@@ -28,27 +29,20 @@ router.get('/', async (req, res) => {
   try {
     console.log('Fetching all providers...');
     const startTime = Date.now();
-    
-    // Force fresh query - no prepared statement caching
+
     const result = await pool.query('SELECT * FROM providers ORDER BY id');
-    
+
     const responseTime = Date.now() - startTime;
     console.log(`Found ${result.rows.length} providers in ${responseTime}ms`);
-    
-    const providers = result.rows.map(row => ({
-      ...row,
-      responseTime: responseTime
-    }));
-    
-    console.log('Sample provider with responseTime:', providers[0]);
-    
-    // Disable HTTP caching
+
+    const providers = result.rows.map(row => ({ ...row, responseTime }));
+
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, private',
       'Pragma': 'no-cache',
       'Expires': '0'
     });
-    
+
     res.json(providers);
   } catch (error) {
     console.error('Provider fetch error:', error);
@@ -87,4 +81,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

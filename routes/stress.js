@@ -1,20 +1,24 @@
-const express = require('express');
-const { Worker } = require('worker_threads');
-const os = require('os');
-const http = require('http');
-const { EC2Client, DescribeInstancesCommand } = require('@aws-sdk/client-ec2');
+import express from 'express';
+import { Worker } from 'worker_threads';
+import os from 'os';
+import http from 'http';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { EC2Client, DescribeInstancesCommand } from '@aws-sdk/client-ec2';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const router = express.Router();
 
 let workers = [];
-let cpuUsage = { user: 0, system: 0 };
 let cachedInstanceId = null;
 
 const ec2Client = new EC2Client({ region: process.env.AWS_REGION || 'us-east-1' });
 
-// Get instance ID from metadata service
 async function getInstanceId() {
   if (cachedInstanceId) return cachedInstanceId;
-  
+
   try {
     const token = await new Promise((resolve, reject) => {
       const req = http.request({
@@ -52,56 +56,53 @@ async function getInstanceId() {
   }
 }
 
-// Get CPU usage
 function getCPUUsage() {
   const cpus = os.cpus();
   let totalIdle = 0, totalTick = 0;
-  
+
   cpus.forEach(cpu => {
-    for (let type in cpu.times) {
+    for (const type in cpu.times) {
       totalTick += cpu.times[type];
     }
     totalIdle += cpu.times.idle;
   });
-  
+
   const idle = totalIdle / cpus.length;
   const total = totalTick / cpus.length;
   const usage = 100 - ~~(100 * idle / total);
-  
+
   return {
     usage: Math.max(0, Math.min(100, usage)),
     cores: cpus.length
   };
 }
 
-// Start stress test
 router.post('/start', (req, res) => {
   const numWorkers = req.body.workers || os.cpus().length;
-  
+
   if (workers.length > 0) {
     return res.json({ message: 'Stress test already running', workers: workers.length });
   }
-  
+
   for (let i = 0; i < numWorkers; i++) {
-    const worker = new Worker('./stress-worker.js');
+    // Use absolute path — required when worker_threads is used in ESM context
+    const worker = new Worker(join(__dirname, '../stress-worker.js'));
     workers.push(worker);
   }
-  
+
   res.json({ message: 'Stress test started', workers: workers.length });
 });
 
-// Stop stress test
 router.post('/stop', (req, res) => {
   workers.forEach(worker => {
     worker.postMessage('stop');
     worker.terminate();
   });
-  
+
   workers = [];
   res.json({ message: 'Stress test stopped' });
 });
 
-// Get status
 router.get('/status', async (req, res) => {
   const cpu = getCPUUsage();
   const instanceId = await getInstanceId();
@@ -110,23 +111,16 @@ router.get('/status', async (req, res) => {
     workers: workers.length,
     cpu: cpu.usage,
     cores: cpu.cores,
-    instanceId: instanceId
+    instanceId
   });
 });
 
-// Discover instances with tag project=miracle
 router.get('/instances', async (req, res) => {
   try {
     const command = new DescribeInstancesCommand({
       Filters: [
-        {
-          Name: 'tag:project',
-          Values: ['miracle']
-        },
-        {
-          Name: 'instance-state-name',
-          Values: ['running']
-        }
+        { Name: 'tag:project', Values: ['miracle'] },
+        { Name: 'instance-state-name', Values: ['running'] }
       ]
     });
 
@@ -151,4 +145,4 @@ router.get('/instances', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

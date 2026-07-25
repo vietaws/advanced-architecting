@@ -1,7 +1,7 @@
-const http = require('http');
+import http from 'http';
 
 async function getInstanceId() {
-  // Get token
+  // Get IMDSv2 token
   const token = await new Promise((resolve, reject) => {
     const req = http.request({
       host: '169.254.169.254',
@@ -31,7 +31,6 @@ async function getInstanceId() {
   });
 }
 
-// Usage
 getInstanceId()
   .then(instanceId => console.log('Instance ID:', instanceId))
   .catch(err => console.error('Error:', err));

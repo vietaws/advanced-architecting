@@ -107,7 +107,7 @@ aws s3 mb s3://demo_product_images_bucket
 
 ### 3. Application Deployment
 
-Update `app_config.json` with your actual credentials and endpoints.
+Update `userdata.sh` with your actual credentials and endpoints.
 
 Install dependencies and start:
 ```bash

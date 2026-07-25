@@ -1,6 +1,5 @@
-const { parentPort } = require('worker_threads');
+import { parentPort } from 'worker_threads';
 
-// CPU-intensive task
 function stress() {
   const start = Date.now();
   while (Date.now() - start < 1000) {
@@ -12,7 +11,6 @@ function stress() {
   }
 }
 
-// Run stress continuously
 let running = true;
 
 parentPort.on('message', (msg) => {
