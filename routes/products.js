@@ -30,6 +30,7 @@ router.post('/', upload.single('image'), async (req, res) => {
       image_key = await uploadImage(req.file, id);
     }
 
+    const startTime = Date.now();
     await docClient.send(new PutCommand({
       TableName: productsTableName,
       Item: {
@@ -41,10 +42,11 @@ router.post('/', upload.single('image'), async (req, res) => {
         remaining_sku: remaining_sku ? parseInt(remaining_sku) : 0
       }
     }));
+    const latency_ms = Date.now() - startTime;
 
     const image_url = image_key ? await getImageUrl(image_key) : '';
 
-    logger.info({ action: 'product.create', id, product_name, has_image: !!image_key }, 'Product created');
+    logger.info({ action: 'product.create', source: 'dynamodb', id, product_name, has_image: !!image_key, latency_ms }, 'Product created');
 
     res.json({ message: 'Product created', id, image_url });
   } catch (error) {
@@ -97,14 +99,16 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { product_name, description, price, remaining_sku } = req.body;
+    const startTime = Date.now();
     await docClient.send(new UpdateCommand({
       TableName: productsTableName,
       Key: { id: req.params.id },
       UpdateExpression: 'set product_name = :n, description = :d, price = :p, remaining_sku = :s',
       ExpressionAttributeValues: { ':n': product_name, ':d': description, ':p': price, ':s': remaining_sku }
     }));
+    const latency_ms = Date.now() - startTime;
 
-    logger.info({ action: 'product.update', id: req.params.id, product_name }, 'Product updated');
+    logger.info({ action: 'product.update', source: 'dynamodb', id: req.params.id, product_name, latency_ms }, 'Product updated');
 
     res.json({ message: 'Product updated' });
   } catch (error) {
@@ -124,12 +128,14 @@ router.delete('/:id', async (req, res) => {
       await deleteImage(result.Item.image_key);
     }
 
+    const startTime = Date.now();
     await docClient.send(new DeleteCommand({
       TableName: productsTableName,
       Key: { id: req.params.id }
     }));
+    const latency_ms = Date.now() - startTime;
 
-    logger.info({ action: 'product.delete', id: req.params.id }, 'Product deleted');
+    logger.info({ action: 'product.delete', source: 'dynamodb', id: req.params.id, latency_ms }, 'Product deleted');
 
     res.json({ message: 'Product deleted' });
   } catch (error) {
