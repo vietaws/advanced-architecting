@@ -2,6 +2,8 @@
 
 This folder contains all scripts to provision the EKS cluster and deploy microservices from scratch.
 
+> For the full end-to-end walkthrough including AWS resource creation, service architecture, and verification — see **[IMPLEMENTATION.md](../IMPLEMENTATION.md)**.
+
 ---
 
 ## Overview
@@ -70,8 +72,7 @@ vi infra/01-cluster.sh   # set SUBNET_APP_1/2 and SUBNET_PUB_1/2
 
 Creates:
 - EKS cluster `demo-cluster` (K8s 1.30, ap-southeast-1)
-- Node group `app-nodes`: **m8g.large Graviton4** Spot (2–6 nodes)
-  - Fallback: m7g.large, m6g.large (all Graviton, ARM64)
+- Node group `app-nodes`: **t4g.small Graviton2** Spot (1–2 nodes), fallback t4g.medium
 - Public/private subnets tagged for ALB
 - IAM OIDC provider for IRSA
 
@@ -134,11 +135,11 @@ export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/123456789012/orde
 ```
 
 Applies:
-- `k8s/namespace.yaml` — namespace `app`
-- `k8s/efs-pvc.yaml` — EFS StorageClass + PV + PVC (shared by provider-service)
+- `k8s/01-namespace.yaml` — namespace `app`
+- `k8s/02-efs-pvc.yaml` — EFS StorageClass + PV + PVC (shared by provider-service)
 - K8s Secrets for all 3 services
-- All manifests: ServiceAccounts, Deployments, Services, HPAs
-- `k8s/ingress.yaml` — ALB with path-based routing
+- All manifests: ServiceAccounts, Deployments, Services
+- `k8s/06-ingress.yaml` — ALB with path-based routing
 
 ---
 
@@ -146,14 +147,14 @@ Applies:
 
 | Property | Value | Rationale |
 |---|---|---|
-| Instance family | m8g / m7g / m6g | Graviton4/3/2 — ARM64, best price/performance |
-| Instance size | large (2 vCPU / 8 GB) | Fits all 3 services (2 replicas each, 100m–500m CPU / 128–512 MB) |
-| Capacity type | Spot | ~70% cost saving; safe for stateless containers |
-| Min / Max | 2 / 6 | Min=2 ensures HA across AZs; HPA scales to 10 pods each |
+| Instance family | t4g (Graviton2, burstable) | Demo-only; no sustained load — burst credits sufficient |
+| Instance size | small (2 vCPU / 2 GB) | 6 pods × 64Mi + ~300Mi system ≈ 700Mi — fits comfortably |
+| Capacity type | Spot | ~70% cost saving; fine for stateless demo pods |
+| Min / Max | 1 / 2 | Single node at idle; second node available if first is interrupted |
 | Node volume | 20 GB gp3 | Sufficient for container images + OS |
 | Subnets | Private (app-1, app-2) | Nodes never have public IPs; ALB sits in public subnets |
 
-**Why not t4g?** The `t` family uses burstable CPU which is unpredictable under load. `m8g` provides consistent baseline CPU — better for demo latency comparisons (DynamoDB vs DAX).
+> **Scaling up**: For production or load-testing, change `INSTANCE_TYPES` in `01-cluster.sh` to `m8g.large,m7g.large,m6g.large` (consistent baseline CPU, 8 GB RAM) and set `MIN_SIZE=2`, `MAX_SIZE=6`.
 
 ---
 
@@ -209,7 +210,7 @@ curl http://$ALB/orders/health/status
 ```bash
 # Delete K8s resources
 kubectl delete namespace app
-kubectl delete -f k8s/efs-pvc.yaml
+kubectl delete -f k8s/02-efs-pvc.yaml
 
 # Delete cluster (also removes node group and OIDC provider)
 eksctl delete cluster --name demo-cluster --region ap-southeast-1

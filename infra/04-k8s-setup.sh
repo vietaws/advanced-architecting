@@ -65,7 +65,7 @@ echo "============================================================"
 # ── Step 1: Namespace ─────────────────────────────────────────────────────────
 echo ""
 echo "[1/5] Creating namespace..."
-kubectl apply -f "${REPO_ROOT}/k8s/namespace.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/01-namespace.yaml"
 echo "[1/5] ✓ Namespace '${NAMESPACE}' ready"
 
 # ── Step 2: Patch service account YAMLs with correct role ARNs ───────────────
@@ -75,18 +75,18 @@ echo "[2/5] Patching ServiceAccount role ARNs..."
 # product-service-sa
 sed -i.bak \
   "s|arn:aws:iam::AWS_ACCOUNT_ID:role/eks-product-service-role|arn:aws:iam::${AWS_ACCOUNT_ID}:role/eks-product-service-role|g" \
-  "${REPO_ROOT}/k8s/product-service/serviceaccount.yaml"
+  "${REPO_ROOT}/k8s/product-service/03-serviceaccount.yaml"
 
 # order-service-sa
 sed -i.bak \
   "s|arn:aws:iam::AWS_ACCOUNT_ID:role/eks-order-service-role|arn:aws:iam::${AWS_ACCOUNT_ID}:role/eks-order-service-role|g" \
-  "${REPO_ROOT}/k8s/order-service/serviceaccount.yaml"
+  "${REPO_ROOT}/k8s/order-service/03-serviceaccount.yaml"
 
 # Patch deployment images to use correct account ID
 for SVC in product-service provider-service order-service; do
   sed -i.bak \
     "s|AWS_ACCOUNT_ID\.dkr\.ecr|${AWS_ACCOUNT_ID}.dkr.ecr|g" \
-    "${REPO_ROOT}/k8s/${SVC}/deployment.yaml"
+    "${REPO_ROOT}/k8s/${SVC}/05-deployment.yaml"
 done
 
 # Clean up .bak files
@@ -101,7 +101,7 @@ echo "[3/5] Creating EFS StorageClass + PV + PVC..."
 # Render efs-pvc.yaml with real filesystem ID
 EFS_PVC_RENDERED="$(mktemp).yaml"
 sed "s|EFS_FILE_SYSTEM_ID|${EFS_FILE_SYSTEM_ID}|g" \
-  "${REPO_ROOT}/k8s/efs-pvc.yaml" > "${EFS_PVC_RENDERED}"
+  "${REPO_ROOT}/k8s/02-efs-pvc.yaml" > "${EFS_PVC_RENDERED}"
 
 kubectl apply -f "${EFS_PVC_RENDERED}"
 rm -f "${EFS_PVC_RENDERED}"
@@ -153,9 +153,9 @@ echo ""
 echo "[5/5] Applying Kubernetes manifests..."
 
 # ServiceAccounts first (IRSA annotations must exist before pods start)
-kubectl apply -f "${REPO_ROOT}/k8s/product-service/serviceaccount.yaml"
-kubectl apply -f "${REPO_ROOT}/k8s/provider-service/serviceaccount.yaml"
-kubectl apply -f "${REPO_ROOT}/k8s/order-service/serviceaccount.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/product-service/03-serviceaccount.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/provider-service/03-serviceaccount.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/order-service/03-serviceaccount.yaml"
 
 # Services, Deployments, HPAs
 for SVC in product-service provider-service order-service; do
@@ -164,7 +164,7 @@ for SVC in product-service provider-service order-service; do
 done
 
 # Ingress (ALB)
-kubectl apply -f "${REPO_ROOT}/k8s/ingress.yaml"
+kubectl apply -f "${REPO_ROOT}/k8s/06-ingress.yaml"
 
 echo "[5/5] ✓ All manifests applied"
 

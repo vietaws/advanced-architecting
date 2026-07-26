@@ -3,31 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AWS Architecting Pro Demo - Viet Tran</title>
+    <title>AWS Architecting Pro Demo</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>AWS Architecting Pro Demo</h1>
-            <!-- <span id="instance-id" style="color:orange;font-size:14px;margin-left:auto;">Loading...</span> -->
-             <span id="version-id" style="color:orange;font-size:14px;margin-left:auto;">hello@viet.vn</span>
+            <h1>AWS Containerized with Amazon EKS</h1>
+            <span id="version-id" style="color:orange;font-size:14px;margin-left:auto;">hello@viet.vn</span>
             <nav>
                 <button class="tab active" data-tab="home">🏠 Home</button>
                 <button class="tab" data-tab="products">Products_DynamoDB</button>
                 <button class="tab" data-tab="products-dax">Products_DAX</button>
                 <button class="tab" data-tab="orders">Orders_SQS</button>
                 <button class="tab" data-tab="providers">Providers_RDS</button>
-                <button class="tab" data-tab="stress">Stress Test</button>
             </nav>
         </header>
 
+        <!-- ── Home: Service Status Dashboard ─────────────────────────────── -->
         <main id="home" class="tab-content active">
             <div class="dashboard-header">
                 <h2>Service Status</h2>
                 <button class="btn-primary" onclick="loadDashboard()">↻ Refresh</button>
             </div>
             <div id="dashboard-grid" class="dashboard-grid">
+
                 <div class="status-card" id="status-dynamodb">
                     <div class="status-icon">⚡</div>
                     <div class="status-info">
@@ -35,13 +35,7 @@
                         <div class="status-badge checking">Checking...</div>
                     </div>
                 </div>
-                <div class="status-card" id="status-s3">
-                    <div class="status-icon">🪣</div>
-                    <div class="status-info">
-                        <div class="status-name">S3 Bucket</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
+
                 <div class="status-card" id="status-dax">
                     <div class="status-icon">🚀</div>
                     <div class="status-info">
@@ -49,13 +43,15 @@
                         <div class="status-badge checking">Checking...</div>
                     </div>
                 </div>
-                <div class="status-card" id="status-sqs">
-                    <div class="status-icon">📨</div>
+
+                <div class="status-card" id="status-s3">
+                    <div class="status-icon">🪣</div>
                     <div class="status-info">
-                        <div class="status-name">SQS</div>
+                        <div class="status-name">S3 Bucket</div>
                         <div class="status-badge checking">Checking...</div>
                     </div>
                 </div>
+
                 <div class="status-card" id="status-aurora">
                     <div class="status-icon">🗄️</div>
                     <div class="status-info">
@@ -63,9 +59,7 @@
                         <div class="status-badge checking">Checking...</div>
                     </div>
                 </div>
-                
-                
-                
+
                 <div class="status-card" id="status-efs">
                     <div class="status-icon">📁</div>
                     <div class="status-info">
@@ -74,14 +68,23 @@
                     </div>
                 </div>
 
+                <div class="status-card" id="status-sqs">
+                    <div class="status-icon">📨</div>
+                    <div class="status-info">
+                        <div class="status-name">SQS</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+
             </div>
         </main>
 
+        <!-- ── Products (DynamoDB) ────────────────────────────────────────── -->
         <main id="products" class="tab-content">
             <div class="actions">
                 <button class="btn-primary" onclick="showProductForm()">+ Add Product</button>
             </div>
-            
+
             <div id="product-form" class="form-card hidden">
                 <h3>Add Product</h3>
                 <input type="text" id="product_name" placeholder="Product Name" required>
@@ -98,15 +101,17 @@
             <div id="products-list" class="grid"></div>
         </main>
 
+        <!-- ── Products (DAX) ─────────────────────────────────────────────── -->
         <main id="products-dax" class="tab-content">
             <div id="products-dax-list" class="grid"></div>
         </main>
 
+        <!-- ── Providers (RDS) ───────────────────────────────────────────── -->
         <main id="providers" class="tab-content">
             <div class="actions">
                 <button class="btn-primary" onclick="showProviderForm()">+ Add Provider</button>
             </div>
-            
+
             <div id="provider-form" class="form-card hidden">
                 <h3>Add Provider</h3>
                 <input type="text" id="provider_name" placeholder="Provider Name" required>
@@ -121,34 +126,7 @@
             <div id="providers-list" class="grid"></div>
         </main>
 
-        <main id="stress" class="tab-content">
-            <div class="stress-container">
-                <h2>CPU Stress Test - Current Instance</h2>
-                <div class="stress-info">
-                    <p>Control stress test for this EC2 instance. CPU usage updates every 3 seconds.</p>
-                </div>
-                <div id="instances-table">
-                    <table class="stress-table">
-                        <thead>
-                            <tr>
-                                <th>Instance ID</th>
-                                <th>Status</th>
-                                <th>Workers</th>
-                                <th>CPU Usage</th>
-                                <th>CPU Cores</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="instances-tbody">
-                            <tr>
-                                <td colspan="6" style="text-align:center;">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </main>
-
+        <!-- ── Orders (SQS + DynamoDB) ───────────────────────────────────── -->
         <main id="orders" class="tab-content">
             <div class="actions">
                 <button class="btn-primary" onclick="generateOrders()">📦 Generate 10 Orders to SQS</button>
@@ -162,8 +140,11 @@
             </div>
             <div id="orders-list" style="margin-top:20px;"></div>
         </main>
+
     </div>
 
+    <!-- config.js MUST be loaded before app.js — it sets window.APP_CONFIG.API_URL -->
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

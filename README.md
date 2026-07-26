@@ -3,7 +3,9 @@
 ## Overview
 
 This repository demonstrates a **monolith-to-microservices migration** for an AWS Solutions Architect Pro lab.  
-The original monolith (Node.js on EC2) is preserved in the repo root. The new architecture runs as independent microservices on **Amazon EKS**, fronted by an **AWS ALB** and a **CloudFront + S3** static frontend.
+The application runs as independent microservices on **Amazon EKS**, fronted by an **AWS ALB** and a **CloudFront + S3** static frontend.
+
+> **Full implementation guide**: [IMPLEMENTATION.md](IMPLEMENTATION.md) — architecture decisions, phase-by-phase setup, file references, verification, and teardown.
 
 ---
 
@@ -45,21 +47,22 @@ architecting-pro/
 │       ├── product-service-policy.json
 │       ├── order-service-policy.json
 │       └── alb-controller-policy.json
+├── frontend/                   # ← Static frontend (deploy to S3 + CloudFront)
+│   ├── config.js               # ONLY file to edit — set API_URL to ALB endpoint
+│   ├── index.html              # SPA shell — loads config.js then app.js
+│   ├── app.js                  # All UI logic, reads API_URL from config.js
+│   └── style.css               # Styles
 ├── services/
 │   ├── product-service/        # CRUD products via DynamoDB + DAX + S3
 │   ├── provider-service/       # CRUD providers via RDS Aurora + EFS; also serves /efs routes
 │   └── order-service/          # Order generation + SQS publish + DynamoDB read
 ├── k8s/
-│   ├── namespace.yaml
-│   ├── efs-pvc.yaml
-│   ├── ingress.yaml
+│   ├── 01-namespace.yaml
+│   ├── 02-efs-pvc.yaml
+│   ├── 06-ingress.yaml
 │   ├── product-service/
 │   ├── provider-service/
 │   └── order-service/
-├── public/                     # Legacy frontend (monolith)
-├── routes/                     # Legacy route handlers (monolith)
-├── db/                         # Legacy DB clients (monolith)
-├── server.js                   # Legacy monolith entry point
 └── README.md
 ```
 
@@ -94,6 +97,63 @@ architecting-pro/
 
 ---
 
+## Frontend Deployment (S3 + CloudFront)
+
+The `frontend/` folder contains the complete static SPA. The only file you need to edit is `config.js`.
+
+### 1. Configure the API endpoint
+
+Edit `frontend/config.js`:
+
+```js
+window.APP_CONFIG = {
+  API_URL: 'https://api.yourdomain.com',  // ← your ALB DNS or custom domain
+};
+```
+
+### 2. Create S3 bucket
+
+```bash
+FRONTEND_BUCKET="demo-frontend-$(openssl rand -hex 4)"
+
+aws s3api create-bucket \
+  --bucket "$FRONTEND_BUCKET" \
+  --region ap-southeast-1 \
+  --create-bucket-configuration LocationConstraint=ap-southeast-1
+
+# Block all public access (CloudFront OAC will serve the files)
+aws s3api put-public-access-block \
+  --bucket "$FRONTEND_BUCKET" \
+  --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+```
+
+### 3. Upload files
+
+```bash
+aws s3 sync frontend/ s3://$FRONTEND_BUCKET --delete
+```
+
+### 4. Create CloudFront distribution
+
+```bash
+aws cloudfront create-distribution \
+  --origin-domain-name "${FRONTEND_BUCKET}.s3.ap-southeast-1.amazonaws.com" \
+  --default-root-object index.html
+```
+
+> Use Origin Access Control (OAC) to allow CloudFront to access the private S3 bucket without making it public.
+
+### 5. Invalidate cache after each deploy
+
+```bash
+aws cloudfront create-invalidation \
+  --distribution-id YOUR_DISTRIBUTION_ID \
+  --paths "/*"
+```
+
+---
+
 ## Infrastructure Setup
 
 > **Full setup guide**: [`infra/README.md`](infra/README.md)
@@ -123,270 +183,8 @@ export AWS_ACCOUNT_ID="123456789012"
 | app-1, app-2 | `10.1.3.0/24`, `10.1.4.0/24` |
 | db-1, db-2 | `10.1.5.0/24`, `10.1.6.0/24` |
 
----
 
-### 1. AWS Resources
-
-#### DynamoDB Tables
-```bash
-# Products table
-aws dynamodb create-table \
-  --table-name products_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region ap-southeast-1
-
-# Orders table
-aws dynamodb create-table \
-  --table-name orders_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region ap-southeast-1
-```
-
-#### S3 Bucket (product images)
-```bash
-# Linux / macOS
-aws s3api create-bucket \
-  --bucket "demo-product-images-$(openssl rand -hex 4)" \
-  --region ap-southeast-1 \
-  --create-bucket-configuration LocationConstraint=ap-southeast-1
-```
-
-#### SQS Queue
-```bash
-aws sqs create-queue \
-  --queue-name orders \
-  --attributes '{"VisibilityTimeout":"180"}' \
-  --region ap-southeast-1
-```
-
-#### DAX Cluster
-```bash
-# Create DAX subnet group first
-aws dax create-subnet-group \
-  --subnet-group-name dax-subnet-group \
-  --subnet-ids subnet-app1 subnet-app2
-
-# Create DAX cluster
-aws dax create-cluster \
-  --cluster-name dax-demo \
-  --node-type dax.r4.large \
-  --replication-factor 1 \
-  --iam-role-arn arn:aws:iam::AWS_ACCOUNT_ID:role/DAXRole \
-  --subnet-group dax-subnet-group \
-  --region ap-southeast-1
-```
-
-#### RDS Aurora PostgreSQL
-```bash
-aws rds create-db-subnet-group \
-  --db-subnet-group-name demo-aurora-subnet-group \
-  --db-subnet-group-description "Architecting Pro subnet group" \
-  --subnet-ids subnet-db1 subnet-db2
-
-aws rds create-db-cluster \
-  --db-cluster-identifier demo-aurora-cluster \
-  --engine aurora-postgresql \
-  --engine-version 16.2 \
-  --master-username dbadmin \
-  --master-user-password DemoPassword \
-  --db-subnet-group-name demo-aurora-subnet-group \
-  --vpc-security-group-ids sg-xxx \
-  --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=1 \
-  --database-name providers_db \
-  --no-deletion-protection \
-  --region ap-southeast-1
-
-aws rds create-db-instance \
-  --db-instance-identifier demo-aurora-instance \
-  --db-cluster-identifier demo-aurora-cluster \
-  --db-instance-class db.serverless \
-  --engine aurora-postgresql \
-  --no-publicly-accessible \
-  --region ap-southeast-1
-```
-
-#### Database Schema
-```sql
-CREATE TABLE IF NOT EXISTS providers (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  city VARCHAR(100),
-  image_filename VARCHAR(255)
-);
-
-INSERT INTO providers (name, city) VALUES
-  ('Viet AWS', 'Ho Chi Minh City'),
-  ('Miracle Tech', 'Hanoi'),
-  ('One Training', 'Da Nang');
-```
-
----
-
-### 2. IRSA Setup
-
-Replace `AWS_ACCOUNT_ID`, `OIDC_ID`, and `AWS_REGION` with your values.
-
-#### product-service IAM Policy
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "DynamoDBProducts",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:Scan",
-        "dynamodb:PutItem",
-        "dynamodb:GetItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem"
-      ],
-      "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/products_table"
-    },
-    {
-      "Sid": "DAXProducts",
-      "Effect": "Allow",
-      "Action": ["dax:GetItem", "dax:Scan"],
-      "Resource": "arn:aws:dax:ap-southeast-1:AWS_ACCOUNT_ID:cache/dax-demo"
-    },
-    {
-      "Sid": "S3ProductImages",
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:HeadBucket"],
-      "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/products/*"
-    }
-  ]
-}
-```
-
-#### order-service IAM Policy
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "SQSOrders",
-      "Effect": "Allow",
-      "Action": ["sqs:SendMessage", "sqs:GetQueueAttributes"],
-      "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
-    },
-    {
-      "Sid": "DynamoDBOrders",
-      "Effect": "Allow",
-      "Action": ["dynamodb:Scan"],
-      "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/orders_table"
-    }
-  ]
-}
-```
-
-#### Create IAM Roles for IRSA
-```bash
-# product-service
-aws iam create-role \
-  --role-name eks-product-service-role \
-  --assume-role-policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::AWS_ACCOUNT_ID:oidc-provider/oidc.eks.AWS_REGION.amazonaws.com/id/OIDC_ID"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "oidc.eks.AWS_REGION.amazonaws.com/id/OIDC_ID:sub": "system:serviceaccount:app:product-service-sa",
-          "oidc.eks.AWS_REGION.amazonaws.com/id/OIDC_ID:aud": "sts.amazonaws.com"
-        }
-      }
-    }]
-  }'
-
-# Attach the policy (after creating it)
-aws iam attach-role-policy \
-  --role-name eks-product-service-role \
-  --policy-arn arn:aws:iam::AWS_ACCOUNT_ID:policy/ProductServicePolicy
-
-# Repeat for order-service with eks-order-service-role + OrderServicePolicy
-```
-
----
-
-### 3. K8s Secrets
-
-```bash
-# product-service
-kubectl create secret generic product-service-secret \
-  --namespace app \
-  --from-literal=AWS_REGION=ap-southeast-1 \
-  --from-literal=DYNAMODB_PRODUCTS_TABLE=products_table \
-  --from-literal=DAX_ENDPOINT=daxs://your-dax-cluster.dax-clusters.ap-southeast-1.amazonaws.com \
-  --from-literal=S3_BUCKET=demo-product-images-xxxx
-
-# provider-service
-kubectl create secret generic provider-service-secret \
-  --namespace app \
-  --from-literal=AWS_REGION=ap-southeast-1 \
-  --from-literal=RDS_HOST=your-aurora-endpoint.rds.amazonaws.com \
-  --from-literal=RDS_PORT=5432 \
-  --from-literal=RDS_DATABASE=providers_db \
-  --from-literal=RDS_USER=dbadmin \
-  --from-literal=RDS_PASSWORD=DemoPassword
-
-# order-service
-kubectl create secret generic order-service-secret \
-  --namespace app \
-  --from-literal=AWS_REGION=ap-southeast-1 \
-  --from-literal=DYNAMODB_ORDERS_TABLE=orders_table \
-  --from-literal=SQS_QUEUE_URL=https://sqs.ap-southeast-1.amazonaws.com/AWS_ACCOUNT_ID/orders
-```
-
----
-
-### 4. Deploy to EKS
-
-```bash
-# Create namespace
-kubectl apply -f k8s/namespace.yaml
-
-# Create EFS PVC
-kubectl apply -f k8s/efs-pvc.yaml
-
-# Deploy services
-kubectl apply -f k8s/product-service/
-kubectl apply -f k8s/provider-service/
-kubectl apply -f k8s/order-service/
-
-# Deploy ingress
-kubectl apply -f k8s/ingress.yaml
-
-# Verify
-kubectl get pods -n app
-kubectl get ingress -n app
-```
-
----
-
-### 5. Build & Push Docker Images
-
-```bash
-# Set your ECR registry
-REGISTRY=AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com
-
-# Login
-aws ecr get-login-password --region ap-southeast-1 | \
-  docker login --username AWS --password-stdin $REGISTRY
-
-# Build and push each service
-for svc in product-service provider-service order-service; do
-  docker build -t $REGISTRY/$svc:latest ./services/$svc
-  docker push $REGISTRY/$svc:latest
-done
-```
+> For complete step-by-step instructions — AWS resource creation, IRSA setup, K8s secrets, Docker builds, and teardown — see **[IMPLEMENTATION.md](IMPLEMENTATION.md)**.
 
 ---
 
@@ -437,33 +235,3 @@ Each service exposes:
 
 The frontend dashboard calls all three endpoints in parallel and merges the results into the service status cards.
 
----
-
-## Legacy Monolith (EC2)
-
-The original monolith files are preserved in the repo root for reference:
-- `server.js`, `routes/`, `db/`, `public/`, `userdata.sh`
-
-See the original setup instructions below for EC2 deployment.
-
-<details>
-<summary>Legacy EC2 Setup Instructions</summary>
-
-### EC2 Prerequisites
-- VPC: `lab-vpc` (`10.1.0.0/16`)
-- Security groups: `public-sg`, `elb-sg`, `app-sg`, `db-sg`
-- NACL: allow all inbound/outbound
-
-### Application Deployment
-```bash
-npm install
-npm start
-```
-Access at: `http://<EC2-Public-IP>:3001`
-
-### Auto Scaling
-- Launch Template: AMI with Node.js + app code, IAM role, user data
-- ASG: Min 2 / Max 10 / Desired 2, CPU 70% target tracking
-- ALB target group on port 3001, health check `/health`
-
-</details>

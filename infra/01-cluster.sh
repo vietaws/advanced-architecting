@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 01-cluster.sh — Create EKS cluster with Graviton node group
+# 01-cltion)
+#   - kubeconfig updated automatically by eksctluster.sh — Create EKS cluster with Graviton node group
 #
 # Prerequisites:
 #   - AWS CLI v2 configured with admin credentials
@@ -14,8 +15,7 @@
 # What this creates:
 #   - EKS cluster:  demo-cluster  (ap-southeast-1, K8s 1.30)
 #   - Node group:   app-nodes     (m8g.large Graviton4, 2–6 nodes, Spot)
-#   - IAM OIDC provider (required for IRSA, done after cluster creation)
-#   - kubeconfig updated automatically by eksctl
+#   - IAM OIDC provider (required for IRSA, done after cluster crea
 # =============================================================================
 set -euo pipefail
 
@@ -25,15 +25,15 @@ REGION="ap-southeast-1"
 K8S_VERSION="1.30"
 NODE_GROUP_NAME="app-nodes"
 
-# Graviton instance types — priority order:
-#   m8g.large  = Graviton4, 2 vCPU / 8 GB  — primary choice
-#   m7g.large  = Graviton3, 2 vCPU / 8 GB  — fallback
-#   m6g.large  = Graviton2, 2 vCPU / 8 GB  — fallback
-# Using Spot with multiple types maximises availability and reduces cost ~70%
-INSTANCE_TYPES="m8g.large,m7g.large,m6g.large"
-MIN_SIZE=2
-MAX_SIZE=6
-DESIRED_SIZE=2
+# Graviton instance types — demo-optimised for cost:
+#   t4g.small  = Graviton2, 2 vCPU / 2 GB  — primary (burstable, fine for demo)
+#   t4g.medium = Graviton2, 2 vCPU / 4 GB  — fallback if small pool is exhausted
+# 6 pods × 64Mi = 384Mi + ~300Mi system = ~700Mi — fits on a single t4g.small
+# NOTE: for production / load testing swap back to m8g.large,m7g.large,m6g.large
+INSTANCE_TYPES="t4g.small,t4g.medium"
+MIN_SIZE=1
+MAX_SIZE=2
+DESIRED_SIZE=1
 
 # VPC — use your existing VPC subnet IDs
 # Tag public subnets with: kubernetes.io/role/elb=1
