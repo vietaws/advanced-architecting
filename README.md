@@ -55,6 +55,15 @@
             "Effect": "Allow",
             "Action": "s3:ListBucket",
             "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME"
+        },
+        {
+            "Sid": "checkDax",
+            "Effect": "Allow",
+            "Action": [
+                "dax:GetItem",
+                "dax:Scan"
+            ],
+            "Resource": "arn:aws:dax:ap-southeast-1:AWS_ACCOUNT_ID:cache/dax-demo"
         }
     ]
 }

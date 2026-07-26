@@ -119,21 +119,17 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const result = await docClient.send(new GetCommand({
-      TableName: productsTableName,
-      Key: { id: req.params.id }
-    }));
-
-    if (result.Item?.image_key) {
-      await deleteImage(result.Item.image_key);
-    }
-
     const startTime = Date.now();
-    await docClient.send(new DeleteCommand({
+    const result = await docClient.send(new DeleteCommand({
       TableName: productsTableName,
-      Key: { id: req.params.id }
+      Key: { id: req.params.id },
+      ReturnValues: 'ALL_OLD'
     }));
     const latency_ms = Date.now() - startTime;
+
+    if (result.Attributes?.image_key) {
+      await deleteImage(result.Attributes.image_key);
+    }
 
     logger.info({ action: 'product.delete', source: 'dynamodb', id: req.params.id, latency_ms }, 'Product deleted');
 
