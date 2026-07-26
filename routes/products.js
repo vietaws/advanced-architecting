@@ -1,5 +1,6 @@
 import express from 'express';
 import multer from 'multer';
+import { randomUUID } from 'crypto';
 import {
   docClient,
   PutCommand,
@@ -17,10 +18,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/', upload.single('image'), async (req, res) => {
   try {
-    const { id, product_name, description, price, remaining_sku } = req.body;
+    const { product_name, description, price, remaining_sku } = req.body;
+    const id = req.body.id || randomUUID();
 
-    if (!id || !product_name) {
-      return res.status(400).json({ error: 'id and product_name are required' });
+    if (!product_name) {
+      return res.status(400).json({ error: 'product_name is required' });
     }
 
     let image_key = '';

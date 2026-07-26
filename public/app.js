@@ -47,7 +47,6 @@ function hideProductForm() {
 
 async function createProduct() {
     const formData = new FormData();
-    formData.append('id', document.getElementById('product_id').value);
     formData.append('product_name', document.getElementById('product_name').value);
     formData.append('description', document.getElementById('description').value);
     formData.append('price', document.getElementById('price').value);

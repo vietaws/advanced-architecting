@@ -41,10 +41,10 @@ git clone -b appmod https://github.com/vietaws/architecting-pro.git
 cd architecting-pro
 
 # Run the SQL script
-psql -h $RDS_HOST -U $RDS_USER -d $RDS_DATABASE -f setup.sql || true
+# psql -h $RDS_HOST -U $RDS_USER -d $RDS_DATABASE -f setup.sql || true
 
 # Unset password
-unset PGPASSWORD
+# unset PGPASSWORD
 
 # Create .env file
 cat > .env <<EOF
