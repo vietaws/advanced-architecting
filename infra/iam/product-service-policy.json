@@ -1,0 +1,53 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DynamoDBProductsTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/products_table"
+    },
+    {
+      "Sid": "DAXProductsCluster",
+      "Effect": "Allow",
+      "Action": [
+        "dax:GetItem",
+        "dax:Scan",
+        "dax:Query",
+        "dax:PutItem",
+        "dax:UpdateItem",
+        "dax:DeleteItem",
+        "dax:ConditionCheckItem",
+        "dax:BatchGetItem",
+        "dax:BatchWriteItem"
+      ],
+      "Resource": "arn:aws:dax:ap-southeast-1:AWS_ACCOUNT_ID:cache/dax-demo"
+    },
+    {
+      "Sid": "S3ProductImagesObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::PRODUCT_IMAGES_BUCKET/products/*"
+    },
+    {
+      "Sid": "S3ProductImagesBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:HeadBucket",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::PRODUCT_IMAGES_BUCKET"
+    }
+  ]
+}

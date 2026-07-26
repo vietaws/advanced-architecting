@@ -188,11 +188,21 @@ async function deleteProvider(id) {
 loadDashboard();
 
 // Dashboard
-async function loadDashboard() {
-    const services = ['dynamodb', 'aurora', 'dax', 'sqs', 's3', 'efs', 'stress'];
+// Each microservice exposes its own GET /health/status.
+// We call all 3 in parallel and merge the results into the dashboard cards.
+//
+//  product-service  → /products/health/status  → { dynamodb, dax, s3 }
+//  provider-service → /providers/health/status → { aurora, efs }
+//  order-service    → /orders/health/status    → { sqs, dynamodb* }
+//
+// *order-service returns its own DynamoDB key; we surface it as "dynamodb"
+//  only when the product-service card is absent (no duplicate card on the page).
 
-    // Reset all cards to checking state
-    services.forEach(svc => {
+async function loadDashboard() {
+    const allServices = ['dynamodb', 'dax', 's3', 'aurora', 'efs', 'sqs'];
+
+    // Reset all cards to "Checking..." state
+    allServices.forEach(svc => {
         const badge = document.querySelector(`#status-${svc} .status-badge`);
         if (badge) {
             badge.textContent = 'Checking...';
@@ -200,31 +210,60 @@ async function loadDashboard() {
         }
     });
 
-    try {
-        const res = await fetch(`${API_URL}/health/status`);
-        const data = await res.json();
+    // Fire all 3 health checks in parallel
+    const [productResult, providerResult, orderResult] = await Promise.allSettled([
+        fetch(`${API_URL}/products/health/status`).then(r => r.json()),
+        fetch(`${API_URL}/providers/health/status`).then(r => r.json()),
+        fetch(`${API_URL}/orders/health/status`).then(r => r.json()),
+    ]);
 
-        services.forEach(svc => {
-            const badge = document.querySelector(`#status-${svc} .status-badge`);
-            if (!badge) return;
+    // Merge all responses into one flat map  { serviceName -> { status, error? } }
+    const data = {};
 
-            const info = data[svc];
-            if (!info) return;
-
-            const s = info.status;
-            badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-            badge.className = `status-badge ${s}`;
-        });
-    } catch (error) {
-        console.error('Failed to load health status:', error);
-        services.forEach(svc => {
-            const badge = document.querySelector(`#status-${svc} .status-badge`);
-            if (badge) {
-                badge.textContent = 'Error';
-                badge.className = 'status-badge disconnected';
-            }
-        });
+    if (productResult.status === 'fulfilled') {
+        Object.assign(data, productResult.value);
+    } else {
+        console.error('product-service health check failed:', productResult.reason);
+        ['dynamodb', 'dax', 's3'].forEach(s => { data[s] = { status: 'disconnected', error: 'unreachable' }; });
     }
+
+    if (providerResult.status === 'fulfilled') {
+        Object.assign(data, providerResult.value);
+    } else {
+        console.error('provider-service health check failed:', providerResult.reason);
+        ['aurora', 'efs'].forEach(s => { data[s] = { status: 'disconnected', error: 'unreachable' }; });
+    }
+
+    if (orderResult.status === 'fulfilled') {
+        // order-service reports "dynamodb" for orders_table — surface it as "sqs" is separate;
+        // only update the dynamodb card if product-service didn't already set it.
+        const orderData = orderResult.value;
+        data['sqs'] = orderData['sqs'] || { status: 'disconnected', error: 'unreachable' };
+        // order DynamoDB result — product-service DynamoDB takes precedence for the shared card
+        if (!data['dynamodb']) {
+            data['dynamodb'] = orderData['dynamodb'] || { status: 'disconnected', error: 'unreachable' };
+        }
+    } else {
+        console.error('order-service health check failed:', orderResult.reason);
+        data['sqs'] = { status: 'disconnected', error: 'unreachable' };
+    }
+
+    // Update every status card
+    allServices.forEach(svc => {
+        const badge = document.querySelector(`#status-${svc} .status-badge`);
+        if (!badge) return;
+
+        const info = data[svc];
+        if (!info) {
+            badge.textContent = 'Unknown';
+            badge.className = 'status-badge checking';
+            return;
+        }
+
+        const s = info.status;
+        badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        badge.className = `status-badge ${s}`;
+    });
 }
 
 // Load instance ID

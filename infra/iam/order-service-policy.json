@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SQSOrdersQueue",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl"
+      ],
+      "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
+    },
+    {
+      "Sid": "DynamoDBOrdersTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/orders_table"
+    }
+  ]
+}

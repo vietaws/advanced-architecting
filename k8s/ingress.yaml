@@ -1,0 +1,63 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  namespace: app
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/group.name: app
+spec:
+  rules:
+    - host: api.yourdomain.com
+      http:
+        paths:
+          # /products-dax must be listed before /products to avoid prefix shadowing
+          - path: /products-dax
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 80
+          - path: /products
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  number: 80
+          # /providers/health must be listed before /providers to avoid prefix shadowing
+          - path: /providers/health
+            pathType: Prefix
+            backend:
+              service:
+                name: provider-service
+                port:
+                  number: 80
+          - path: /providers
+            pathType: Prefix
+            backend:
+              service:
+                name: provider-service
+                port:
+                  number: 80
+          # /efs routes merged into provider-service (media-service removed)
+          - path: /efs
+            pathType: Prefix
+            backend:
+              service:
+                name: provider-service
+                port:
+                  number: 80
+          - path: /orders
+            pathType: Prefix
+            backend:
+              service:
+                name: order-service
+                port:
+                  number: 80

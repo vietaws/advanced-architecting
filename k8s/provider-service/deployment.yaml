@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-service
+  namespace: app
+  labels:
+    app: provider-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: provider-service
+  template:
+    metadata:
+      labels:
+        app: provider-service
+    spec:
+      serviceAccountName: provider-service-sa
+      containers:
+        - name: provider-service
+          image: AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/provider-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3002
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: provider-service-secret
+          volumeMounts:
+            - name: efs-storage
+              mountPath: /data/efs
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: efs-storage
+          persistentVolumeClaim:
+            claimName: efs-claim
+      terminationGracePeriodSeconds: 30
