@@ -10,9 +10,8 @@ S3_BUCKET="demo-product-images-91841967" # Your S3 bucket name
 SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/274595021951/orders"
 RDS_HOST="database-demo.cluster-crkedvynyebh.ap-southeast-1.rds.amazonaws.com" # store providers data
 RDS_PORT="5432"
-RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"
-RDS_PASSWORD="YourPassword"
+RDS_PASSWORD="DemoPassword"
 PGPASSWORD=$RDS_PASSWORD
 
 # Update system

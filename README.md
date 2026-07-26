@@ -125,7 +125,7 @@ aws sqs create-queue --queue-name orders --attributes '{"VisibilityTimeout": "18
 aws rds create-db-subnet-group \
   --db-subnet-group-name demo-aurora-subnet-group \
   --db-subnet-group-description "Architecting Pro subnet group" \
-  --subnet-ids subnet-05d2bc87120e339bb subnet-076e0392b81d93857
+  --subnet-ids subnet-xxx subnet-yyy
 
 # Create RDS Aurora 
 aws rds create-db-cluster \
@@ -133,9 +133,9 @@ aws rds create-db-cluster \
   --engine aurora-postgresql \
   --engine-version 18.3 \
   --master-username dbadmin \
-  --master-user-password YourPassword \
+  --master-user-password DemoPassword \
   --db-subnet-group-name demo-aurora-subnet-group \
-  --vpc-security-group-ids sg-01c828e9581d09303 \
+  --vpc-security-group-ids sg-xxx \
   --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=1 \
   --database-name providers_db \
   --no-deletion-protection
@@ -168,11 +168,6 @@ INSERT INTO providers (name, city) VALUES
   ('Viet AWS', 'Ho Chi Minh City'),
   ('Miracle Tech', 'Hanoi'),
   ('One Training', 'Da Nang');
-```
-
-**S3 Bucket:**
-```bash
-aws s3 mb s3://demo_product_images_bucket
 ```
 
 ### 3. Application Deployment
@@ -209,33 +204,6 @@ Create Auto Scaling Group:
 
 Ensure your EC2 security group allows:
 - Port 3001 (from ALB or 0.0.0.0/0 for testing)
-
-### 7. Quick Deploy to EC2
-
-```bash
-# SSH to EC2
-ssh -i your-key.pem ec2-user@<EC2-IP>
-
-# Install Node.js
-curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-sudo yum install -y nodejs git
-
-# Clone/upload your application
-git clone <your-repo> || scp -r ./architecting ec2-user@<EC2-IP>:~
-
-# Navigate and install
-cd architecting
-npm install
-
-# Start application (use PM2 for production)
-npm start
-
-# Or with PM2 for auto-restart
-sudo npm install -g pm2
-pm2 start server.js --name product-app
-pm2 startup
-pm2 save
-```
 
 ## API Endpoints
 
