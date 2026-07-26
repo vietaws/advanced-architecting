@@ -15,7 +15,6 @@ document.querySelectorAll('.tab').forEach(tab => {
         else if (target === 'providers') loadProviders();
         else if (target === 'orders') {} // Orders tab - no auto-load
         else if (target === 'stress') loadStressStatus();
-        else if (target === 'efs') loadEFSImages();
     });
 });
 
@@ -111,31 +110,24 @@ async function loadProductsDax() {
 // Providers
 async function loadProviders() {
     try {
-        // Add cache-busting parameter to force fresh request
         const res = await fetch(`${API_URL}/providers?_=${Date.now()}`, {
             cache: 'no-store',
-            headers: {
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
-            }
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
         });
         const providers = await res.json();
-        console.log('Providers loaded:', providers);
-        console.log('First provider responseTime:', providers[0]?.responseTime);
-        
+
         if (!Array.isArray(providers)) {
             console.error('Providers response is not an array:', providers);
             return;
         }
-        
+
         document.getElementById('providers-list').innerHTML = providers.map(p => `
-            <div class="list-item">
-                <div>
-                    <h3>${p.name}</h3>
-                    <p>${p.city || ''}</p>
-                    <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
-                    <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime || 'N/A'}ms</p>
-                </div>
+            <div class="card">
+                ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" style="width:100%;height:200px;object-fit:cover;border-radius:8px 8px 0 0;margin:-16px -16px 12px -16px;">` : ''}
+                <h3>${p.name}</h3>
+                <p>${p.city || ''}</p>
+                <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
+                <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime || 'N/A'}ms</p>
                 <button class="btn-delete" onclick="deleteProvider('${p.id}')">Delete</button>
             </div>
         `).join('');
@@ -156,27 +148,27 @@ function hideProviderForm() {
 
 async function createProvider() {
     try {
-        const data = {
-            name: document.getElementById('provider_name').value,
-            city: document.getElementById('provider_city').value
-        };
-        
-        console.log('Creating provider:', data);
-        
+        const formData = new FormData();
+        formData.append('name', document.getElementById('provider_name').value);
+        formData.append('city', document.getElementById('provider_city').value);
+
+        const imageFile = document.getElementById('provider_image').files[0];
+        if (imageFile) {
+            formData.append('image', imageFile);
+        }
+
         const res = await fetch(`${API_URL}/providers`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+            body: formData
         });
-        
+
         const result = await res.json();
-        console.log('Provider creation result:', result);
-        
+
         if (!res.ok) {
             alert(`Error: ${result.error || 'Failed to create provider'}`);
             return;
         }
-        
+
         hideProviderForm();
         loadProviders();
     } catch (error) {
@@ -187,7 +179,7 @@ async function createProvider() {
 
 async function deleteProvider(id) {
     if (confirm('Delete this provider?')) {
-        await fetch(`${API_URL}/providers/${id}`, {method: 'DELETE'});
+        await fetch(`${API_URL}/providers/${id}`, { method: 'DELETE' });
         loadProviders();
     }
 }
@@ -247,91 +239,6 @@ async function loadInstanceId() {
 }
 
 loadInstanceId();
-
-// EFS Images
-async function loadEFSImages() {
-    try {
-        const res = await fetch(`${API_URL}/efs`);
-        const images = await res.json();
-        
-        const gallery = document.getElementById('efs-images');
-        
-        if (images.length === 0) {
-            gallery.innerHTML = '<p style="text-align:center;color:#999;">No images uploaded yet</p>';
-            return;
-        }
-        
-        gallery.innerHTML = images.map(img => `
-            <div class="efs-image-card">
-                <img src="${img.url}" alt="${img.name}" loading="lazy">
-                <div class="efs-image-info">
-                    <span class="efs-image-name">${img.name}</span>
-                    <button class="btn-delete-small" onclick="deleteEFSImage('${img.name}')">🗑️</button>
-                </div>
-            </div>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading EFS images:', error);
-        document.getElementById('efs-images').innerHTML = 
-            '<p style="text-align:center;color:red;">Error loading images</p>';
-    }
-}
-
-async function deleteEFSImage(filename) {
-    if (!confirm(`Delete ${filename}?`)) return;
-    
-    try {
-        await fetch(`${API_URL}/efs/${filename}`, { method: 'DELETE' });
-        loadEFSImages();
-    } catch (error) {
-        console.error('Error deleting image:', error);
-        alert('Failed to delete image');
-    }
-}
-
-// Handle file upload
-document.addEventListener('DOMContentLoaded', () => {
-    const fileInput = document.getElementById('efs-file-input');
-    const uploadStatus = document.getElementById('upload-status');
-    
-    fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        uploadStatus.textContent = 'Uploading...';
-        
-        const formData = new FormData();
-        formData.append('image', file);
-        
-        try {
-            const res = await fetch(`${API_URL}/efs/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await res.json();
-            
-            if (res.ok) {
-                uploadStatus.textContent = '✓ Uploaded successfully';
-                uploadStatus.style.color = '#4caf50';
-                setTimeout(() => {
-                    uploadStatus.textContent = '';
-                }, 3000);
-                loadEFSImages();
-            } else {
-                uploadStatus.textContent = '✗ Upload failed';
-                uploadStatus.style.color = '#f44336';
-            }
-        } catch (error) {
-            console.error('Error uploading:', error);
-            uploadStatus.textContent = '✗ Upload failed';
-            uploadStatus.style.color = '#f44336';
-        }
-        
-        fileInput.value = '';
-    });
-});
-
 
 // Stress Test
 let stressInterval = null;

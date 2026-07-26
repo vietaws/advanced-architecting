@@ -158,7 +158,8 @@ psql -h db.viet.vn -U dbadmin -d products_db
 CREATE TABLE IF NOT EXISTS providers (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  city VARCHAR(100)
+  city VARCHAR(100),
+  image_filename VARCHAR(255)
 );
 
 SELECT * FROM providers;
