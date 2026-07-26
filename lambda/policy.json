@@ -9,15 +9,13 @@
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes"
         ],
-        "Resource": "arn:aws:sqs:ap-southeast-1:<ACCOUNT_ID>:orders"
+        "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
       },
       {
         "Sid": "DynamoDBWriteOrders",
         "Effect": "Allow",
-        "Action": [
-          "dynamodb:PutItem"
-        ],
-        "Resource": "arn:aws:dynamodb:ap-southeast-1:<ACCOUNT_ID>:table/orders_table"
+        "Action": "dynamodb:PutItem",
+        "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/orders_table"
       }
     ]
   }

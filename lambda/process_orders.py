@@ -53,10 +53,8 @@ def process_single_order(index, record, batch_size):
             has_completion_date='completion_date' in order
         )
 
-        # Step 3: Simulate processing time (per order, runs in parallel)
-        time.sleep(2)
 
-        # Step 4: Write to DynamoDB
+        # Step 3: Write to DynamoDB
         start_time = time.time()
         table.put_item(Item=order)
         latency_ms = round((time.time() - start_time) * 1000)

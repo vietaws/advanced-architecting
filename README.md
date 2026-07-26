@@ -39,12 +39,6 @@
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "checkSqsQueue",
-            "Effect": "Allow",
-            "Action": "sqs:GetQueueAttributes",
-            "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
-        },
-        {
             "Sid": "checkDynamoDb",
             "Effect": "Allow",
             "Action": "dynamodb:DescribeTable",
@@ -64,6 +58,12 @@
                 "dax:Scan"
             ],
             "Resource": "arn:aws:dax:ap-southeast-1:AWS_ACCOUNT_ID:cache/dax-demo"
+        },
+        {
+            "Sid": "checkSqsQueue",
+            "Effect": "Allow",
+            "Action": "sqs:GetQueueAttributes",
+            "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
         }
     ]
 }
