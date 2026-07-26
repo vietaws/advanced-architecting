@@ -55,30 +55,39 @@ router.get('/', async (req, res) => {
   try {
     const startTime = Date.now();
     const result = await docClient.send(new ScanCommand({ TableName: productsTableName }));
-    const responseTime = Date.now() - startTime;
+    const latency_ms = Date.now() - startTime;
+
+    logger.info({ action: 'product.list', source: 'dynamodb', count: result.Items.length, latency_ms }, 'DynamoDB scan');
 
     const products = await Promise.all(result.Items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key),
-      responseTime
+      responseTime: latency_ms
     })));
     res.json(products);
   } catch (error) {
+    logger.error({ action: 'product.list', source: 'dynamodb', error: error.message }, 'Failed to list products');
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/:id', async (req, res) => {
   try {
+    const startTime = Date.now();
     const result = await docClient.send(new GetCommand({
       TableName: productsTableName,
       Key: { id: req.params.id }
     }));
+    const latency_ms = Date.now() - startTime;
+
+    logger.info({ action: 'product.get', source: 'dynamodb', id: req.params.id, found: !!result.Item, latency_ms }, 'DynamoDB get');
+
     if (result.Item) {
       result.Item.image_url = await getImageUrl(result.Item.image_key);
     }
     res.json(result.Item || {});
   } catch (error) {
+    logger.error({ action: 'product.get', source: 'dynamodb', id: req.params.id, error: error.message }, 'Failed to get product');
     res.status(500).json({ error: error.message });
   }
 });

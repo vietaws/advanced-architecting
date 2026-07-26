@@ -31,9 +31,11 @@ router.get('/', async (req, res) => {
   try {
     const startTime = Date.now();
     const result = await pool.query('SELECT * FROM providers ORDER BY id');
-    const responseTime = Date.now() - startTime;
+    const latency_ms = Date.now() - startTime;
 
-    const providers = result.rows.map(row => ({ ...row, responseTime }));
+    logger.info({ action: 'provider.list', source: 'rds', count: result.rows.length, latency_ms }, 'RDS query');
+
+    const providers = result.rows.map(row => ({ ...row, responseTime: latency_ms }));
 
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, private',
@@ -43,16 +45,22 @@ router.get('/', async (req, res) => {
 
     res.json(providers);
   } catch (error) {
-    logger.error({ action: 'provider.list', error: error.message }, 'Failed to fetch providers');
+    logger.error({ action: 'provider.list', source: 'rds', error: error.message }, 'Failed to fetch providers');
     res.status(500).json({ error: error.message });
   }
 });
 
 router.get('/:id', async (req, res) => {
   try {
+    const startTime = Date.now();
     const result = await pool.query('SELECT * FROM providers WHERE id = $1', [req.params.id]);
+    const latency_ms = Date.now() - startTime;
+
+    logger.info({ action: 'provider.get', source: 'rds', id: req.params.id, found: !!result.rows[0], latency_ms }, 'RDS query');
+
     res.json(result.rows[0] || {});
   } catch (error) {
+    logger.error({ action: 'provider.get', source: 'rds', id: req.params.id, error: error.message }, 'Failed to get provider');
     res.status(500).json({ error: error.message });
   }
 });
