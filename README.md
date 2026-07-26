@@ -13,10 +13,6 @@
 
 ### 1. Prerequisites
 - EC2 instance with Node.js installed
-- IAM role attached to EC2 with policies:
-  - `AmazonDynamoDBFullAccess`
-  - `AmazonS3FullAccess`
-  - `AmazonSQSFullAccess`
 
 - VPC Setup:
   - VPC name: `lab-vpc`
