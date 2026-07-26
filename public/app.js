@@ -197,7 +197,7 @@ loadDashboard();
 
 // Dashboard
 async function loadDashboard() {
-    const services = ['dynamodb', 'aurora', 'dax', 'sqs', 'efs', 'stress'];
+    const services = ['dynamodb', 'aurora', 'dax', 'sqs', 's3', 'efs', 'stress'];
 
     // Reset all cards to checking state
     services.forEach(svc => {

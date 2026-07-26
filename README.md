@@ -32,6 +32,53 @@
   - DB Security group: `db-sg`
   - NACL: allow all inbound/outbound
 
+- IAM Policy for checking service status
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "checkSqsQueue",
+            "Effect": "Allow",
+            "Action": "sqs:GetQueueAttributes",
+            "Resource": "arn:aws:sqs:ap-southeast-1:AWS_ACCOUNT_ID:orders"
+        },
+        {
+            "Sid": "checkDynamoDb",
+            "Effect": "Allow",
+            "Action": "dynamodb:DescribeTable",
+            "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/products_table"
+        },
+        {
+            "Sid": "checkProductImageBucket",
+            "Effect": "Allow",
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME"
+        }
+    ]
+}
+```
+
+- IAM Policy for DynamoDB (products table)
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "productDbbService",
+            "Effect": "Allow",
+            "Action": [
+              "dynamodb:Scan",
+              "dynamodb:PutItem"
+            ],
+            "Resource": "arn:aws:dynamodb:ap-southeast-1:AWS_ACCOUNT_ID:table/products_table"
+        }
+    ]
+}
+```
+
 ### 2. Database Setup
 
 **DynamoDB Tables:**

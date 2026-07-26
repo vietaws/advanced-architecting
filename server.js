@@ -7,6 +7,7 @@ import http from 'http';
 import { promises as fs } from 'fs';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
+import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import logger from './logger.js';
 import productRoutes from './routes/products.js';
 import providerRoutes from './routes/providers.js';
@@ -73,14 +74,21 @@ app.get('/health/status', async (req, res) => {
       return { service: 'sqs', status: 'connected' };
     })(),
 
-    // 5. EFS — check mount point is accessible and writable
+    // 5. S3 — HeadBucket
+    (async () => {
+      const client = new S3Client({ region: process.env.AWS_REGION });
+      await client.send(new HeadBucketCommand({ Bucket: process.env.S3_BUCKET }));
+      return { service: 's3', status: 'connected' };
+    })(),
+
+    // 6. EFS — check mount point is accessible and writable
     (async () => {
       const efsMountPoint = '/data/efs';
       await fs.access(efsMountPoint, fs.constants?.W_OK ?? 2);
       return { service: 'efs', status: 'connected' };
     })(),
 
-    // 6. Stress — check running state from in-process status
+    // 7. Stress — check running state from in-process status
     (async () => {
       const stressRes = await new Promise((resolve, reject) => {
         const port = process.env.PORT || 3001;
@@ -105,7 +113,7 @@ app.get('/health/status', async (req, res) => {
       const msg = result.reason?.message || 'unknown error';
       // Map error back to service by checking which promise index failed
       const idx = results.indexOf(result);
-      const serviceNames = ['dynamodb', 'aurora', 'dax', 'sqs', 'efs', 'stress'];
+      const serviceNames = ['dynamodb', 'aurora', 'dax', 'sqs', 's3', 'efs', 'stress'];
       status[serviceNames[idx]] = { status: 'disconnected', error: msg };
     }
   }
