@@ -60,8 +60,13 @@ app.get('/health/status', async (req, res) => {
     // 3. DAX — lightweight scan with Limit 1
     (async () => {
       const { daxClient, productsTableName } = require('./db/dax.cjs');
-      await daxClient.scan({ TableName: productsTableName, Limit: 1 }).promise();
-      return { service: 'dax', status: 'connected' };
+      try {
+        await daxClient.scan({ TableName: productsTableName, Limit: 1 }).promise();
+        return { service: 'dax', status: 'connected' };
+      } catch (err) {
+        logger.warn({ action: 'health.dax', error: err.message, code: err.code, name: err.name }, 'DAX check failed');
+        throw err;
+      }
     })(),
 
     // 4. SQS — GetQueueAttributes
