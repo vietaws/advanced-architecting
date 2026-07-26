@@ -2,12 +2,16 @@ const express = require('express');
 const { daxClient, productsTableName } = require('../db/dax.cjs');
 const { getImageUrl } = require('../db/s3');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
-// Load the ESM logger via a synchronous-compatible shim using pino directly in CJS
 const pino = require('pino');
+
+const isDev = process.env.NODE_ENV === 'development';
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  base: { service: 'architecting-pro' }
+  base: { service: 'architecting-pro' },
+  transport: isDev
+    ? { target: 'pino-pretty', options: { colorize: false, sync: true } }
+    : undefined,
 });
 
 const router = express.Router();
@@ -22,10 +26,11 @@ router.get('/', async (req, res) => {
 
     const endTime = process.hrtime.bigint();
     // hrtime gives nanoseconds — convert to microseconds for DAX (sub-ms latency)
-    const latency_us = Number(endTime - startTime) / 1000;
+    const latency_us = Math.round(Number(endTime - startTime) / 1000);
+    const latency_ms = (latency_us / 1000).toFixed(3);
 
     logger.info(
-      { action: 'product.list', source: 'dax', count: result.Items?.length || 0, latency_us: Math.round(latency_us) },
+      { action: 'product.list', source: 'dax', count: result.Items?.length || 0, latency_us, latency_ms: parseFloat(latency_ms) },
       'DAX scan'
     );
 
@@ -34,7 +39,7 @@ router.get('/', async (req, res) => {
     const products = await Promise.all(items.map(async (item) => ({
       ...item,
       image_url: await getImageUrl(item.image_key),
-      responseTime: Math.round(latency_us)
+      responseTime: latency_us
     })));
 
     res.json(products);
