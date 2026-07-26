@@ -1,5 +1,5 @@
 const express = require('express');
-const { daxClient, productsTableName } = require('../db/dax');
+const { daxClient, productsTableName } = require('../db/dax.cjs');
 const { getImageUrl } = require('../db/s3');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 // Load the ESM logger via a synchronous-compatible shim using pino directly in CJS
