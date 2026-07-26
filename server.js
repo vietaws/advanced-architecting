@@ -59,12 +59,19 @@ app.get('/health/status', async (req, res) => {
 
     // 3. DAX — lightweight scan with Limit 1
     (async () => {
-      const { daxClient, productsTableName } = require('./db/dax.cjs');
       try {
-        await daxClient.scan({ TableName: productsTableName, Limit: 1 }).promise();
+        const AmazonDaxClient = require('amazon-dax-client');
+        const daxEndpoint = process.env.DAX_ENDPOINT;
+        const region = process.env.AWS_REGION;
+        const tableName = process.env.DYNAMODB_PRODUCTS_TABLE;
+
+        logger.info({ action: 'health.dax', endpoint: daxEndpoint, region, table: tableName }, 'DAX check starting');
+
+        const client = new AmazonDaxClient({ endpoints: [daxEndpoint], region });
+        await client.scan({ TableName: tableName, Limit: 1 }).promise();
         return { service: 'dax', status: 'connected' };
       } catch (err) {
-        logger.warn({ action: 'health.dax', error: err.message, code: err.code, name: err.name }, 'DAX check failed');
+        logger.warn({ action: 'health.dax', error: err.message, code: err.code, name: err.name, stack: err.stack?.split('\n')[1] }, 'DAX check failed');
         throw err;
       }
     })(),
