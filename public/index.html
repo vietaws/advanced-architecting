@@ -13,8 +13,9 @@
             <!-- <span id="instance-id" style="color:orange;font-size:14px;margin-left:auto;">Loading...</span> -->
              <span id="version-id" style="color:orange;font-size:14px;margin-left:auto;">Version: 1.0</span>
             <nav>
+                <button class="tab active" data-tab="home">🏠 Home</button>
                 <button class="tab" data-tab="providers">Providers_RDS</button>
-                <button class="tab active" data-tab="products">Products_DynamoDB</button>
+                <button class="tab" data-tab="products">Products_DynamoDB</button>
                 <button class="tab" data-tab="products-dax">Products_DAX</button>
                 <button class="tab" data-tab="orders">Orders_SQS</button>
                 <button class="tab" data-tab="stress">Stress Test</button>
@@ -22,7 +23,58 @@
             </nav>
         </header>
 
-        <main id="products" class="tab-content active">
+        <main id="home" class="tab-content active">
+            <div class="dashboard-header">
+                <h2>Service Status</h2>
+                <button class="btn-primary" onclick="loadDashboard()">↻ Refresh</button>
+            </div>
+            <div id="dashboard-grid" class="dashboard-grid">
+                <div class="status-card" id="status-dynamodb">
+                    <div class="status-icon">⚡</div>
+                    <div class="status-info">
+                        <div class="status-name">DynamoDB</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+                <div class="status-card" id="status-aurora">
+                    <div class="status-icon">🗄️</div>
+                    <div class="status-info">
+                        <div class="status-name">Aurora (RDS)</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+                <div class="status-card" id="status-dax">
+                    <div class="status-icon">🚀</div>
+                    <div class="status-info">
+                        <div class="status-name">DAX</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+                <div class="status-card" id="status-sqs">
+                    <div class="status-icon">📨</div>
+                    <div class="status-info">
+                        <div class="status-name">SQS</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+                <div class="status-card" id="status-efs">
+                    <div class="status-icon">📁</div>
+                    <div class="status-info">
+                        <div class="status-name">EFS</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+                <div class="status-card" id="status-stress">
+                    <div class="status-icon">🔥</div>
+                    <div class="status-info">
+                        <div class="status-name">Stress Test</div>
+                        <div class="status-badge checking">Checking...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <main id="products" class="tab-content">
             <div class="actions">
                 <button class="btn-primary" onclick="showProductForm()">+ Add Product</button>
             </div>

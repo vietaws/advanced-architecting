@@ -587,3 +587,111 @@ nav {
         font-size: 20px;
     }
 }
+
+/* Dashboard Styles */
+.dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.dashboard-header h2 {
+    color: #333;
+    font-size: 20px;
+    margin: 0;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.status-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    transition: box-shadow 0.2s;
+}
+
+.status-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.status-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.status-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.status-badge.checking {
+    background: #f0f0f0;
+    color: #999;
+}
+
+.status-badge.connected {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status-badge.disconnected {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.status-badge.running {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.status-badge.stopped {
+    background: #f5f5f5;
+    color: #757575;
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .status-card {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .status-icon {
+        font-size: 26px;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}

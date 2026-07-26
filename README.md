@@ -62,23 +62,26 @@ aws s3 mb s3://demo-product-images-$(openssl rand -hex 4)
 $suffix = [System.Guid]::NewGuid().ToString("N").Substring(0, 8)
 aws s3 mb s3://demo-product-images-$suffix --region ap-southeast-1
 
+# Create SQS
+aws sqs create-queue --queue-name orders --attributes '{"VisibilityTimeout": "180"}'
+
 # Create DB Subnet group
 aws rds create-db-subnet-group \
   --db-subnet-group-name demo-aurora-subnet-group \
   --db-subnet-group-description "Architecting Pro subnet group" \
-  --subnet-ids subnet-xxxxxxxxx subnet-yyyyyyyyy
+  --subnet-ids subnet-05d2bc87120e339bb subnet-076e0392b81d93857
 
 # Create RDS Aurora 
 aws rds create-db-cluster \
   --db-cluster-identifier demo-aurora-cluster \
   --engine aurora-postgresql \
-  --engine-version 16.6 \
+  --engine-version 18.3 \
   --master-username dbadmin \
   --master-user-password YourPassword \
   --db-subnet-group-name demo-aurora-subnet-group \
-  --vpc-security-group-ids sg-xxxxxxxxx \
+  --vpc-security-group-ids sg-01c828e9581d09303 \
   --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=1 \
-  --database-name products_db \
+  --database-name providers_db \
   --no-deletion-protection
 
 aws rds create-db-instance \
@@ -105,7 +108,7 @@ CREATE TABLE IF NOT EXISTS providers (
 SELECT * FROM providers;
 
 INSERT INTO providers (name, city) VALUES
-  ('Acme Supplies', 'Ho Chi Minh City'),
+  ('Viet AWS', 'Ho Chi Minh City'),
   ('Miracle Tech', 'Hanoi'),
   ('One Training', 'Da Nang');
 ```

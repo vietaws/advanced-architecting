@@ -7,10 +7,10 @@ MOUNT_POINT="/data/efs"
 AWS_REGION="ap-southeast-1"
 DYNAMODB_PRODUCTS_TABLE="products_table"
 DYNAMODB_ORDERS_TABLE="orders_table"
-DAX_ENDPOINT="daxs://dax-demo.wfcknw.dax-clusters.us-east-1.amazonaws.com"
+DAX_ENDPOINT="daxs://dax-demo.wfcknw.dax-clusters.ap-southeast-1.amazonaws.com"
 S3_BUCKET="demo-product-images-91841967" # Your S3 bucket name
-SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
-RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com" # store providers data
+SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/274595021951/orders"
+RDS_HOST="database-2.cluster-crkedvynyebh.ap-southeast-1.rds.amazonaws.com" # store providers data
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"
@@ -34,6 +34,7 @@ mkdir -p $MOUNT_POINT
 echo "$EFS_ID.efs.$AWS_REGION.amazonaws.com:/ $MOUNT_POINT efs _netdev,tls,iam 0 0" >> /etc/fstab
 mount -a
 chmod 755 $MOUNT_POINT
+chown ec2-user:ec2-user $MOUNT_POINT
 
 # Clone application from GitHub
 cd /home/ec2-user

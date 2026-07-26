@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "SQSReceiveMessages",
+        "Effect": "Allow",
+        "Action": [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ],
+        "Resource": "arn:aws:sqs:ap-southeast-1:<ACCOUNT_ID>:orders"
+      },
+      {
+        "Sid": "DynamoDBWriteOrders",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:PutItem"
+        ],
+        "Resource": "arn:aws:dynamodb:ap-southeast-1:<ACCOUNT_ID>:table/orders_table"
+      }
+    ]
+  }

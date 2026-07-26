@@ -9,7 +9,8 @@ document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.add('active');
         document.getElementById(target).classList.add('active');
         
-        if (target === 'products') loadProducts();
+        if (target === 'home') loadDashboard();
+        else if (target === 'products') loadProducts();
         else if (target === 'products-dax') loadProductsDax();
         else if (target === 'providers') loadProviders();
         else if (target === 'orders') {} // Orders tab - no auto-load
@@ -192,7 +193,47 @@ async function deleteProvider(id) {
 }
 
 // Initial load
-loadProducts();
+loadDashboard();
+
+// Dashboard
+async function loadDashboard() {
+    const services = ['dynamodb', 'aurora', 'dax', 'sqs', 'efs', 'stress'];
+
+    // Reset all cards to checking state
+    services.forEach(svc => {
+        const badge = document.querySelector(`#status-${svc} .status-badge`);
+        if (badge) {
+            badge.textContent = 'Checking...';
+            badge.className = 'status-badge checking';
+        }
+    });
+
+    try {
+        const res = await fetch(`${API_URL}/health/status`);
+        const data = await res.json();
+
+        services.forEach(svc => {
+            const badge = document.querySelector(`#status-${svc} .status-badge`);
+            if (!badge) return;
+
+            const info = data[svc];
+            if (!info) return;
+
+            const s = info.status;
+            badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+            badge.className = `status-badge ${s}`;
+        });
+    } catch (error) {
+        console.error('Failed to load health status:', error);
+        services.forEach(svc => {
+            const badge = document.querySelector(`#status-${svc} .status-badge`);
+            if (badge) {
+                badge.textContent = 'Error';
+                badge.className = 'status-badge disconnected';
+            }
+        });
+    }
+}
 
 // Load instance ID
 async function loadInstanceId() {

@@ -47,7 +47,7 @@ aws iam attach-role-policy \
 aws dax create-subnet-group \
   --subnet-group-name dax-subnet-group \
   --subnet-ids subnet-xxx subnet-yyy \
-  --region us-east-1
+  --region ap-southeast-1
 
 # Create DAX cluster
 aws dax create-cluster \
@@ -56,7 +56,7 @@ aws dax create-cluster \
   --replication-factor 1 \
   --iam-role-arn arn:aws:iam::YOUR_ACCOUNT_ID:role/DaxServiceRole \
   --subnet-group-name dax-subnet-group \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
 ### 2. Get DAX Endpoint
@@ -67,24 +67,24 @@ aws dax describe-clusters \
   --cluster-name dax-demo \
   --query 'Clusters[0].ClusterDiscoveryEndpoint.Address' \
   --output text \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
-Output example: `dax-demo.abc123.dax-clusters.us-east-1.amazonaws.com`
+Output example: `dax-demo.abc123.dax-clusters.ap-southeast-1.amazonaws.com`
 
 ### 3. Update Configuration
 
 ```json
 {
   "dax": {
-    "endpoint": "dax-demo.abc123.dax-clusters.us-east-1.amazonaws.com:8111"
+    "endpoint": "dax-demo.abc123.dax-clusters.ap-southeast-1.amazonaws.com:8111"
   }
 }
 ```
 
-Update `userdata-systemd.sh`:
+Update `userdata.sh`:
 ```bash
-DAX_ENDPOINT="dax-demo.abc123.dax-clusters.us-east-1.amazonaws.com:8111"
+DAX_ENDPOINT="dax-demo.abc123.dax-clusters.ap-southeast-1.amazonaws.com:8111"
 ```
 
 ### 4. Configure Security Groups
@@ -103,7 +103,7 @@ aws ec2 authorize-security-group-ingress \
   --protocol tcp \
   --port 8111 \
   --source-group sg-ec2-xxx \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
 ### 5. Install Dependencies
@@ -206,7 +206,7 @@ aws cloudwatch get-metric-statistics \
   --end-time 2024-01-01T23:59:59Z \
   --period 3600 \
   --statistics Sum \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
 ## Troubleshooting
@@ -224,14 +224,14 @@ aws cloudwatch get-metric-statistics \
 **Connection timeout:**
 ```bash
 # Test connectivity from EC2
-telnet dax-demo.abc123.dax-clusters.us-east-1.amazonaws.com 8111
+telnet dax-demo.abc123.dax-clusters.ap-southeast-1.amazonaws.com 8111
 ```
 
 **Check DAX cluster status:**
 ```bash
 aws dax describe-clusters \
   --cluster-name dax-demo \
-  --region us-east-1
+  --region ap-southeast-1
 ```
 
 ## Cost Optimization
@@ -253,10 +253,10 @@ aws dax describe-clusters \
 # Delete DAX cluster
 aws dax delete-cluster \
   --cluster-name dax-demo \
-  --region us-east-1
+  --region ap-southeast-1
 
 # Delete subnet group
 aws dax delete-subnet-group \
   --subnet-group-name dax-subnet-group \
-  --region us-east-1
+  --region ap-southeast-1
 ```

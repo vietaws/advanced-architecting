@@ -4,6 +4,9 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import http from 'http';
+import { promises as fs } from 'fs';
+import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
+import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import logger from './logger.js';
 import productRoutes from './routes/products.js';
 import providerRoutes from './routes/providers.js';
@@ -33,6 +36,82 @@ app.use('/orders', orderRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
+});
+
+app.get('/health/status', async (req, res) => {
+  const require = createRequire(import.meta.url);
+  const results = await Promise.allSettled([
+
+    // 1. DynamoDB — DescribeTable on products_table
+    (async () => {
+      const client = new DynamoDBClient({ region: process.env.AWS_REGION });
+      await client.send(new DescribeTableCommand({ TableName: process.env.DYNAMODB_PRODUCTS_TABLE }));
+      return { service: 'dynamodb', status: 'connected' };
+    })(),
+
+    // 2. Aurora (RDS PostgreSQL) — simple query
+    (async () => {
+      const { default: pool } = await import('./db/postgres.js');
+      await pool.query('SELECT 1');
+      return { service: 'aurora', status: 'connected' };
+    })(),
+
+    // 3. DAX — lightweight scan with Limit 1
+    (async () => {
+      const { daxClient, productsTableName } = require('./db/dax.cjs');
+      await daxClient.scan({ TableName: productsTableName, Limit: 1 }).promise();
+      return { service: 'dax', status: 'connected' };
+    })(),
+
+    // 4. SQS — GetQueueAttributes
+    (async () => {
+      const client = new SQSClient({ region: process.env.AWS_REGION });
+      await client.send(new GetQueueAttributesCommand({
+        QueueUrl: process.env.SQS_QUEUE_URL,
+        AttributeNames: ['QueueArn']
+      }));
+      return { service: 'sqs', status: 'connected' };
+    })(),
+
+    // 5. EFS — check mount point is accessible and writable
+    (async () => {
+      const efsMountPoint = '/data/efs';
+      await fs.access(efsMountPoint, fs.constants?.W_OK ?? 2);
+      return { service: 'efs', status: 'connected' };
+    })(),
+
+    // 6. Stress — check running state from in-process status
+    (async () => {
+      const stressRes = await new Promise((resolve, reject) => {
+        const port = process.env.PORT || 3001;
+        http.get(`http://localhost:${port}/stress/status`, (r) => {
+          let data = '';
+          r.on('data', chunk => data += chunk);
+          r.on('end', () => resolve(JSON.parse(data)));
+        }).on('error', reject);
+      });
+      return { service: 'stress', status: stressRes.running ? 'running' : 'stopped' };
+    })(),
+
+  ]);
+
+  const status = {};
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      const { service, status: svc_status } = result.value;
+      status[service] = { status: svc_status };
+    } else {
+      // Extract service name from error context if possible
+      const msg = result.reason?.message || 'unknown error';
+      // Map error back to service by checking which promise index failed
+      const idx = results.indexOf(result);
+      const serviceNames = ['dynamodb', 'aurora', 'dax', 'sqs', 'efs', 'stress'];
+      status[serviceNames[idx]] = { status: 'disconnected', error: msg };
+    }
+  }
+
+  logger.info({ action: 'health.status', services: status }, 'Health status checked');
+  res.json(status);
 });
 
 app.get('/instance-id', async (req, res) => {
