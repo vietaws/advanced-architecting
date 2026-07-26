@@ -49,7 +49,7 @@ cd architecting-pro
 # Create .env file
 cat > .env <<EOF
 PORT=3001
-NODE_ENV=development #development, production
+NODE_ENV=development
 LOG_LEVEL=info
 AWS_REGION=${AWS_REGION}
 DYNAMODB_PRODUCTS_TABLE=${DYNAMODB_PRODUCTS_TABLE}
