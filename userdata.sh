@@ -2,13 +2,13 @@
 set -e
 
 # Variables - UPDATE THESE
-EFS_ID="fs-0df1a5706ceb8608f"  # Your EFS File System ID
+EFS_ID="fs-04d1e5b35d2c67bd7"  # Your EFS File System ID
 MOUNT_POINT="/data/efs"
 AWS_REGION="ap-southeast-1"
 DYNAMODB_PRODUCTS_TABLE="products_table"
 DYNAMODB_ORDERS_TABLE="orders_table"
 DAX_ENDPOINT="daxs://dax-demo.wfcknw.dax-clusters.us-east-1.amazonaws.com"
-S3_BUCKET="demo-product-images-123456"
+S3_BUCKET="demo-product-images-918419679" # Your S3 bucket name
 SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/916495840179/orders"
 RDS_HOST="database-2.cluster-crkedvynyebh.us-east-1.rds.amazonaws.com" # store providers data
 RDS_PORT="5432"

@@ -52,6 +52,16 @@ aws dynamodb create-table \
   --billing-mode PAY_PER_REQUEST \
   --region ap-southeast-1
 
+# Create S3 Image Bucket - Linux / macOS
+aws s3api create-bucket \
+    --bucket "demo-product-images-$(openssl rand -hex 4)"
+
+aws s3 mb s3://demo-product-images-$(openssl rand -hex 4)
+
+# Create S3 Image Bucket - Windows PowerShell with GUID
+$suffix = [System.Guid]::NewGuid().ToString("N").Substring(0, 8)
+aws s3 mb s3://demo-product-images-$suffix --region ap-southeast-1
+
 # Create DB Subnet group
 aws rds create-db-subnet-group \
   --db-subnet-group-name demo-aurora-subnet-group \
