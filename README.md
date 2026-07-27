@@ -1,4 +1,4 @@
-# Product-Provider Management Application
+# Miracle Ecommerce Application (AppMod)
 
 ## Architecture
 - **Application Tier**: Node.js on EC2 with Auto Scaling
