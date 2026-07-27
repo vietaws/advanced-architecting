@@ -1,5 +1,5 @@
 {
-  "name": "product-provider-app",
+  "name": "ecommerce-demo-app",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
