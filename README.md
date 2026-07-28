@@ -1,152 +1,220 @@
-# Product-Provider Management Application
+# Architecting Pro — Microservices on EKS
 
-## Overview
-
-This repository demonstrates a **monolith-to-microservices migration** for an AWS Solutions Architect Pro lab.  
-The application runs as independent microservices on **Amazon EKS**, fronted by an **AWS ALB** and a **CloudFront + S3** static frontend.
-
-> **Full implementation guide**: [IMPLEMENTATION.md](IMPLEMENTATION.md) — architecture decisions, phase-by-phase setup, file references, verification, and teardown.
+A **monolith-to-microservices migration** demo for the AWS Solutions Architect Pro lab.  
+Three Node.js services run on **Amazon EKS**, fronted by an **AWS ALB** and a **CloudFront + S3** static frontend.
 
 ---
 
 ## Architecture
 
-### New: Microservices on EKS
-
 ```
-CloudFront (S3 static frontend)
+Browser
+  └── CloudFront ←── S3 (frontend/)
         │
-        ▼
-ALB — api.yourdomain.com
-  ├── /products*      → product-service   (DynamoDB + DAX + S3)
-  ├── /providers*     → provider-service  (RDS Aurora PostgreSQL + EFS)
-  └── /orders*        → order-service     (SQS + DynamoDB)
+        ▼  api.yourdomain.com
+      ALB  (internet-facing, ap-southeast-1)
+        │
+    ┌───┴──────────────────────────────────────┐
+    │  EKS Cluster — namespace: app            │
+    │                                          │
+    │  /products*   ──► product-service:3001   │
+    │  /products-dax*    DynamoDB + DAX + S3   │
+    │                                          │
+    │  /providers*  ──► provider-service:3002  │
+    │  /efs*             RDS Aurora + EFS PVC  │
+    │                                          │
+    │  /orders*     ──► order-service:3003     │
+    │                    SQS + DynamoDB        │
+    └──────────────────────────────────────────┘
 
-EKS Cluster (namespace: app)
-  ├── product-service   — ServiceAccount with IRSA
-  ├── provider-service  — ServiceAccount with IRSA (also serves /efs routes)
-  └── order-service     — ServiceAccount with IRSA
-
-Shared Infrastructure
-  ├── EFS PVC (ReadWriteMany) — mounted by provider-service (serves both /providers and /efs routes)
-  └── K8s Secrets per service (DB credentials, AWS config)
+AWS Managed Resources
+  ├── DynamoDB:  products_table, orders_table
+  ├── DAX:       dax-demo  (read-through cache for products)
+  ├── S3:        product image bucket (pre-signed URLs)
+  ├── RDS:       Aurora PostgreSQL — providers_db
+  ├── EFS:       shared volume — provider images
+  └── SQS:       orders queue
 ```
+
+### Key design decisions
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Runtime | Node.js 24 LTS ESM | Active LTS until April 2028 |
+| Node architecture | Graviton ARM64 (t4g.medium) | ~20% better price/performance vs x86 |
+| Capacity type | Spot instances | ~70% cost saving; pods are stateless |
+| IAM auth | IRSA per service | Least privilege; no shared credentials |
+| Shared storage | EFS PVC ReadWriteMany | provider-service shares volume across replicas |
+| Config injection | K8s Secrets → envFrom | No hardcoded credentials in manifests |
+| Frontend | S3 + CloudFront | Decoupled from backend; deploy before backend exists |
+
+---
 
 ## Repository Structure
 
 ```
 architecting-pro/
-├── infra/                      # ← Infrastructure setup scripts (start here)
-│   ├── README.md               # Step-by-step execution guide
-│   ├── 01-cluster.sh           # EKS cluster + Graviton node group
-│   ├── 02-addons.sh            # EBS/EFS CSI, ALB Controller, CoreDNS
-│   ├── 03-oidc-irsa.sh         # OIDC + IAM roles for IRSA
-│   ├── 04-k8s-setup.sh         # Namespace, EFS PVC, Secrets, deploy
-│   ├── 05-ecr.sh               # ECR repos + build/push images
-│   └── iam/
-│       ├── product-service-policy.json
-│       ├── order-service-policy.json
-│       └── alb-controller-policy.json
-├── frontend/                   # ← Static frontend (deploy to S3 + CloudFront)
-│   ├── config.js               # ONLY file to edit — set API_URL to ALB endpoint
-│   ├── index.html              # SPA shell — loads config.js then app.js
-│   ├── app.js                  # All UI logic, reads API_URL from config.js
-│   └── style.css               # Styles
+├── README.md                      ← this file
+│
+├── frontend/                      ← static SPA (S3 + CloudFront)
+│   ├── config.js                  ← EDIT THIS: set API_URL to ALB endpoint
+│   ├── index.html
+│   ├── app.js
+│   └── style.css
+│
 ├── services/
-│   ├── product-service/        # CRUD products via DynamoDB + DAX + S3
-│   ├── provider-service/       # CRUD providers via RDS Aurora + EFS; also serves /efs routes
-│   └── order-service/          # Order generation + SQS publish + DynamoDB read
-├── k8s/
-│   ├── 01-namespace.yaml
-│   ├── 02-efs-pvc.yaml
-│   ├── 06-ingress.yaml
-│   ├── product-service/
-│   ├── provider-service/
-│   └── order-service/
-└── README.md
+│   ├── product-service/           ← DynamoDB + DAX + S3  (port 3001)
+│   ├── provider-service/          ← RDS Aurora + EFS     (port 3002)
+│   └── order-service/             ← SQS + DynamoDB       (port 3003)
+│
+└── infra/                         ← all infrastructure docs and scripts
+    ├── README.md                  ← navigation index
+    ├── IMAGES.md                  ← container image build & push
+    ├── VERIFICATION.md            ← post-deploy verification checklist
+    ├── TEARDOWN.md                ← delete all resources
+    ├── aws-resources/
+    │   └── README.md              ← Phase 0: DynamoDB, S3, SQS, DAX, Aurora, EFS
+    └── eks-cluster/
+        ├── README.md              ← Phases 1–5: EKS, add-ons, IRSA, deploy
+        ├── 02-addons.sh
+        ├── 03-oidc-irsa.sh
+        ├── 04-k8s-setup.sh
+        ├── iam/                   ← least-privilege IAM policy documents
+        └── k8s/                   ← Kubernetes manifests
 ```
 
 ---
 
-## Services
+## Prerequisites
 
-### product-service (port 3001)
-| Item | Detail |
-|---|---|
-| Routes | `GET/POST/PUT/DELETE /products`, `GET /products-dax` |
-| DynamoDB | `products_table` — Scan, PutItem, GetItem, UpdateItem, DeleteItem |
-| DAX | Read-through cache via `amazon-dax-client` |
-| S3 | Product image upload/download/delete (pre-signed URLs) |
-| IRSA permissions | `dynamodb:Scan/PutItem/GetItem/UpdateItem/DeleteItem`, `dax:GetItem/Scan`, `s3:PutObject/GetObject/DeleteObject` |
+```bash
+aws --version        # >= 2.15
+eksctl version       # >= 0.180
+kubectl version      # >= 1.29
+helm version         # >= 3.14
+docker --version     # >= 25 (Docker Desktop with buildx)
+```
 
-### provider-service (port 3002)
-| Item | Detail |
-|---|---|
-| Routes | `GET/POST/PUT/DELETE /providers`, `GET /providers/image/:filename`, `GET /efs`, `POST /efs/upload`, `GET /efs/image/:filename`, `DELETE /efs/:filename` |
-| Database | RDS Aurora PostgreSQL — `providers` table in `providers_db` |
-| Storage | EFS PVC mount at `/data/efs` for provider images and shared EFS management |
-| IRSA permissions | None (RDS accessed via pg driver with K8s Secret credentials; EFS via PVC) |
+```bash
+brew install awscli eksctl kubectl helm
+```
 
-### order-service (port 3003)
-| Item | Detail |
-|---|---|
-| Routes | `POST /orders/generate`, `GET /orders` |
-| SQS | Publishes 10 orders per batch to `orders` queue |
-| DynamoDB | `orders_table` — Scan to list orders |
-| IRSA permissions | `sqs:SendMessage/GetQueueAttributes`, `dynamodb:Scan` |
+AWS credentials must have permissions on: EKS, EC2, IAM, ECR, DynamoDB, RDS, EFS, SQS, DAX, S3, CloudFront, ElasticLoadBalancing.
 
 ---
 
-## Frontend Deployment (S3 + CloudFront)
+## Deployment Workflow
 
-The frontend is a vanilla JS SPA — four static files, no build step.  
-`config.js` is the **only file you ever edit**.
+### Phase 0 — AWS Resources
 
-### Frontend-first approach
+Create all AWS-managed resources **before** provisioning EKS. Services depend on these at startup.
 
-You can deploy the frontend **before any backend service exists**.  
-When `API_URL` is empty the dashboard shows every infrastructure resource as **Disconnected** (red) without making any network calls.  
-Once you deploy a backend service, update `API_URL` in `config.js`, re-upload the file, and invalidate CloudFront. The dashboard immediately reflects the real status of each service's AWS resources.
-
-```
-Deploy frontend (API_URL = '')  →  All resources: Disconnected
-Deploy product-service          →  DynamoDB / DAX / S3 turn Connected
-Deploy provider-service         →  Aurora / EFS turn Connected
-Deploy order-service            →  SQS turns Connected
-```
-
-### Dashboard — infrastructure status cards
-
-The home tab shows one card per service, each listing its AWS resources:
-
-| Card | Resources checked |
+| Resource | Used by |
 |---|---|
-| Product Service | DynamoDB, DAX, S3 |
-| Provider Service | Aurora (RDS), EFS |
-| Order Service | SQS |
+| DynamoDB `products_table` | product-service |
+| DynamoDB `orders_table` | order-service |
+| S3 bucket (product images) | product-service |
+| SQS queue `orders` | order-service |
+| DAX cluster `dax-demo` | product-service |
+| RDS Aurora PostgreSQL `providers_db` | provider-service |
+| EFS file system | provider-service |
 
-Status is fetched from each service's `GET /health/status` endpoint on page load or when you click **↻ Refresh**.
+→ **[Full CLI commands: infra/aws-resources/README.md](infra/aws-resources/README.md)**
 
-### 1. Configure the API endpoint
+---
+
+### Phase 1 — EKS Cluster
+
+One command creates the control plane, a new VPC (`10.2.0.0/16`), public + private subnets in 2 AZs, subnet tags for ALB, and the IAM OIDC provider.
+
+```bash
+eksctl create cluster \
+  --name demo-cluster \
+  --region ap-southeast-1 \
+  --version 1.30 \
+  --vpc-cidr 10.2.0.0/16 \
+  --zones ap-southeast-1a,ap-southeast-1b \
+  --without-nodegroup \
+  --with-oidc \
+  --tags "project=architecting-pro,env=demo"
+```
+
+Then add a node group — **public** (no NAT cost) or **private** (with NAT Gateway):
+
+→ **[Full node group commands: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-1--eks-cluster)**
+
+---
+
+### Phase 2 — EKS Add-ons
+
+```bash
+./infra/eks-cluster/02-addons.sh
+```
+
+Installs: EBS CSI driver, EFS CSI driver, CoreDNS, kube-proxy, AWS Load Balancer Controller.
+
+→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-2--eks-add-ons)**
+
+---
+
+### Phase 3 — IAM & IRSA
+
+```bash
+export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
+./infra/eks-cluster/03-oidc-irsa.sh
+```
+
+Creates least-privilege IAM roles for `product-service` (DynamoDB, DAX, S3) and `order-service` (SQS, DynamoDB). `provider-service` needs no IRSA — RDS via K8s Secret, EFS via PVC.
+
+→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-3--iam--irsa)**
+
+---
+
+### Phase 4 — Container Images
+
+Build multi-platform images (`linux/amd64,linux/arm64`) locally and push to Docker Hub and/or ECR.
+
+→ **[Build & push guide: infra/IMAGES.md](infra/IMAGES.md)**
+
+---
+
+### Phase 5 — Kubernetes Deploy
+
+```bash
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export EFS_FILE_SYSTEM_ID="fs-xxxx"
+export DAX_ENDPOINT="daxs://..."
+export S3_BUCKET="demo-product-images-xxxx"
+export RDS_HOST="demo-aurora-cluster.cluster-xxx.ap-southeast-1.rds.amazonaws.com"
+export RDS_PASSWORD="..."
+export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/ACCOUNT/orders"
+
+./infra/eks-cluster/04-k8s-setup.sh
+```
+
+Applies namespace, EFS PVC, ServiceAccounts, Deployments, Services, and ALB Ingress.
+
+→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-5--kubernetes-deploy)**
+
+---
+
+### Phase 6 — Frontend
+
+Deploy the static SPA to S3 + CloudFront. You can do this **before any backend exists** — the dashboard shows all resources as **Disconnected** (red) until services come online.
+
+#### Configure API endpoint
 
 Edit `frontend/config.js`:
 
 ```js
 window.APP_CONFIG = {
-  // Set to your ALB endpoint once the backend is deployed.
-  // Leave empty to run frontend-only (all resources show as Disconnected).
+  // Leave empty for frontend-only deploy (all resources show Disconnected).
+  // Set to your ALB DNS once the backend is deployed.
   API_URL: '',
 };
 ```
 
-When the backend is ready:
-```js
-window.APP_CONFIG = {
-  API_URL: 'https://api.yourdomain.com',  // ALB DNS or custom domain — no trailing slash
-};
-```
-
-### 2. Create S3 bucket
+#### Create S3 bucket
 
 ```bash
 FRONTEND_BUCKET="demo-frontend-$(openssl rand -hex 4)"
@@ -156,96 +224,101 @@ aws s3api create-bucket \
   --region ap-southeast-1 \
   --create-bucket-configuration LocationConstraint=ap-southeast-1
 
-# Block all public access — CloudFront OAC serves the files
 aws s3api put-public-access-block \
   --bucket "$FRONTEND_BUCKET" \
   --public-access-block-configuration \
     "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
 ```
 
-### 3. Upload files
+#### Upload and create CloudFront distribution
 
 ```bash
 aws s3 sync frontend/ s3://$FRONTEND_BUCKET --delete
-```
 
-### 4. Create CloudFront distribution
-
-```bash
 aws cloudfront create-distribution \
   --origin-domain-name "${FRONTEND_BUCKET}.s3.ap-southeast-1.amazonaws.com" \
   --default-root-object index.html
 ```
 
-> Use Origin Access Control (OAC) to allow CloudFront to access the private S3 bucket without making it public.
+Use **Origin Access Control (OAC)** so CloudFront can read the private S3 bucket.
 
-### 5. Activate backend (after EKS services are deployed)
+#### Activate backend (after Phase 5)
 
 ```bash
-# Edit config.js — set API_URL to your ALB endpoint
+# Get ALB DNS
+ALB=$(kubectl get ingress app-ingress -n app \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+# Set API_URL in config.js, re-upload, invalidate cache
 vi frontend/config.js
-
-# Re-upload only config.js
 aws s3 cp frontend/config.js s3://$FRONTEND_BUCKET/config.js
-
-# Invalidate CloudFront cache
 aws cloudfront create-invalidation \
   --distribution-id YOUR_DISTRIBUTION_ID \
   --paths "/config.js"
 ```
 
----
+#### Dashboard — infrastructure status cards
 
-## Infrastructure Setup
+The home tab shows one card per service. Status is checked on page load or **↻ Refresh** via `GET /health/status`.
 
-> **Full setup guide**: [`infra/README.md`](infra/README.md)
-
-Run scripts in order:
-
-```bash
-chmod +x infra/*.sh
-export AWS_ACCOUNT_ID="123456789012"
-
-./infra/01-cluster.sh    # EKS cluster + Graviton node group
-./infra/02-addons.sh     # EBS/EFS CSI, ALB Controller
-./infra/03-oidc-irsa.sh  # IRSA roles for product-service + order-service
-./infra/05-ecr.sh        # Build & push Docker images to ECR
-./infra/04-k8s-setup.sh  # Namespace, Secrets, deploy all services
-```
-
-- EKS cluster with AWS Load Balancer Controller installed
-- EFS CSI Driver installed on EKS
-- IAM OIDC provider configured for IRSA
-- VPC with subnets tagged for ALB
-
-#### VPC Layout
-| Subnet | CIDR |
+| Card | Resources checked |
 |---|---|
-| public-1, public-2 | `10.1.1.0/24`, `10.1.2.0/24` |
-| app-1, app-2 | `10.1.3.0/24`, `10.1.4.0/24` |
-| db-1, db-2 | `10.1.5.0/24`, `10.1.6.0/24` |
-
-
-> For complete step-by-step instructions — AWS resource creation, IRSA setup, K8s secrets, Docker builds, and teardown — see **[IMPLEMENTATION.md](IMPLEMENTATION.md)**.
+| Product Service | DynamoDB, DAX, S3 |
+| Provider Service | Aurora (RDS), EFS |
+| Order Service | SQS |
 
 ---
 
-## API Endpoints
+## Services Reference
+
+### product-service (port 3001)
+
+| Item | Detail |
+|---|---|
+| Routes | `GET/POST/PUT/DELETE /products`, `GET /products-dax` |
+| DynamoDB | `products_table` — Scan, PutItem, GetItem, UpdateItem, DeleteItem |
+| DAX | Read-through cache via `amazon-dax-client` |
+| S3 | Product image upload/download/delete (pre-signed URLs) |
+| IRSA | `dynamodb:Scan/PutItem/GetItem/UpdateItem/DeleteItem`, `dax:GetItem/Scan`, `s3:PutObject/GetObject/DeleteObject` |
+
+### provider-service (port 3002)
+
+| Item | Detail |
+|---|---|
+| Routes | `GET/POST/PUT/DELETE /providers`, `GET /providers/image/:filename`, `GET /efs`, `POST /efs/upload`, `GET /efs/image/:filename`, `DELETE /efs/:filename` |
+| Database | RDS Aurora PostgreSQL — `providers` table in `providers_db` |
+| Storage | EFS PVC at `/data/efs` — serves both provider images and `/efs` file manager |
+| IRSA | None — RDS via K8s Secret, EFS via PVC |
+
+### order-service (port 3003)
+
+| Item | Detail |
+|---|---|
+| Routes | `POST /orders/generate`, `GET /orders` |
+| SQS | Publishes 10 orders per batch to `orders` queue |
+| DynamoDB | `orders_table` — Scan to list orders |
+| IRSA | `sqs:SendMessage/GetQueueAttributes`, `dynamodb:Scan` |
+
+---
+
+## API Reference
 
 ### product-service (`/products`)
+
 | Method | Path | Description |
 |---|---|---|
 | GET | `/products` | List all products (DynamoDB) |
 | GET | `/products-dax` | List all products (DAX cache) |
-| POST | `/products` | Create product (with optional image upload) |
+| POST | `/products` | Create product (optional image upload) |
 | PUT | `/products/:id` | Update product |
 | DELETE | `/products/:id` | Delete product + S3 image |
 
 ### provider-service (`/providers` + `/efs`)
+
 | Method | Path | Description |
 |---|---|---|
 | GET | `/providers` | List all providers |
-| POST | `/providers` | Create provider (with optional image upload) |
+| POST | `/providers` | Create provider (optional image upload) |
 | GET | `/providers/:id` | Get provider by ID |
 | PUT | `/providers/:id` | Update provider |
 | DELETE | `/providers/:id` | Delete provider + EFS image |
@@ -256,6 +329,7 @@ export AWS_ACCOUNT_ID="123456789012"
 | DELETE | `/efs/:filename` | Delete image from EFS |
 
 ### order-service (`/orders`)
+
 | Method | Path | Description |
 |---|---|---|
 | POST | `/orders/generate` | Generate 10 orders → publish to SQS |
@@ -265,15 +339,20 @@ export AWS_ACCOUNT_ID="123456789012"
 
 ## Health Checks
 
-Each service exposes:
-- `GET /health` — liveness probe (returns `{ status: "healthy", service: "<name>" }`)
-- `GET /health/status` — deep connectivity check per service
+Each service exposes two endpoints:
+
+- `GET /health` — liveness probe, returns immediately: `{ status: "healthy", service: "<name>" }`
+- `GET /health/status` — deep check, tests each AWS resource
 
 | Service | Endpoint | Checks |
 |---|---|---|
-| product-service | `GET /products/health/status` | DynamoDB (`products_table`), DAX (Scan Limit 1), S3 (HeadBucket) |
-| provider-service | `GET /providers/health/status` | Aurora PostgreSQL (`SELECT 1`), EFS (write access on `/data/efs`) |
-| order-service | `GET /orders/health/status` | SQS (GetQueueAttributes), DynamoDB (`orders_table`) |
+| product-service | `GET /products/health/status` | DynamoDB, DAX (Scan), S3 (HeadBucket) |
+| provider-service | `GET /providers/health/status` | Aurora (`SELECT 1`), EFS (write test) |
+| order-service | `GET /orders/health/status` | SQS (GetQueueAttributes), DynamoDB |
 
-The frontend dashboard calls all three endpoints in parallel on page load or manual refresh, and renders the results into the service-grouped infrastructure status cards on the home tab.
+---
 
+## Verification & Teardown
+
+- **Verify deployment**: [infra/VERIFICATION.md](infra/VERIFICATION.md)
+- **Delete all resources**: [infra/TEARDOWN.md](infra/TEARDOWN.md)
