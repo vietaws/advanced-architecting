@@ -21,62 +21,13 @@
         </header>
 
         <!-- ── Home: Service Status Dashboard ─────────────────────────────── -->
+        <!-- Cards are built dynamically by buildDashboardCards() in app.js   -->
         <main id="home" class="tab-content active">
             <div class="dashboard-header">
-                <h2>Service Status</h2>
+                <h2>Infrastructure Status</h2>
                 <button class="btn-primary" onclick="loadDashboard()">↻ Refresh</button>
             </div>
-            <div id="dashboard-grid" class="dashboard-grid">
-
-                <div class="status-card" id="status-dynamodb">
-                    <div class="status-icon">⚡</div>
-                    <div class="status-info">
-                        <div class="status-name">DynamoDB</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-                <div class="status-card" id="status-dax">
-                    <div class="status-icon">🚀</div>
-                    <div class="status-info">
-                        <div class="status-name">DAX</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-                <div class="status-card" id="status-s3">
-                    <div class="status-icon">🪣</div>
-                    <div class="status-info">
-                        <div class="status-name">S3 Bucket</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-                <div class="status-card" id="status-aurora">
-                    <div class="status-icon">🗄️</div>
-                    <div class="status-info">
-                        <div class="status-name">Aurora (RDS)</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-                <div class="status-card" id="status-efs">
-                    <div class="status-icon">📁</div>
-                    <div class="status-info">
-                        <div class="status-name">EFS</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-                <div class="status-card" id="status-sqs">
-                    <div class="status-icon">📨</div>
-                    <div class="status-info">
-                        <div class="status-name">SQS</div>
-                        <div class="status-badge checking">Checking...</div>
-                    </div>
-                </div>
-
-            </div>
+            <div id="dashboard-grid" class="dashboard-grid"></div>
         </main>
 
         <!-- ── Products (DynamoDB) ────────────────────────────────────────── -->

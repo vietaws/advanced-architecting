@@ -588,7 +588,7 @@ nav {
     }
 }
 
-/* Dashboard Styles */
+/* ── Dashboard ────────────────────────────────────────────────────────────── */
 .dashboard-header {
     display: flex;
     align-items: center;
@@ -602,52 +602,82 @@ nav {
     margin: 0;
 }
 
+/* Three service-group cards side by side */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
 }
 
-.status-card {
+/* One card per service (Product / Provider / Order) */
+.service-group-card {
     background: white;
     border: 1px solid #e0e0e0;
     border-radius: 12px;
-    padding: 20px 24px;
-    display: flex;
-    align-items: center;
-    gap: 18px;
+    overflow: hidden;
     transition: box-shadow 0.2s;
 }
 
-.status-card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.service-group-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
 }
 
-.status-icon {
-    font-size: 32px;
+.service-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.service-group-icon {
+    font-size: 22px;
     line-height: 1;
+}
+
+.service-group-name {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+/* Resource rows inside each service card */
+.resource-list {
+    padding: 8px 0;
+}
+
+.resource-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.resource-item:last-child {
+    border-bottom: none;
+}
+
+.resource-icon {
+    font-size: 18px;
     flex-shrink: 0;
 }
 
-.status-info {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.status-name {
-    font-size: 15px;
-    font-weight: 600;
+.resource-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
     color: #333;
 }
 
+/* Status badge — reused by both dashboard and other components */
 .status-badge {
     display: inline-block;
     padding: 3px 10px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    width: fit-content;
+    white-space: nowrap;
 }
 
 .status-badge.checking {
@@ -675,22 +705,13 @@ nav {
     color: #757575;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .dashboard-grid {
         grid-template-columns: 1fr 1fr;
     }
-
-    .status-card {
-        padding: 16px;
-        gap: 12px;
-    }
-
-    .status-icon {
-        font-size: 26px;
-    }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 600px) {
     .dashboard-grid {
         grid-template-columns: 1fr;
     }

@@ -1,6 +1,6 @@
 // API_URL comes from config.js which is loaded before this script.
-// Falls back to window.location.origin for local dev against the monolith.
-const API_URL = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || window.location.origin;
+// Empty string means frontend-only mode — no backend calls are made.
+const API_URL = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
@@ -11,7 +11,7 @@ document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.add('active');
         document.getElementById(target).classList.add('active');
 
-        if (target === 'home')         loadDashboard();
+        if (target === 'home')              loadDashboard();
         else if (target === 'products')     loadProducts();
         else if (target === 'products-dax') loadProductsDax();
         else if (target === 'providers')    loadProviders();
@@ -20,81 +20,136 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-// Each microservice exposes its own GET /health/status.
-// We call all 3 in parallel and merge results into the 6 status cards.
 //
-//   product-service  → /products/health/status  → { dynamodb, dax, s3 }
-//   provider-service → /providers/health/status → { aurora, efs }
-//   order-service    → /orders/health/status    → { sqs, dynamodb }
+// Service groups and the AWS resources each one reports:
+//
+//   Product Service  → GET /products/health/status  → { dynamodb, dax, s3 }
+//   Provider Service → GET /providers/health/status → { aurora, efs }
+//   Order Service    → GET /orders/health/status    → { sqs }
+//
+// When API_URL is empty (frontend-only mode) every resource shows Disconnected
+// immediately without making any network request.
+
+const SERVICE_GROUPS = [
+    {
+        id: 'product',
+        name: 'Product Service',
+        icon: '📦',
+        endpoint: '/products/health/status',
+        resources: [
+            { key: 'dynamodb', label: 'DynamoDB', icon: '⚡' },
+            { key: 'dax',      label: 'DAX',      icon: '🚀' },
+            { key: 's3',       label: 'S3',        icon: '🪣' },
+        ],
+    },
+    {
+        id: 'provider',
+        name: 'Provider Service',
+        icon: '🏭',
+        endpoint: '/providers/health/status',
+        resources: [
+            { key: 'aurora', label: 'Aurora (RDS)', icon: '🗄️' },
+            { key: 'efs',    label: 'EFS',          icon: '📁' },
+        ],
+    },
+    {
+        id: 'order',
+        name: 'Order Service',
+        icon: '🛒',
+        endpoint: '/orders/health/status',
+        resources: [
+            { key: 'sqs', label: 'SQS', icon: '📨' },
+        ],
+    },
+];
+
+// Build the dashboard cards from SERVICE_GROUPS on first load.
+function buildDashboardCards() {
+    const grid = document.getElementById('dashboard-grid');
+    grid.innerHTML = SERVICE_GROUPS.map(group => `
+        <div class="service-group-card" id="group-${group.id}">
+            <div class="service-group-header">
+                <span class="service-group-icon">${group.icon}</span>
+                <span class="service-group-name">${group.name}</span>
+            </div>
+            <div class="resource-list">
+                ${group.resources.map(r => `
+                    <div class="resource-item" id="resource-${r.key}">
+                        <span class="resource-icon">${r.icon}</span>
+                        <span class="resource-label">${r.label}</span>
+                        <span class="status-badge disconnected" id="badge-${r.key}">Disconnected</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+// Set every badge to a given state without making any API calls.
+function setAllBadges(state, text) {
+    SERVICE_GROUPS.forEach(group => {
+        group.resources.forEach(r => {
+            const badge = document.getElementById(`badge-${r.key}`);
+            if (badge) {
+                badge.textContent = text;
+                badge.className = `status-badge ${state}`;
+            }
+        });
+    });
+}
+
+// Apply a flat result map { resourceKey: { status, error? } } to the badges.
+function applyResults(data) {
+    SERVICE_GROUPS.forEach(group => {
+        group.resources.forEach(r => {
+            const badge = document.getElementById(`badge-${r.key}`);
+            if (!badge) return;
+            const info = data[r.key];
+            if (!info) {
+                badge.textContent = 'Unknown';
+                badge.className = 'status-badge checking';
+                return;
+            }
+            const s = info.status;
+            badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+            badge.className = `status-badge ${s}`;
+        });
+    });
+}
 
 async function loadDashboard() {
-    const allServices = ['dynamodb', 'dax', 's3', 'aurora', 'efs', 'sqs'];
+    // No backend configured — show Disconnected immediately, no network calls.
+    if (!API_URL) {
+        setAllBadges('disconnected', 'Disconnected');
+        return;
+    }
 
-    // Reset all cards to "Checking..." state
-    allServices.forEach(svc => {
-        const badge = document.querySelector(`#status-${svc} .status-badge`);
-        if (badge) {
-            badge.textContent = 'Checking...';
-            badge.className = 'status-badge checking';
-        }
-    });
+    // Reset to Checking...
+    setAllBadges('checking', 'Checking…');
 
-    // Fire all 3 health checks in parallel
-    const [productResult, providerResult, orderResult] = await Promise.allSettled([
-        fetch(`${API_URL}/products/health/status`).then(r => r.json()),
-        fetch(`${API_URL}/providers/health/status`).then(r => r.json()),
-        fetch(`${API_URL}/orders/health/status`).then(r => r.json()),
-    ]);
+    // Fire all 3 health checks in parallel.
+    const results = await Promise.allSettled(
+        SERVICE_GROUPS.map(group =>
+            fetch(`${API_URL}${group.endpoint}`).then(r => r.json())
+        )
+    );
 
-    // Merge all responses into one flat map { serviceName -> { status, error? } }
+    // Merge all responses into one flat map.
     const data = {};
 
-    if (productResult.status === 'fulfilled') {
-        Object.assign(data, productResult.value);
-    } else {
-        console.error('product-service health check failed:', productResult.reason);
-        ['dynamodb', 'dax', 's3'].forEach(s => {
-            data[s] = { status: 'disconnected', error: 'unreachable' };
-        });
-    }
-
-    if (providerResult.status === 'fulfilled') {
-        Object.assign(data, providerResult.value);
-    } else {
-        console.error('provider-service health check failed:', providerResult.reason);
-        ['aurora', 'efs'].forEach(s => {
-            data[s] = { status: 'disconnected', error: 'unreachable' };
-        });
-    }
-
-    if (orderResult.status === 'fulfilled') {
-        const orderData = orderResult.value;
-        data['sqs'] = orderData['sqs'] || { status: 'disconnected', error: 'unreachable' };
-        // product-service DynamoDB result takes precedence; order-service is a fallback
-        if (!data['dynamodb']) {
-            data['dynamodb'] = orderData['dynamodb'] || { status: 'disconnected', error: 'unreachable' };
+    results.forEach((result, i) => {
+        const group = SERVICE_GROUPS[i];
+        if (result.status === 'fulfilled') {
+            Object.assign(data, result.value);
+        } else {
+            console.error(`${group.name} health check failed:`, result.reason);
+            group.resources.forEach(r => {
+                data[r.key] = { status: 'disconnected', error: 'unreachable' };
+            });
         }
-    } else {
-        console.error('order-service health check failed:', orderResult.reason);
-        data['sqs'] = { status: 'disconnected', error: 'unreachable' };
-    }
-
-    // Update every status card
-    allServices.forEach(svc => {
-        const badge = document.querySelector(`#status-${svc} .status-badge`);
-        if (!badge) return;
-
-        const info = data[svc];
-        if (!info) {
-            badge.textContent = 'Unknown';
-            badge.className = 'status-badge checking';
-            return;
-        }
-
-        const s = info.status;
-        badge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-        badge.className = `status-badge ${s}`;
     });
+
+    applyResults(data);
 }
 
 // ── Products (DynamoDB) ───────────────────────────────────────────────────────
@@ -350,4 +405,5 @@ async function getOrderStatus() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+buildDashboardCards();
 loadDashboard();

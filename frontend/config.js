@@ -1,25 +1,34 @@
 // =============================================================================
 // config.js — Frontend configuration
 //
-// This is the ONLY file you need to edit when deploying the frontend to S3/CloudFront.
+// This is the ONLY file you need to edit when deploying the frontend.
 //
-// How to deploy:
-//   1. Set API_URL to your ALB DNS name or custom domain:
-//        https://api.yourdomain.com          (custom domain via Route 53 + ACM)
-//        https://xxx.ap-southeast-1.elb.amazonaws.com  (raw ALB DNS)
+// ── Frontend-first deployment ────────────────────────────────────────────────
+// You can deploy the frontend to S3 + CloudFront BEFORE any backend service
+// is running. When API_URL is empty, the dashboard shows all services as
+// "Disconnected" without making any network calls.
 //
-//   2. Upload all files in this folder to your S3 bucket:
-//        aws s3 sync frontend/ s3://YOUR_BUCKET_NAME --delete
+// Once you deploy a backend service, set API_URL to its ALB endpoint and
+// re-upload this file. The dashboard will immediately start reflecting the
+// real status of each service's AWS resources.
 //
-//   3. Invalidate CloudFront cache after each deploy:
-//        aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
+// ── Steps ────────────────────────────────────────────────────────────────────
+// Step 1 — Frontend only (no backend yet):
+//   Leave API_URL as empty string ''. Deploy to S3. Done.
 //
-// For local development against the monolith:
-//   Set API_URL = '' (empty string) to fall back to window.location.origin
+// Step 2 — Backend deployed:
+//   Set API_URL to your ALB DNS name or custom domain:
+//     https://api.yourdomain.com                          (Route 53 + ACM)
+//     https://xxx.ap-southeast-1.elb.amazonaws.com        (raw ALB DNS)
+//   Re-upload this file and invalidate CloudFront cache:
+//     aws s3 cp frontend/config.js s3://YOUR_BUCKET_NAME/config.js
+//     aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/config.js"
+//
+// No trailing slash on API_URL.
 // =============================================================================
 
 window.APP_CONFIG = {
-  // ALB endpoint for the EKS microservices backend.
-  // No trailing slash.
-  API_URL: 'https://api.yourdomain.com',
+  // Set to your ALB endpoint once the backend is deployed.
+  // Leave empty to run frontend-only (all services show as Disconnected).
+  API_URL: '',
 };

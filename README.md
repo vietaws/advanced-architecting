@@ -99,7 +99,33 @@ architecting-pro/
 
 ## Frontend Deployment (S3 + CloudFront)
 
-The `frontend/` folder contains the complete static SPA. The only file you need to edit is `config.js`.
+The frontend is a vanilla JS SPA — four static files, no build step.  
+`config.js` is the **only file you ever edit**.
+
+### Frontend-first approach
+
+You can deploy the frontend **before any backend service exists**.  
+When `API_URL` is empty the dashboard shows every infrastructure resource as **Disconnected** (red) without making any network calls.  
+Once you deploy a backend service, update `API_URL` in `config.js`, re-upload the file, and invalidate CloudFront. The dashboard immediately reflects the real status of each service's AWS resources.
+
+```
+Deploy frontend (API_URL = '')  →  All resources: Disconnected
+Deploy product-service          →  DynamoDB / DAX / S3 turn Connected
+Deploy provider-service         →  Aurora / EFS turn Connected
+Deploy order-service            →  SQS turns Connected
+```
+
+### Dashboard — infrastructure status cards
+
+The home tab shows one card per service, each listing its AWS resources:
+
+| Card | Resources checked |
+|---|---|
+| Product Service | DynamoDB, DAX, S3 |
+| Provider Service | Aurora (RDS), EFS |
+| Order Service | SQS |
+
+Status is fetched from each service's `GET /health/status` endpoint on page load or when you click **↻ Refresh**.
 
 ### 1. Configure the API endpoint
 
@@ -107,7 +133,16 @@ Edit `frontend/config.js`:
 
 ```js
 window.APP_CONFIG = {
-  API_URL: 'https://api.yourdomain.com',  // ← your ALB DNS or custom domain
+  // Set to your ALB endpoint once the backend is deployed.
+  // Leave empty to run frontend-only (all resources show as Disconnected).
+  API_URL: '',
+};
+```
+
+When the backend is ready:
+```js
+window.APP_CONFIG = {
+  API_URL: 'https://api.yourdomain.com',  // ALB DNS or custom domain — no trailing slash
 };
 ```
 
@@ -121,7 +156,7 @@ aws s3api create-bucket \
   --region ap-southeast-1 \
   --create-bucket-configuration LocationConstraint=ap-southeast-1
 
-# Block all public access (CloudFront OAC will serve the files)
+# Block all public access — CloudFront OAC serves the files
 aws s3api put-public-access-block \
   --bucket "$FRONTEND_BUCKET" \
   --public-access-block-configuration \
@@ -144,12 +179,19 @@ aws cloudfront create-distribution \
 
 > Use Origin Access Control (OAC) to allow CloudFront to access the private S3 bucket without making it public.
 
-### 5. Invalidate cache after each deploy
+### 5. Activate backend (after EKS services are deployed)
 
 ```bash
+# Edit config.js — set API_URL to your ALB endpoint
+vi frontend/config.js
+
+# Re-upload only config.js
+aws s3 cp frontend/config.js s3://$FRONTEND_BUCKET/config.js
+
+# Invalidate CloudFront cache
 aws cloudfront create-invalidation \
   --distribution-id YOUR_DISTRIBUTION_ID \
-  --paths "/*"
+  --paths "/config.js"
 ```
 
 ---
@@ -233,5 +275,5 @@ Each service exposes:
 | provider-service | `GET /providers/health/status` | Aurora PostgreSQL (`SELECT 1`), EFS (write access on `/data/efs`) |
 | order-service | `GET /orders/health/status` | SQS (GetQueueAttributes), DynamoDB (`orders_table`) |
 
-The frontend dashboard calls all three endpoints in parallel and merges the results into the service status cards.
+The frontend dashboard calls all three endpoints in parallel on page load or manual refresh, and renders the results into the service-grouped infrastructure status cards on the home tab.
 

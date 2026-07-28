@@ -1,6 +1,6 @@
 # Implementation Guide
 
-This guide walks through the complete implementation of the **Product-Provider Management** microservices on EKS — from architecture decisions down to individual files, commands, and verification steps.
+This guide walks through the complete implementation of the **Miracle Ecommerce Application - Containerized** microservices on EKS — from architecture decisions down to individual files, commands, and verification steps.
 
 ---
 
@@ -802,91 +802,58 @@ order-service-xxx       1/1     Running   0          60s
 
 ## 10. Phase 6 — Frontend
 
-The frontend is a vanilla JS SPA with no build step — four static files deployed directly to S3.
+The frontend is a vanilla JS SPA with no build step — four static files deployed directly to S3.  
+For full deployment steps see **[README.md — Frontend Deployment](README.md#frontend-deployment-s3--cloudfront)**.
 
 ### Files
 
 | File | Purpose |
 |---|---|
-| `frontend/config.js` | Sets `window.APP_CONFIG.API_URL` — the only file to edit per environment |
+| `frontend/config.js` | Sets `window.APP_CONFIG.API_URL` — the **only** file to edit per environment |
 | `frontend/index.html` | SPA shell — loads `config.js` then `app.js` in order |
 | `frontend/app.js` | All UI logic — reads `API_URL` from `window.APP_CONFIG` |
 | `frontend/style.css` | Styles |
 
-### Step 1 — Set the API URL
+### Frontend-first deployment
 
-Edit `frontend/config.js`:
+Deploy the frontend **before any backend service exists**.  
+Set `API_URL = ''` in `config.js`. The dashboard immediately shows all resources as **Disconnected** (red) without making any network calls.
 
 ```js
-window.APP_CONFIG = {
-  API_URL: 'https://api.yourdomain.com',  // ALB DNS or custom domain
-};
+// frontend/config.js — initial deploy, no backend yet
+window.APP_CONFIG = { API_URL: '' };
 ```
 
-The ALB DNS is available after Phase 5:
+Once you deploy a backend service, set `API_URL` to the ALB endpoint, re-upload `config.js`, and invalidate CloudFront. Only that one file changes.
+
 ```bash
+# Get ALB DNS after Phase 5
 kubectl get ingress app-ingress -n app \
   -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-```
 
-`app.js` falls back to `window.location.origin` if `APP_CONFIG` is not set — safe for local dev.
-
-### Step 2 — Create S3 bucket
-
-```bash
-FRONTEND_BUCKET="demo-frontend-$(openssl rand -hex 4)"
-
-aws s3api create-bucket \
-  --bucket "$FRONTEND_BUCKET" \
-  --region ap-southeast-1 \
-  --create-bucket-configuration LocationConstraint=ap-southeast-1
-
-aws s3api put-public-access-block \
-  --bucket "$FRONTEND_BUCKET" \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-```
-
-### Step 3 — Upload
-
-```bash
-aws s3 sync frontend/ s3://$FRONTEND_BUCKET --delete
-```
-
-### Step 4 — CloudFront distribution
-
-```bash
-aws cloudfront create-distribution \
-  --origin-domain-name "${FRONTEND_BUCKET}.s3.ap-southeast-1.amazonaws.com" \
-  --default-root-object index.html
-```
-
-Use **Origin Access Control (OAC)** to give CloudFront read access to the private S3 bucket without making the bucket public.
-
-### Step 5 — Update after changes
-
-After any frontend file change:
-```bash
-# Re-upload
-aws s3 sync frontend/ s3://$FRONTEND_BUCKET --delete
-
-# Invalidate CloudFront cache
+# Update config.js, re-upload, invalidate
+vi frontend/config.js
+aws s3 cp frontend/config.js s3://$FRONTEND_BUCKET/config.js
 aws cloudfront create-invalidation \
   --distribution-id YOUR_DISTRIBUTION_ID \
-  --paths "/*"
+  --paths "/config.js"
 ```
 
 ### How the dashboard works
 
-`frontend/app.js` — `loadDashboard()` fires three parallel fetches:
+`buildDashboardCards()` generates the three service-group cards from `SERVICE_GROUPS` config in `app.js`.  
+`loadDashboard()` fires three parallel `/health/status` fetches and maps results into the resource badges.
 
 ```
-fetch /products/health/status  → product-service → { dynamodb, dax, s3 }
-fetch /providers/health/status → provider-service → { aurora, efs }
-fetch /orders/health/status    → order-service   → { sqs, dynamodb }
+When API_URL is empty  →  show Disconnected immediately, no fetches
+When API_URL is set    →  fetch in parallel:
+  /products/health/status  → product-service  → { dynamodb, dax, s3 }
+  /providers/health/status → provider-service → { aurora, efs }
+  /orders/health/status    → order-service    → { sqs }
 ```
 
-Results are merged and rendered into six status cards on the home tab. Each service's `/health/status` handler lives in `services/*/server.js`.
+If any fetch fails, that service's resources all show **Disconnected**.  
+Each service's `/health/status` handler lives in `services/*/server.js`.
 
 ---
 
