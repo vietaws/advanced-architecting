@@ -15,7 +15,7 @@ REGION="ap-southeast-1"
 
 ```bash
 kubectl delete namespace app
-kubectl delete -f infra/eks-cluster/k8s/02-efs-pvc.yaml
+kubectl delete -f eks-setup/k8s/02-efs-pvc.yaml
 ```
 
 ---

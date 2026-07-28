@@ -106,7 +106,7 @@ docker buildx build \
 
 ## Update deployment manifests
 
-Edit `infra/eks-cluster/k8s/*/05-deployment.yaml` — set the `image:` field to your chosen registry before Phase 5. The `04-k8s-setup.sh` script substitutes the `AWS_ACCOUNT_ID` placeholder automatically for ECR images.
+Edit `eks-setup/k8s/*/05-deployment.yaml` — set the `image:` field to your chosen registry before Phase 5. The `04-k8s-setup.sh` script substitutes the `AWS_ACCOUNT_ID` placeholder automatically for ECR images.
 
 ---
 

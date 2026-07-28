@@ -5,8 +5,8 @@
 ---
 
 ```bash
-chmod +x infra/eks-cluster/*.sh
-./infra/eks-cluster/02-addons.sh
+chmod +x eks-setup/*.sh
+./eks-setup/02-addons.sh
 ```
 
 ---
@@ -19,7 +19,7 @@ chmod +x infra/eks-cluster/*.sh
 | CoreDNS | EKS managed | — |
 | aws-ebs-csi-driver | EKS managed | `AmazonEBSCSIDriverPolicy` |
 | aws-efs-csi-driver | EKS managed | `AmazonEFSCSIDriverPolicy` |
-| aws-load-balancer-controller | Helm v1.8.1 | `infra/eks-cluster/iam/alb-controller-policy.json` |
+| aws-load-balancer-controller | Helm v1.8.1 | `eks-setup/iam/alb-controller-policy.json` |
 
 The ALB Controller policy is scoped with conditions so it only manages resources tagged with `elbv2.k8s.aws/cluster`. Key permissions: ALB lifecycle, EC2 security groups, ACM certificate lookup.
 

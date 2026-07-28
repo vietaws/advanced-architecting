@@ -78,13 +78,12 @@ architecting-pro/
 │   ├── provider-service/          ← RDS Aurora + EFS     (port 3002)
 │   └── order-service/             ← SQS + DynamoDB       (port 3003)
 │
-└── infra/                         ← scripts and manifests only
-    └── eks-cluster/
-        ├── 02-addons.sh
-        ├── 03-oidc-irsa.sh
-        ├── 04-k8s-setup.sh
-        ├── iam/                   ← least-privilege IAM policy documents
-        └── k8s/                   ← Kubernetes manifests
+└── eks-setup/                     ← scripts and manifests only
+    ├── 02-addons.sh
+    ├── 03-oidc-irsa.sh
+    ├── 04-k8s-setup.sh
+    ├── iam/                   ← least-privilege IAM policy documents
+    └── k8s/                   ← Kubernetes manifests
 ```
 
 ---

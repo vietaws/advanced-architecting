@@ -13,7 +13,7 @@ export RDS_HOST="demo-aurora-cluster.cluster-xxx.ap-southeast-1.rds.amazonaws.co
 export RDS_PASSWORD="YourSecurePassword"
 export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/${AWS_ACCOUNT_ID}/orders"
 
-./infra/eks-cluster/04-k8s-setup.sh
+./eks-setup/04-k8s-setup.sh
 ```
 
 ---
@@ -22,12 +22,12 @@ export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/${AWS_ACCOUNT_ID}
 
 | Manifest | Creates |
 |---|---|
-| `infra/eks-cluster/k8s/01-namespace.yaml` | Namespace `app` |
-| `infra/eks-cluster/k8s/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
-| `infra/eks-cluster/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
-| `infra/eks-cluster/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |
-| `infra/eks-cluster/k8s/*/04-service.yaml` | 3 ClusterIP Services |
-| `infra/eks-cluster/k8s/06-ingress.yaml` | ALB Ingress — path-based routing |
+| `eks-setup/k8s/01-namespace.yaml` | Namespace `app` |
+| `eks-setup/k8s/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
+| `eks-setup/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
+| `eks-setup/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |
+| `eks-setup/k8s/*/04-service.yaml` | 3 ClusterIP Services |
+| `eks-setup/k8s/06-ingress.yaml` | ALB Ingress — path-based routing |
 
 ---
 

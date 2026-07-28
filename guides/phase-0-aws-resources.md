@@ -251,7 +251,7 @@ export RDS_PASSWORD="YourSecurePassword"
 export EFS_FILE_SYSTEM_ID="fs-0123456789abcdef0"
 ```
 
-These are passed to `infra/eks-cluster/04-k8s-setup.sh` in Phase 5.
+These are passed to `eks-setup/04-k8s-setup.sh` in Phase 5.
 
 ---
 
