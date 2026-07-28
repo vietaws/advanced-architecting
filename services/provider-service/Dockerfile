@@ -17,8 +17,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application source
 COPY . .
 
-# Create EFS mount point directory
-RUN mkdir -p /data/efs
+# Create EFS mount point directory and give node user ownership
+RUN mkdir -p /data/efs && chown node:node /data/efs
 
 # Run as non-root user for security
 USER node

@@ -103,11 +103,10 @@ router.get('/:id', async (req, res) => {
       'DynamoDB get',
     );
 
-    if (result.Item) {
-      result.Item.image_url = await getImageUrl(result.Item.image_key);
-    }
+    if (!result.Item) return res.status(404).json({ error: 'Product not found' });
 
-    res.json(result.Item || {});
+    result.Item.image_url = await getImageUrl(result.Item.image_key);
+    res.json(result.Item);
   } catch (error) {
     logger.error(
       { action: 'product.get', source: 'dynamodb', id: req.params.id, error: error.message },

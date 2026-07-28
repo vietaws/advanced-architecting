@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import { promises as fs } from 'fs';
+import { promises as fs, constants as fsConstants } from 'fs';
 import logger from './logger.js';
 import providerRoutes from './routes/providers.js';
 import efsRoutes from './routes/efs.js';
@@ -35,7 +35,7 @@ app.get('/health/status', async (_req, res) => {
 
     // 2. EFS — check mount point is accessible and writable
     (async () => {
-      await fs.access(EFS_MOUNT_POINT, fs.constants.W_OK);
+      await fs.access(EFS_MOUNT_POINT, fsConstants.W_OK);
       return { service: 'efs', status: 'connected' };
     })(),
 

@@ -186,5 +186,5 @@ kubectl get pods -n "${NAMESPACE}" -o wide
 echo ""
 kubectl get ingress -n "${NAMESPACE}"
 echo ""
-echo "  Next step:  ./infra/05-ecr.sh  (if images not yet pushed)"
+echo "  Next step:  ./infra/05-ecr.sh  (push images FIRST, then re-run this script)"
 echo "============================================================"
