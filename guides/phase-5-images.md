@@ -13,9 +13,9 @@ Build multi-platform images locally and push to **Docker Hub** first. Then re-ta
 Edit these once before running any commands below:
 
 ```bash
-# Docker Hub
-DOCKER_USER="vietaws"                  # your Docker Hub username
-DOCKER_REPO="architecting-pro"         # your Docker Hub repository name
+# Docker Hub (update your actual user and repo)
+DOCKER_USER="vietaws"                  
+DOCKER_REPO="architecting-pro"         
 
 # AWS / ECR
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -38,16 +38,25 @@ Images are built for `linux/amd64,linux/arm64`. The correct variant is pulled au
 
 ## One-time setup
 
-```bash
-# Create a multi-platform buildx builder
-docker buildx create \
-  --name architecting-pro-builder \
-  --driver docker-container \
-  --platform linux/amd64,linux/arm64 \
-  --use
-docker buildx inspect --bootstrap
+Verify buildx is available (requires Docker Desktop >= 4.0):
 
-# Log in to Docker Hub
+```bash
+docker buildx version
+# Expected: github.com/docker/buildx v0.x.x ...
+```
+
+If the command is not found, update Docker Desktop and ensure it is running.
+
+Create a multi-platform builder:
+
+```bash
+docker buildx create --use --name multiplatform-builder
+docker buildx inspect --bootstrap
+```
+
+Log in to Docker Hub:
+
+```bash
 docker login
 ```
 
@@ -56,7 +65,7 @@ docker login
 ## Step 1 — Build and push to Docker Hub
 
 ```bash
-docker buildx use architecting-pro-builder
+docker buildx use multiplatform-builder
 
 for SVC in product-service provider-service order-service; do
   docker buildx build \
