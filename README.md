@@ -56,6 +56,17 @@ AWS Managed Resources
 architecting-pro/
 ├── README.md                      ← this file
 │
+├── guides/                        ← step-by-step guides for each phase
+│   ├── phase-0-aws-resources.md
+│   ├── phase-1-frontend.md
+│   ├── phase-2-eks-cluster.md
+│   ├── phase-3-addons.md
+│   ├── phase-4-irsa.md
+│   ├── phase-5-images.md
+│   ├── phase-6-deploy.md
+│   ├── verification.md
+│   └── teardown.md
+│
 ├── frontend/                      ← static SPA (S3 + CloudFront)
 │   ├── config.js                  ← EDIT THIS: set API_URL to ALB endpoint
 │   ├── index.html
@@ -67,15 +78,8 @@ architecting-pro/
 │   ├── provider-service/          ← RDS Aurora + EFS     (port 3002)
 │   └── order-service/             ← SQS + DynamoDB       (port 3003)
 │
-└── infra/                         ← all infrastructure docs and scripts
-    ├── README.md                  ← navigation index
-    ├── IMAGES.md                  ← container image build & push
-    ├── VERIFICATION.md            ← post-deploy verification checklist
-    ├── TEARDOWN.md                ← delete all resources
-    ├── aws-resources/
-    │   └── README.md              ← Phase 0: DynamoDB, S3, SQS, DAX, Aurora, EFS
+└── infra/                         ← scripts and manifests only
     └── eks-cluster/
-        ├── README.md              ← Phases 1–5: EKS, add-ons, IRSA, deploy
         ├── 02-addons.sh
         ├── 03-oidc-irsa.sh
         ├── 04-k8s-setup.sh
@@ -103,11 +107,29 @@ AWS credentials must have permissions on: EKS, EC2, IAM, ECR, DynamoDB, RDS, EFS
 
 ---
 
+## Guides
+
+| Guide | Description |
+|---|---|
+| [Phase 0 — AWS Resources](guides/phase-0-aws-resources.md) | DynamoDB, S3, SQS, DAX, Aurora, EFS |
+| [Phase 1 — Frontend](guides/phase-1-frontend.md) | S3 + CloudFront, deploy before backend exists |
+| [Phase 2 — EKS Cluster](guides/phase-2-eks-cluster.md) | eksctl cluster + VPC + node group |
+| [Phase 3 — EKS Add-ons](guides/phase-3-addons.md) | CSI drivers, ALB Controller |
+| [Phase 4 — IAM & IRSA](guides/phase-4-irsa.md) | Least-privilege roles per service |
+| [Phase 5 — Container Images](guides/phase-5-images.md) | Build & push to Docker Hub + ECR |
+| [Phase 6 — Kubernetes Deploy](guides/phase-6-deploy.md) | Namespace, secrets, deployments, ingress |
+| [Verification](guides/verification.md) | Post-deploy checklist |
+| [Teardown](guides/teardown.md) | Delete all resources |
+
+---
+
 ## Deployment Workflow
+
+> **Frontend-first approach** — Deploy Phase 1 (frontend) before any backend service exists. The dashboard shows all resources as **Disconnected** (red). As you deploy each backend service, the corresponding cards turn **Connected** without any frontend redeployment.
 
 ### Phase 0 — AWS Resources
 
-Create all AWS-managed resources **before** provisioning EKS. Services depend on these at startup.
+Create all AWS-managed resources before provisioning EKS. Services depend on these at startup.
 
 | Resource | Used by |
 |---|---|
@@ -119,153 +141,55 @@ Create all AWS-managed resources **before** provisioning EKS. Services depend on
 | RDS Aurora PostgreSQL `providers_db` | provider-service |
 | EFS file system | provider-service |
 
-→ **[Full CLI commands: infra/aws-resources/README.md](infra/aws-resources/README.md)**
+→ **[Full CLI commands: guides/phase-0-aws-resources.md](guides/phase-0-aws-resources.md)**
 
 ---
 
-### Phase 1 — EKS Cluster
+### Phase 1 — Frontend *(deploy first)*
 
-One command creates the control plane, a new VPC (`10.2.0.0/16`), public + private subnets in 2 AZs, subnet tags for ALB, and the IAM OIDC provider.
+Deploy the static SPA to S3 + CloudFront with `API_URL` left empty. All dashboard cards show **Disconnected** — no backend needed. Once the backend is deployed, set `API_URL` to the ALB endpoint and re-upload `config.js`.
 
-```bash
-eksctl create cluster \
-  --name demo-cluster \
-  --region ap-southeast-1 \
-  --version 1.30 \
-  --vpc-cidr 10.2.0.0/16 \
-  --zones ap-southeast-1a,ap-southeast-1b \
-  --without-nodegroup \
-  --with-oidc \
-  --tags "project=architecting-pro,env=demo"
-```
-
-Then add a node group — **public** (no NAT cost) or **private** (with NAT Gateway):
-
-→ **[Full node group commands: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-1--eks-cluster)**
+→ **[Full steps: guides/phase-1-frontend.md](guides/phase-1-frontend.md)**
 
 ---
 
-### Phase 2 — EKS Add-ons
+### Phase 2 — EKS Cluster
 
-```bash
-./infra/eks-cluster/02-addons.sh
-```
+Create the EKS control plane with a new VPC (`10.2.0.0/16`), IAM OIDC provider, and a Graviton Spot node group. Choose between a public node group (no NAT cost) or private (with NAT Gateway).
 
-Installs: EBS CSI driver, EFS CSI driver, CoreDNS, kube-proxy, AWS Load Balancer Controller.
-
-→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-2--eks-add-ons)**
+→ **[Full commands: guides/phase-2-eks-cluster.md](guides/phase-2-eks-cluster.md)**
 
 ---
 
-### Phase 3 — IAM & IRSA
+### Phase 3 — EKS Add-ons
 
-```bash
-export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
-./infra/eks-cluster/03-oidc-irsa.sh
-```
+Install EBS CSI, EFS CSI, CoreDNS, kube-proxy, and the AWS Load Balancer Controller.
 
-Creates least-privilege IAM roles for `product-service` (DynamoDB, DAX, S3) and `order-service` (SQS, DynamoDB). `provider-service` needs no IRSA — RDS via K8s Secret, EFS via PVC.
-
-→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-3--iam--irsa)**
+→ **[Detail: guides/phase-3-addons.md](guides/phase-3-addons.md)**
 
 ---
 
-### Phase 4 — Container Images
+### Phase 4 — IAM & IRSA
+
+Create least-privilege IAM roles for `product-service` (DynamoDB, DAX, S3) and `order-service` (SQS, DynamoDB). `provider-service` needs no IRSA — RDS via K8s Secret, EFS via PVC.
+
+→ **[Detail: guides/phase-4-irsa.md](guides/phase-4-irsa.md)**
+
+---
+
+### Phase 5 — Container Images
 
 Build multi-platform images (`linux/amd64,linux/arm64`) locally and push to Docker Hub and/or ECR.
 
-→ **[Build & push guide: infra/IMAGES.md](infra/IMAGES.md)**
+→ **[Build & push guide: guides/phase-5-images.md](guides/phase-5-images.md)**
 
 ---
 
-### Phase 5 — Kubernetes Deploy
+### Phase 6 — Kubernetes Deploy
 
-```bash
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-export EFS_FILE_SYSTEM_ID="fs-xxxx"
-export DAX_ENDPOINT="daxs://..."
-export S3_BUCKET="demo-product-images-xxxx"
-export RDS_HOST="demo-aurora-cluster.cluster-xxx.ap-southeast-1.rds.amazonaws.com"
-export RDS_PASSWORD="..."
-export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/ACCOUNT/orders"
+Apply namespace, EFS PVC, ServiceAccounts, Deployments, Services, and ALB Ingress using environment variables collected from Phases 0–5. After services are running, update `frontend/config.js` with the ALB endpoint.
 
-./infra/eks-cluster/04-k8s-setup.sh
-```
-
-Applies namespace, EFS PVC, ServiceAccounts, Deployments, Services, and ALB Ingress.
-
-→ **[Detail: infra/eks-cluster/README.md](infra/eks-cluster/README.md#phase-5--kubernetes-deploy)**
-
----
-
-### Phase 6 — Frontend
-
-Deploy the static SPA to S3 + CloudFront. You can do this **before any backend exists** — the dashboard shows all resources as **Disconnected** (red) until services come online.
-
-#### Configure API endpoint
-
-Edit `frontend/config.js`:
-
-```js
-window.APP_CONFIG = {
-  // Leave empty for frontend-only deploy (all resources show Disconnected).
-  // Set to your ALB DNS once the backend is deployed.
-  API_URL: '',
-};
-```
-
-#### Create S3 bucket
-
-```bash
-FRONTEND_BUCKET="demo-frontend-$(openssl rand -hex 4)"
-
-aws s3api create-bucket \
-  --bucket "$FRONTEND_BUCKET" \
-  --region ap-southeast-1 \
-  --create-bucket-configuration LocationConstraint=ap-southeast-1
-
-aws s3api put-public-access-block \
-  --bucket "$FRONTEND_BUCKET" \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-```
-
-#### Upload and create CloudFront distribution
-
-```bash
-aws s3 sync frontend/ s3://$FRONTEND_BUCKET --delete
-
-aws cloudfront create-distribution \
-  --origin-domain-name "${FRONTEND_BUCKET}.s3.ap-southeast-1.amazonaws.com" \
-  --default-root-object index.html
-```
-
-Use **Origin Access Control (OAC)** so CloudFront can read the private S3 bucket.
-
-#### Activate backend (after Phase 5)
-
-```bash
-# Get ALB DNS
-ALB=$(kubectl get ingress app-ingress -n app \
-  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-
-# Set API_URL in config.js, re-upload, invalidate cache
-vi frontend/config.js
-aws s3 cp frontend/config.js s3://$FRONTEND_BUCKET/config.js
-aws cloudfront create-invalidation \
-  --distribution-id YOUR_DISTRIBUTION_ID \
-  --paths "/config.js"
-```
-
-#### Dashboard — infrastructure status cards
-
-The home tab shows one card per service. Status is checked on page load or **↻ Refresh** via `GET /health/status`.
-
-| Card | Resources checked |
-|---|---|
-| Product Service | DynamoDB, DAX, S3 |
-| Provider Service | Aurora (RDS), EFS |
-| Order Service | SQS |
+→ **[Detail: guides/phase-6-deploy.md](guides/phase-6-deploy.md)**
 
 ---
 
@@ -354,5 +278,5 @@ Each service exposes two endpoints:
 
 ## Verification & Teardown
 
-- **Verify deployment**: [infra/VERIFICATION.md](infra/VERIFICATION.md)
-- **Delete all resources**: [infra/TEARDOWN.md](infra/TEARDOWN.md)
+- **Verify deployment**: [guides/verification.md](guides/verification.md)
+- **Delete all resources**: [guides/teardown.md](guides/teardown.md)
