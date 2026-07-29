@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # ── Variables ─────────────────────────────────────────────────────────────────
-CLUSTER_NAME="demo-cluster"
+CLUSTER_NAME="eks-demo-cluster"
 REGION="ap-southeast-1"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 

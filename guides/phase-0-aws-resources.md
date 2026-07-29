@@ -158,7 +158,7 @@ aws rds create-db-subnet-group \
 aws rds create-db-cluster \
   --db-cluster-identifier demo-aurora-cluster \
   --engine aurora-postgresql \
-  --engine-version 16.2 \
+  --engine-version 18.3 \
   --master-username dbadmin \
   --master-user-password YourSecurePassword \
   --db-subnet-group-name demo-aurora-subnet-group \

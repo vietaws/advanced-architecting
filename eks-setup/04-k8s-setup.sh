@@ -6,9 +6,9 @@
 #
 # Prerequisites:
 #   Fill in real values in each service secret YAML before running:
-#     eks-setup/k8s/product-service/product-service-secret.yaml
-#     eks-setup/k8s/provider-service/provider-service-secret.yaml
-#     eks-setup/k8s/order-service/order-service-secret.yaml
+#     eks-setup/k8s/product-service/01-secret.yaml
+#     eks-setup/k8s/provider-service/01-secret.yaml
+#     eks-setup/k8s/order-service/01-secret.yaml
 #
 # Required env vars:
 #   AWS_ACCOUNT_ID       — AWS account number
