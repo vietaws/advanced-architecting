@@ -5,10 +5,11 @@
 # Run AFTER: 03-oidc-irsa.sh
 #
 # Prerequisites:
-#   Fill in real values in eks-setup/k8s/secrets/ before running:
-#     eks-setup/k8s/secrets/product-service-secret.yaml
-#     eks-setup/k8s/secrets/provider-service-secret.yaml
-#     eks-setup/k8s/secrets/order-service-secret.yaml
+#   Fill in real values in each service secret YAML before running:
+#     eks-setup/k8s/product-service/product-service-secret.yaml
+#     eks-setup/k8s/provider-service/provider-service-secret.yaml
+#     eks-setup/k8s/order-service/order-service-secret.yaml
+#
 # Required env vars:
 #   AWS_ACCOUNT_ID       — AWS account number
 #   EFS_FILE_SYSTEM_ID   — EFS filesystem ID (e.g. fs-0123456789abcdef0)
@@ -37,13 +38,13 @@ echo "============================================================"
 
 # ── Step 1: Namespace ─────────────────────────────────────────────────────────
 echo ""
-echo "[1/5] Namespace..."
+echo "[1/4] Namespace..."
 kubectl apply -f "${K8S_DIR}/01-namespace.yaml"
-echo "[1/5] ✓ Namespace '${NAMESPACE}' ready"
+echo "[1/4] ✓ Namespace '${NAMESPACE}' ready"
 
 # ── Step 2: Patch service accounts and deployment images ─────────────────────
 echo ""
-echo "[2/5] Patching ServiceAccount role ARNs and image URIs..."
+echo "[2/4] Patching ServiceAccount role ARNs and image URIs..."
 
 for SA_FILE in \
   "${K8S_DIR}/product-service/03-serviceaccount.yaml" \
@@ -60,11 +61,11 @@ for SVC in product-service provider-service order-service; do
 done
 
 find "${K8S_DIR}" -name "*.bak" -delete
-echo "[2/5] ✓ Patched"
+echo "[2/4] ✓ Patched"
 
 # ── Step 3: EFS PVC ───────────────────────────────────────────────────────────
 echo ""
-echo "[3/5] EFS StorageClass + PV + PVC..."
+echo "[3/4] EFS StorageClass + PV + PVC..."
 
 EFS_PVC_TMP="$(mktemp).yaml"
 sed "s|EFS_FILE_SYSTEM_ID|${EFS_FILE_SYSTEM_ID}|g" \
@@ -72,25 +73,20 @@ sed "s|EFS_FILE_SYSTEM_ID|${EFS_FILE_SYSTEM_ID}|g" \
 kubectl apply -f "${EFS_PVC_TMP}"
 rm -f "${EFS_PVC_TMP}"
 
-echo "[3/5] ✓ EFS PVC 'efs-claim' created"
+echo "[3/4] ✓ EFS PVC 'efs-claim' created"
 
-# ── Step 4: Secrets ───────────────────────────────────────────────────────────
+# ── Step 4: All manifests (Secrets, ServiceAccounts, Deployments, Services, Ingress)
 echo ""
-echo "[4/5] Applying Secrets from YAML files..."
-kubectl apply -f "${K8S_DIR}/secrets/"
-echo "[4/5] ✓ Secrets applied"
+echo "[4/4] Applying manifests..."
 
-# ── Step 5: ServiceAccounts, Deployments, Services, Ingress ──────────────────
-echo ""
-echo "[5/5] Applying manifests..."
-
+# Each service folder contains: Secret, ServiceAccount, Deployment, Service
 for SVC in product-service provider-service order-service; do
   kubectl apply -f "${K8S_DIR}/${SVC}/"
 done
 
 kubectl apply -f "${K8S_DIR}/06-ingress.yaml"
 
-echo "[5/5] ✓ All manifests applied"
+echo "[4/4] ✓ All manifests applied"
 
 # ── Wait for rollout ──────────────────────────────────────────────────────────
 echo ""

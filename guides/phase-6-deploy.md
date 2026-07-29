@@ -6,10 +6,9 @@
 
 ## Step 1 — Fill in Secret YAML files
 
-All service configuration is managed as Kubernetes Secret YAML files under `eks-setup/k8s/secrets/`. Edit each file and replace every `REPLACE_*` placeholder with your real values collected in Phase 0.
+All service configuration is managed as Kubernetes Secret YAML files, grouped inside each service folder. Edit each file and replace every `REPLACE_*` placeholder with your real values collected in Phase 0.
 
-### product-service-secret.yaml
-
+**`eks-setup/k8s/product-service/product-service-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -18,8 +17,7 @@ stringData:
   S3_BUCKET: "your-product-images-bucket"
 ```
 
-### provider-service-secret.yaml
-
+**`eks-setup/k8s/provider-service/provider-service-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -30,8 +28,7 @@ stringData:
   RDS_PASSWORD: "your-password"
 ```
 
-### order-service-secret.yaml
-
+**`eks-setup/k8s/order-service/order-service-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -60,7 +57,7 @@ The script fails immediately if any `REPLACE_*` placeholder is still present in 
 |---|---|
 | `eks-setup/k8s/01-namespace.yaml` | Namespace `app` |
 | `eks-setup/k8s/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
-| `eks-setup/k8s/secrets/*.yaml` | 3 K8s Secrets (one per service) |
+| `eks-setup/k8s/*/*-secret.yaml` | 3 K8s Secrets (one per service folder) |
 | `eks-setup/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
 | `eks-setup/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |
 | `eks-setup/k8s/*/04-service.yaml` | 3 ClusterIP Services |
