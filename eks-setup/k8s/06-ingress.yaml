@@ -12,8 +12,7 @@ metadata:
     alb.ingress.kubernetes.io/group.name: app
 spec:
   rules:
-    - host: api.yourdomain.com
-      http:
+    - http:
         paths:
           # /products-dax must be listed before /products to avoid prefix shadowing
           - path: /products-dax

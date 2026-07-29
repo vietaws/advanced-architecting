@@ -56,7 +56,7 @@ The script fails immediately if any `REPLACE_*` placeholder is still present in 
 | Manifest | Creates |
 |---|---|
 | `eks-setup/k8s/01-namespace.yaml` | Namespace `app` |
-| `eks-setup/k8s/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
+| `eks-setup/k8s/provider-service/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
 | `eks-setup/k8s/*/01-secret.yaml` | 3 K8s Secrets (one per service folder) |
 | `eks-setup/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
 | `eks-setup/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |

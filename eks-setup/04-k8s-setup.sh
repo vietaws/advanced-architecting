@@ -69,7 +69,7 @@ echo "[3/4] EFS StorageClass + PV + PVC..."
 
 EFS_PVC_TMP="$(mktemp).yaml"
 sed "s|EFS_FILE_SYSTEM_ID|${EFS_FILE_SYSTEM_ID}|g" \
-  "${K8S_DIR}/02-efs-pvc.yaml" > "${EFS_PVC_TMP}"
+  "${K8S_DIR}/provider-service/02-efs-pvc.yaml" > "${EFS_PVC_TMP}"
 kubectl apply -f "${EFS_PVC_TMP}"
 rm -f "${EFS_PVC_TMP}"
 
