@@ -2,7 +2,7 @@
 # =============================================================================
 # 02-addons.sh — Install EKS add-ons and AWS Load Balancer Controller
 #
-# Run AFTER: 01-cluster.sh
+# Run AFTER: EKS Cluster is created
 #
 # What this installs:
 #   1. kube-proxy           (EKS managed add-on)
@@ -18,7 +18,7 @@
 set -euo pipefail
 
 # ── Variables ─────────────────────────────────────────────────────────────────
-CLUSTER_NAME="eks-demo-cluster"
+CLUSTER_NAME="demo-cluster"
 REGION="ap-southeast-1"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
