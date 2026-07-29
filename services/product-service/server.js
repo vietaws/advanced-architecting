@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';

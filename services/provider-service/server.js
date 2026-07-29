@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import { promises as fs, constants as fsConstants } from 'fs';
 import logger from './logger.js';

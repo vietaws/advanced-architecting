@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
