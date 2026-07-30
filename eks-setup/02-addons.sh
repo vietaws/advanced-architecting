@@ -21,7 +21,7 @@ export AWS_PAGER=""
 CLUSTER_NAME="demo-cluster"
 REGION="ap-southeast-1"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
-ALB_CHART_VERSION="1.13.2"
+ALB_CHART_VERSION="3.4.3"
 # Check latest version: https://artifacthub.io/packages/helm/aws/aws-load-balancer-controller
 
 # ── OIDC provider ID (needed for role trust policies) ────────────────────────
@@ -47,23 +47,7 @@ create_iam_role() {
   local SA_NAME="$3"
 
   local TRUST_POLICY
-  TRUST_POLICY=$(cat <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Principal": { "Federated": "${OIDC_PROVIDER}" },
-    "Action": "sts:AssumeRoleWithWebIdentity",
-    "Condition": {
-      "StringEquals": {
-        "${OIDC_ID}:sub": "system:serviceaccount:${NAMESPACE}:${SA_NAME}",
-        "${OIDC_ID}:aud": "sts.amazonaws.com"
-      }
-    }
-  }]
-}
-EOF
-)
+  TRUST_POLICY="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Federated\":\"${OIDC_PROVIDER}\"},\"Action\":\"sts:AssumeRoleWithWebIdentity\",\"Condition\":{\"StringEquals\":{\"${OIDC_ID}:sub\":\"system:serviceaccount:${NAMESPACE}:${SA_NAME}\",\"${OIDC_ID}:aud\":\"sts.amazonaws.com\"}}}]}"
 
   if aws iam get-role --role-name "${ROLE_NAME}" &>/dev/null; then
     echo "  IAM role already exists: ${ROLE_NAME}"
@@ -157,7 +141,7 @@ aws eks update-addon \
   --region "${REGION}"
 
 wait_addon "aws-ebs-csi-driver"
-echo "[3/5] EBS CSI OK"
+echo "[3/5] EBS CSI OK ✅"
 
 # ── 4. EFS CSI Driver ─────────────────────────────────────────────────────────
 echo ""
@@ -195,7 +179,7 @@ aws eks update-addon \
   --region "${REGION}"
 
 wait_addon "aws-efs-csi-driver"
-echo "[4/5] EFS CSI OK"
+echo "[4/5] EFS CSI OK ✅"
 
 # ── 5. AWS Load Balancer Controller ──────────────────────────────────────────
 echo ""
@@ -220,6 +204,13 @@ aws iam attach-role-policy \
 link_serviceaccount "kube-system" "aws-load-balancer-controller" "eks-alb-controller-role"
 
 # Step 4: install via Helm
+# Always do a clean install to avoid broken upgrade state
+helm uninstall aws-load-balancer-controller -n kube-system 2>/dev/null || true
+
+# Clean up CRDs from any previous install
+kubectl delete crd ingressclassparams.elbv2.k8s.aws 2>/dev/null || true
+kubectl delete crd targetgroupbindings.elbv2.k8s.aws 2>/dev/null || true
+
 helm repo add eks https://aws.github.io/eks-charts 2>/dev/null || true
 helm repo update eks
 
@@ -227,7 +218,11 @@ VPC_ID="$(aws eks describe-cluster \
   --name "${CLUSTER_NAME}" --region "${REGION}" \
   --query 'cluster.resourcesVpcConfig.vpcId' --output text)"
 
-helm upgrade --install aws-load-balancer-controller \
+# Image registry per region: https://docs.aws.amazon.com/eks/latest/userguide/add-ons-images.html
+# ap-southeast-1 registry: 602401143452.dkr.ecr.ap-southeast-1.amazonaws.com
+ECR_REGISTRY="602401143452.dkr.ecr.${REGION}.amazonaws.com"
+
+helm install aws-load-balancer-controller \
   eks/aws-load-balancer-controller \
   --namespace kube-system \
   --version "${ALB_CHART_VERSION}" \
@@ -236,7 +231,12 @@ helm upgrade --install aws-load-balancer-controller \
   --set serviceAccount.name=aws-load-balancer-controller \
   --set region="${REGION}" \
   --set vpcId="${VPC_ID}" \
-  --wait
+  --set image.repository="${ECR_REGISTRY}/amazon/aws-load-balancer-controller" \
+  --set replicaCount=1
+
+echo "  Waiting for ALB controller deployment..."
+kubectl rollout status deployment/aws-load-balancer-controller \
+  -n kube-system --timeout=120s
 
 echo "[5/5] AWS Load Balancer Controller OK"
 

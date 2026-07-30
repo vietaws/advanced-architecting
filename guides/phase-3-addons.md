@@ -87,7 +87,7 @@ aws iam get-role --role-name eks-alb-controller-role  --query 'Role.RoleName' --
   aws iam list-roles --query "Roles[?starts_with(RoleName,'eks-')].RoleName"
   --output text
   
-  # ── 6. Uninstall Helm release ───────────────────────
+  # ── 6. Uninstall Helm release & ALB ───────────────────────
   helm uninstall aws-load-balancer-controller -n kube-system
   kubectl delete serviceaccount aws-load-balancer-controller -n kube-system --ignore-not-found
 
@@ -102,6 +102,12 @@ aws iam get-role --role-name eks-alb-controller-role  --query 'Role.RoleName' --
   aws iam delete-policy \
     --policy-arn arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy \
     2>/dev/null && echo "Policy deleted" || echo "Policy not found"
+
+  kubectl delete crd ingressclassparams.elbv2.k8s.aws 2>/dev/null || true
+  kubectl delete crd targetgroupbindings.elbv2.k8s.aws 2>/dev/null || true
+  kubectl delete crd ingressclassparams.networking.k8s.aws 2>/dev/null || true
+
+  kubectl get crd | grep elbv2
   
   # ── 6. Re-run addon script ────────────────────────────────────────────────────
   ./eks-setup/02-addons.sh

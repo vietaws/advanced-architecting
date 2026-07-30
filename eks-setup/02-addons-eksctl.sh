@@ -23,7 +23,7 @@ export AWS_PAGER=""
 CLUSTER_NAME="demo-cluster"
 REGION="ap-southeast-1"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
-ALB_CHART_VERSION="1.13.2"
+ALB_CHART_VERSION="3.4.3"
 # Check latest version: https://artifacthub.io/packages/helm/aws/aws-load-balancer-controller
 
 # Helper: wait for addon to reach ACTIVE state
@@ -161,6 +161,10 @@ VPC_ID="$(aws eks describe-cluster \
   --name "${CLUSTER_NAME}" --region "${REGION}" \
   --query 'cluster.resourcesVpcConfig.vpcId' --output text)"
 
+# Image registry per region: https://docs.aws.amazon.com/eks/latest/userguide/add-ons-images.html
+# ap-southeast-1 registry: 602401143452.dkr.ecr.ap-southeast-1.amazonaws.com
+ECR_REGISTRY="602401143452.dkr.ecr.${REGION}.amazonaws.com"
+
 helm upgrade --install aws-load-balancer-controller \
   eks/aws-load-balancer-controller \
   --namespace kube-system \
@@ -170,6 +174,7 @@ helm upgrade --install aws-load-balancer-controller \
   --set serviceAccount.name=aws-load-balancer-controller \
   --set region="${REGION}" \
   --set vpcId="${VPC_ID}" \
+  --set image.repository="${ECR_REGISTRY}/amazon/aws-load-balancer-controller" \
   --wait
 
 echo "[5/5] AWS Load Balancer Controller OK"
