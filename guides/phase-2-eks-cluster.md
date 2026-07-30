@@ -18,7 +18,7 @@ eksctl create cluster \
   --tags "project=architecting-pro,env=demo"
 ```
 
-**Duration:** ~10 minutes. kubeconfig is updated automatically.
+**Duration:** ~15 minutes. kubeconfig is updated automatically.
 
 ---
 
