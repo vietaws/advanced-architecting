@@ -21,6 +21,8 @@
 # =============================================================================
 set -euo pipefail
 
+export AWS_PAGER=""
+
 CLUSTER_NAME="demo-cluster"
 REGION="ap-southeast-1"
 NAMESPACE="app"
