@@ -23,7 +23,7 @@ REGION="ap-southeast-1"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
 # Helm chart versions (pin for reproducibility)
-ALB_CHART_VERSION="1.8.1"
+ALB_CHART_VERSION="3.4.3"
 
 echo "============================================================"
 echo "  Installing EKS add-ons"
