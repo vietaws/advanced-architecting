@@ -43,7 +43,7 @@ Nodes in public subnets with direct internet access.
 eksctl create nodegroup \
   --cluster demo-cluster \
   --region ap-southeast-1 \
-  --name public-nodes \
+  --name public-spot-nodes \
   --node-type t4g.medium \
   --spot \
   --nodes 2 --nodes-min 2 --nodes-max 4 \
@@ -51,7 +51,19 @@ eksctl create nodegroup \
   --node-zones ap-southeast-1a,ap-southeast-1b \
   --node-labels "role=app,arch=graviton,subnet=public" \
   --managed
+
+eksctl create nodegroup \
+  --cluster demo-cluster \
+  --region ap-southeast-1 \
+  --name public-nodes \
+  --node-type t4g.medium \
+  --nodes 2 --nodes-min 2 --nodes-max 4 \
+  --node-volume-size 20 --node-volume-type gp3 \
+  --node-zones ap-southeast-1a,ap-southeast-1b \
+  --node-labels "role=app,arch=graviton,subnet=public" \
+  --managed
 ```
+**Duration:** ~5 minutes.
 
 ### Option B — Private nodes (NAT Gateway, ~$0.045/hr per AZ)
 
