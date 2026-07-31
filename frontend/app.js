@@ -256,16 +256,20 @@ async function loadProviders() {
             return;
         }
 
-        document.getElementById('providers-list').innerHTML = providers.map(p => `
+        document.getElementById('providers-list').innerHTML = providers.map(p => {
+            const imgSrc = p.image_url
+                ? (p.image_url.startsWith('http') ? p.image_url : `${API_URL}${p.image_url}`)
+                : null;
+            return `
             <div class="card">
-                ${p.image_url ? `<img src="${p.image_url}" alt="${p.name}" style="width:100%;height:200px;object-fit:cover;border-radius:8px 8px 0 0;margin:-16px -16px 12px -16px;">` : ''}
+                ${imgSrc ? `<img src="${imgSrc}" alt="${p.name}" style="width:100%;height:200px;object-fit:cover;border-radius:8px 8px 0 0;margin:-16px -16px 12px -16px;">` : ''}
                 <h3>${p.name}</h3>
                 <p>${p.city || ''}</p>
                 <p style="font-size:12px;color:#999;">ID: ${p.id}</p>
                 <p style="font-size:11px;color:#2196f3;margin-top:8px;">⚡ RDS PostgreSQL: ${p.responseTime || 'N/A'}ms</p>
                 <button class="btn-delete" onclick="deleteProvider('${p.id}')">Delete</button>
             </div>
-        `).join('');
+        `}).join('');
     } catch (error) {
         console.error('Error loading providers:', error);
         document.getElementById('providers-list').innerHTML = '<p style="color:red;">Error loading providers</p>';

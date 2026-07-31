@@ -2,30 +2,35 @@
 # =============================================================================
 # 04-deploy-product.sh — Deploy product-service to EKS
 #
-# Applies: Secret, ServiceAccount, Deployment, Service
+# All service-specific variables are managed here.
+# The YAML files under infra/k8s/product-service/ use placeholders and are
+# never modified directly — values are injected at deploy time via temp files.
 #
 # Prerequisites:
-#   - Namespace 'app' exists (run 04-k8s-setup.sh once first, or kubectl apply -f infra/k8s/01-namespace.yaml)
-#   - infra/k8s/product-service/01-secret.yaml filled in
-#   - Image pushed to registry (see infra/IMAGES.md)
-#
-# Required env vars:
-#   AWS_ACCOUNT_ID  — AWS account number
+#   - Namespace 'app' exists  (kubectl apply -f infra/k8s/01-namespace.yaml)
+#   - IRSA role created       (run 03-oidc-irsa.sh)
+#   - DAX cluster running     (Phase 0)
+#   - Image pushed to registry
 #
 # Usage:
-#   export AWS_ACCOUNT_ID=123456789012
 #   ./infra/04-deploy-product.sh
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""
 
+# ── Cluster ───────────────────────────────────────────────────────────────────
 CLUSTER_NAME="demo-cluster"
 REGION="ap-southeast-1"
 NAMESPACE="app"
 SVC="product-service"
+
+# ── Service variables (edit here) ─────────────────────────────────────────────
+DAX_ENDPOINT="daxs://dax-demo.kqensy.dax-clusters.ap-southeast-1.amazonaws.com"
+S3_BUCKET="demo-product-images-d4b776b9"
+
+# ── Derived ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 K8S_DIR="${SCRIPT_DIR}/k8s"
-
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
 aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${REGION}"
@@ -35,19 +40,39 @@ echo "  Deploying: ${SVC}"
 echo "  Cluster:   ${CLUSTER_NAME} / namespace: ${NAMESPACE}"
 echo "============================================================"
 
-# Patch role ARN and image URI placeholders
-sed -i.bak \
+# ── Secret (inject variables via temp file — YAML stays pristine) ─────────────
+SECRET_TMP="$(mktemp).yaml"
+sed \
+  -e "s|REPLACE_DAX_ENDPOINT|${DAX_ENDPOINT}|g" \
+  -e "s|REPLACE_S3_BUCKET|${S3_BUCKET}|g" \
+  "${K8S_DIR}/${SVC}/01-secret.yaml" > "${SECRET_TMP}"
+kubectl apply -f "${SECRET_TMP}"
+rm -f "${SECRET_TMP}"
+echo "  Secret applied"
+
+# ── ServiceAccount (patch role ARN) ───────────────────────────────────────────
+SA_TMP="$(mktemp).yaml"
+sed \
   "s|arn:aws:iam::AWS_ACCOUNT_ID:|arn:aws:iam::${AWS_ACCOUNT_ID}:|g" \
-  "${K8S_DIR}/${SVC}/03-serviceaccount.yaml"
-sed -i.bak \
+  "${K8S_DIR}/${SVC}/03-serviceaccount.yaml" > "${SA_TMP}"
+kubectl apply -f "${SA_TMP}"
+rm -f "${SA_TMP}"
+echo "  ServiceAccount applied"
+
+# ── Deployment (patch ECR account ID) ─────────────────────────────────────────
+DEPLOY_TMP="$(mktemp).yaml"
+sed \
   "s|AWS_ACCOUNT_ID\.dkr\.ecr|${AWS_ACCOUNT_ID}.dkr.ecr|g" \
-  "${K8S_DIR}/${SVC}/05-deployment.yaml"
-find "${K8S_DIR}/${SVC}" -name "*.bak" -delete
+  "${K8S_DIR}/${SVC}/05-deployment.yaml" > "${DEPLOY_TMP}"
+kubectl apply -f "${DEPLOY_TMP}"
+rm -f "${DEPLOY_TMP}"
+echo "  Deployment applied"
 
-# Apply all manifests for this service
-kubectl apply -f "${K8S_DIR}/${SVC}/"
+# ── Service ────────────────────────────────────────────────────────────────────
+kubectl apply -f "${K8S_DIR}/${SVC}/04-service.yaml"
+echo "  Service applied"
 
-# Wait for rollout
+# ── Rollout ────────────────────────────────────────────────────────────────────
 echo ""
 echo "  Waiting for rollout..."
 kubectl rollout status deployment/"${SVC}" \

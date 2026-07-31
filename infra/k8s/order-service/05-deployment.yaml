@@ -18,7 +18,7 @@ spec:
       serviceAccountName: order-service-sa
       containers:
         - name: order-service
-          image: AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/order-service:latest
+          image: vietaws/examples:order-service
           imagePullPolicy: Always
           ports:
             - containerPort: 3003

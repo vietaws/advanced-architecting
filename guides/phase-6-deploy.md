@@ -146,4 +146,22 @@ curl -s http://$ALB/orders/health/status    | jq .
 
 ---
 
+## Restart Deployment
+
+```bash
+kubectl rollout restart deployment/product-service -n app
+
+kubectl rollout status deployment/product-service -n app
+
+kubectl rollout restart deployment/product-service deployment/provider-service deployment/order-service -n app
+
+kubectl rollout status deployment/product-service -n app
+kubectl rollout status deployment/provider-service -n app
+kubectl rollout status deployment/order-service -n app
+
+kubectl get pods -n app -w
+
+kubectl -n app logs deployments/product-service -f --all-pods=true
+```
+
 → Next: [Verification](verification.md)

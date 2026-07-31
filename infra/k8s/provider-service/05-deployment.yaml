@@ -18,7 +18,7 @@ spec:
       serviceAccountName: provider-service-sa
       containers:
         - name: provider-service
-          image: AWS_ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/provider-service:latest
+          image: vietaws/examples:provider-service
           imagePullPolicy: Always
           ports:
             - containerPort: 3002

@@ -104,20 +104,20 @@ Run **after** Phase 1 to place Aurora in the EKS VPC.
 ```bash
 # Subnet group (reuse EKS private subnets)
 aws rds create-db-subnet-group \
-  --db-subnet-group-name demo-aurora-subnet-group \
-  --db-subnet-group-description "Architecting Pro Aurora" \
-  --subnet-ids subnet-PRIVATE1 subnet-PRIVATE2 \
+  --db-subnet-group-name eks-demo-aurora-subnet-group \
+  --db-subnet-group-description "Architecting Pro Aurora - EKS Demo" \
+  --subnet-ids subnet-059eb7e2f75671cbc subnet-0804426286defbe94 \
   --region ap-southeast-1
 
 # Aurora Serverless v2 cluster
 aws rds create-db-cluster \
-  --db-cluster-identifier demo-aurora-cluster \
+  --db-cluster-identifier eks-demo-aurora-cluster \
   --engine aurora-postgresql \
   --engine-version 18.3 \
   --master-username dbadmin \
-  --master-user-password YourSecurePassword \
-  --db-subnet-group-name demo-aurora-subnet-group \
-  --vpc-security-group-ids sg-YOUR_EKS_NODES_SG \
+  --master-user-password DemoPassword \
+  --db-subnet-group-name eks-demo-aurora-subnet-group \
+  --vpc-security-group-ids sg-04bf7295230492911 \
   --serverless-v2-scaling-configuration MinCapacity=0.5,MaxCapacity=1 \
   --database-name providers_db \
   --no-deletion-protection \
@@ -125,8 +125,8 @@ aws rds create-db-cluster \
 
 # Writer instance
 aws rds create-db-instance \
-  --db-instance-identifier demo-aurora-instance \
-  --db-cluster-identifier demo-aurora-cluster \
+  --db-instance-identifier eks-demo-aurora-instance \
+  --db-cluster-identifier eks-demo-aurora-cluster \
   --db-instance-class db.serverless \
   --engine aurora-postgresql \
   --no-publicly-accessible \
@@ -134,7 +134,7 @@ aws rds create-db-instance \
 
 # Save endpoint
 RDS_HOST=$(aws rds describe-db-clusters \
-  --db-cluster-identifier demo-aurora-cluster \
+  --db-cluster-identifier eks-demo-aurora-cluster \
   --query 'DBClusters[0].Endpoint' --output text \
   --region ap-southeast-1)
 echo "RDS_HOST=$RDS_HOST"
