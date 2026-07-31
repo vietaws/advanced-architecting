@@ -7,8 +7,9 @@
 IRSA (IAM Roles for Service Accounts) lets each pod assume a least-privilege IAM role without static credentials. The OIDC provider created in Phase 1 bridges K8s service accounts to IAM roles.
 
 ```bash
-export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"   # from Phase 0 Step 2
-./eks-setup/03-oidc-irsa.sh
+# PRODUCT_IMAGES_BUCKET is printed by infra/01-aws-resources.sh
+export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
+./infra/03-oidc-irsa.sh
 ```
 
 ---
@@ -38,7 +39,7 @@ Pod starts
 
 ## Policy details
 
-**ProductServicePolicy** (`eks-setup/iam/product-service-policy.json`):
+**ProductServicePolicy** (`infra/iam/product-service-policy.json`):
 
 | Sid | Resource | Actions |
 |---|---|---|
@@ -47,7 +48,7 @@ Pod starts
 | S3ProductImagesObjects | `bucket/products/*` | PutObject, GetObject, DeleteObject |
 | S3ProductImagesBucket | `bucket` | HeadBucket, ListBucket |
 
-**OrderServicePolicy** (`eks-setup/iam/order-service-policy.json`):
+**OrderServicePolicy** (`infra/iam/order-service-policy.json`):
 
 | Sid | Resource | Actions |
 |---|---|---|

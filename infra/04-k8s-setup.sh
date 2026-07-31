@@ -6,9 +6,9 @@
 #
 # Prerequisites:
 #   Fill in real values in each service secret YAML before running:
-#     eks-setup/k8s/product-service/01-secret.yaml
-#     eks-setup/k8s/provider-service/01-secret.yaml
-#     eks-setup/k8s/order-service/01-secret.yaml
+#     infra/k8s/product-service/01-secret.yaml
+#     infra/k8s/provider-service/01-secret.yaml
+#     infra/k8s/order-service/01-secret.yaml
 #
 # Required env vars:
 #   AWS_ACCOUNT_ID       — AWS account number
@@ -17,7 +17,7 @@
 # Usage:
 #   export AWS_ACCOUNT_ID=123456789012
 #   export EFS_FILE_SYSTEM_ID=fs-0123456789abcdef0
-#   ./eks-setup/04-k8s-setup.sh
+#   ./infra/04-k8s-setup.sh
 # =============================================================================
 set -euo pipefail
 

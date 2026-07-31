@@ -6,9 +6,12 @@
 
 ## Step 1 — Fill in Secret YAML files
 
-All service configuration is managed as Kubernetes Secret YAML files, grouped inside each service folder. Edit each file and replace every `REPLACE_*` placeholder with your real values collected in Phase 0.
+All service configuration is managed as Kubernetes Secret YAML files, grouped inside each service folder. Edit each file and replace every `REPLACE_*` placeholder with your real values.
 
-**`eks-setup/k8s/product-service/01-secret.yaml`**
+Values for `DAX_ENDPOINT`, `S3_BUCKET`, `SQS_QUEUE_URL` come from the output of `infra/01-aws-resources.sh`.
+Values for `RDS_HOST`, `RDS_PASSWORD`, `EFS_FILE_SYSTEM_ID` come from manual steps in [Phase 0](phase-0-aws-resources.md).
+
+**`infra/k8s/product-service/01-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -17,7 +20,7 @@ stringData:
   S3_BUCKET: "your-product-images-bucket"
 ```
 
-**`eks-setup/k8s/provider-service/01-secret.yaml`**
+**`infra/k8s/provider-service/01-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -28,7 +31,7 @@ stringData:
   RDS_PASSWORD: "your-password"
 ```
 
-**`eks-setup/k8s/order-service/01-secret.yaml`**
+**`infra/k8s/order-service/01-secret.yaml`**
 ```yaml
 stringData:
   AWS_REGION: "ap-southeast-1"
@@ -40,14 +43,40 @@ stringData:
 
 ## Step 2 — Run the deploy script
 
+### Option A — Deploy all services at once
+
 ```bash
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export EFS_FILE_SYSTEM_ID="fs-0123456789abcdef0"   # from Phase 0 Step 6
 
-./eks-setup/04-k8s-setup.sh
+./infra/04-k8s-setup.sh
 ```
 
-The script fails immediately if any `REPLACE_*` placeholder is still present in the secret files — no partial deployments.
+### Option B — Deploy one service at a time
+
+Use this to bring up services incrementally and verify each one on the frontend dashboard before deploying the next.
+
+```bash
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+
+# Product service (DynamoDB + S3 + DAX)
+./infra/04-deploy-product.sh
+
+# Provider service (RDS + EFS) — also requires EFS_FILE_SYSTEM_ID
+export EFS_FILE_SYSTEM_ID="fs-0123456789abcdef0"
+./infra/04-deploy-provider.sh
+
+# Order service (SQS + DynamoDB)
+./infra/04-deploy-order.sh
+```
+
+> Run `kubectl apply -f infra/k8s/01-namespace.yaml` before deploying individual services if the namespace doesn't exist yet.
+
+After all services are running, apply the ALB Ingress:
+
+```bash
+kubectl apply -f infra/k8s/06-ingress.yaml
+```
 
 ---
 
@@ -55,13 +84,13 @@ The script fails immediately if any `REPLACE_*` placeholder is still present in 
 
 | Manifest | Creates |
 |---|---|
-| `eks-setup/k8s/01-namespace.yaml` | Namespace `app` |
-| `eks-setup/k8s/provider-service/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
-| `eks-setup/k8s/*/01-secret.yaml` | 3 K8s Secrets (one per service folder) |
-| `eks-setup/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
-| `eks-setup/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |
-| `eks-setup/k8s/*/04-service.yaml` | 3 ClusterIP Services |
-| `eks-setup/k8s/06-ingress.yaml` | ALB Ingress — path-based routing |
+| `infra/k8s/01-namespace.yaml` | Namespace `app` |
+| `infra/k8s/provider-service/02-efs-pvc.yaml` | StorageClass + PV + PVC (`efs-claim`) |
+| `infra/k8s/*/01-secret.yaml` | 3 K8s Secrets (one per service folder) |
+| `infra/k8s/*/03-serviceaccount.yaml` | 3 ServiceAccounts (2 with IRSA annotations) |
+| `infra/k8s/*/05-deployment.yaml` | 3 Deployments, 2 replicas each |
+| `infra/k8s/*/04-service.yaml` | 3 ClusterIP Services |
+| `infra/k8s/06-ingress.yaml` | ALB Ingress — path-based routing |
 
 ---
 

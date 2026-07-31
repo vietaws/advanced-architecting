@@ -16,7 +16,7 @@ REGION="ap-southeast-1"
 
 ```bash
 kubectl delete namespace app --ignore-not-found
-kubectl delete -f eks-setup/k8s/provider-service/02-efs-pvc.yaml --ignore-not-found
+kubectl delete -f infra/k8s/provider-service/02-efs-pvc.yaml --ignore-not-found
 ```
 
 ---

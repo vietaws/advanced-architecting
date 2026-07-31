@@ -4,13 +4,13 @@ metadata:
   name: app-ingress
   namespace: app
   annotations:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
     alb.ingress.kubernetes.io/healthcheck-path: /health
     alb.ingress.kubernetes.io/group.name: app
 spec:
+  ingressClassName: alb
   rules:
     - http:
         paths:
@@ -44,7 +44,6 @@ spec:
                 name: provider-service
                 port:
                   number: 80
-          # /efs routes merged into provider-service (media-service removed)
           - path: /efs
             pathType: Prefix
             backend:

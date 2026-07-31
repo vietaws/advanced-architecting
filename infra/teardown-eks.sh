@@ -18,7 +18,7 @@
 #
 # Usage:
 #   export AWS_ACCOUNT_ID=123456789012
-#   ./eks-setup/teardown-eks.sh
+#   ./infra/teardown-eks.sh
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""
@@ -40,7 +40,7 @@ read -p "This will delete the EKS cluster and all related resources. Continue? (
 echo ""
 echo "[1/7] Deleting K8s app resources..."
 kubectl delete namespace app --ignore-not-found 2>/dev/null || true
-kubectl delete -f eks-setup/k8s/provider-service/02-efs-pvc.yaml \
+kubectl delete -f infra/k8s/provider-service/02-efs-pvc.yaml \
   --ignore-not-found 2>/dev/null || true
 echo "[1/7] Done"
 

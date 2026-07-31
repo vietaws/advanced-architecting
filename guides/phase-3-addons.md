@@ -5,8 +5,8 @@
 ---
 
 ```bash
-chmod +x eks-setup/*.sh
-./eks-setup/02-addons.sh
+chmod +x infra/*.sh
+./infra/02-addons.sh
 ```
 
 The script installs all add-ons and creates the required IAM roles automatically. No manual IAM steps needed.
@@ -32,7 +32,7 @@ The script installs all add-ons and creates the required IAM roles automatically
 |---|---|---|
 | `eks-ebs-csi-driver-role` | `AmazonEBSCSIDriverPolicy` (AWS managed) | EBS CSI driver pods |
 | `eks-efs-csi-driver-role` | `AmazonEFSCSIDriverPolicy` (custom, inline) | EFS CSI driver pods |
-| `eks-alb-controller-role` | `AWSLoadBalancerControllerIAMPolicy` (from `eks-setup/iam/`) | ALB Controller pods |
+| `eks-alb-controller-role` | `AWSLoadBalancerControllerIAMPolicy` (from `infra/iam/`) | ALB Controller pods |
 
 Each role is created via `eksctl create iamserviceaccount --role-name <name>` which builds the OIDC trust policy automatically and binds the role to the corresponding K8s ServiceAccount in `kube-system`.
 
@@ -110,5 +110,5 @@ aws iam get-role --role-name eks-alb-controller-role  --query 'Role.RoleName' --
   kubectl get crd | grep elbv2
   
   # ── 6. Re-run addon script ────────────────────────────────────────────────────
-  ./eks-setup/02-addons.sh
+  ./infra/02-addons.sh
 ```

@@ -78,10 +78,12 @@ architecting-pro/
 │   ├── provider-service/          ← RDS Aurora + EFS     (port 3002)
 │   └── order-service/             ← SQS + DynamoDB       (port 3003)
 │
-└── eks-setup/                     ← scripts and manifests only
+└── infra/                     ← scripts and manifests only
+    ├── 01-aws-resources.sh    ← DynamoDB, S3, SQS provisioning
     ├── 02-addons.sh
     ├── 03-oidc-irsa.sh
     ├── 04-k8s-setup.sh
+    ├── teardown-eks.sh
     ├── iam/                   ← least-privilege IAM policy documents
     └── k8s/                   ← Kubernetes manifests
 ```
@@ -110,7 +112,7 @@ AWS credentials must have permissions on: EKS, EC2, IAM, ECR, DynamoDB, RDS, EFS
 
 | Guide | Description |
 |---|---|
-| [Phase 0 — AWS Resources](guides/phase-0-aws-resources.md) | DynamoDB, S3, SQS, DAX, Aurora, EFS |
+| [Phase 0 — AWS Resources](guides/phase-0-aws-resources.md) | DynamoDB + S3 + SQS via script; DAX, Aurora, EFS manually |
 | [Phase 1 — Frontend](guides/phase-1-frontend.md) | S3 + CloudFront, deploy before backend exists |
 | [Phase 2 — EKS Cluster](guides/phase-2-eks-cluster.md) | eksctl cluster + VPC + node group |
 | [Phase 3 — EKS Add-ons](guides/phase-3-addons.md) | CSI drivers, ALB Controller |
@@ -130,17 +132,17 @@ AWS credentials must have permissions on: EKS, EC2, IAM, ECR, DynamoDB, RDS, EFS
 
 Create all AWS-managed resources before provisioning EKS. Services depend on these at startup.
 
-| Resource | Used by |
-|---|---|
-| DynamoDB `products_table` | product-service |
-| DynamoDB `orders_table` | order-service |
-| S3 bucket (product images) | product-service |
-| SQS queue `orders` | order-service |
-| DAX cluster `dax-demo` | product-service |
-| RDS Aurora PostgreSQL `providers_db` | provider-service |
-| EFS file system | provider-service |
+| Resource | Used by | How |
+|---|---|---|
+| DynamoDB `products_table` | product-service | `infra/01-aws-resources.sh` |
+| DynamoDB `orders_table` | order-service | `infra/01-aws-resources.sh` |
+| S3 bucket (product images) | product-service | `infra/01-aws-resources.sh` |
+| SQS queue `orders` | order-service | `infra/01-aws-resources.sh` |
+| DAX cluster `dax-demo` | product-service | Manual (requires EKS VPC) |
+| RDS Aurora PostgreSQL `providers_db` | provider-service | Manual (requires EKS VPC) |
+| EFS file system | provider-service | Manual (requires EKS VPC) |
 
-→ **[Full CLI commands: guides/phase-0-aws-resources.md](guides/phase-0-aws-resources.md)**
+→ **[Full guide: guides/phase-0-aws-resources.md](guides/phase-0-aws-resources.md)**
 
 ---
 

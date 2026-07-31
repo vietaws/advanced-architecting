@@ -130,7 +130,7 @@ done
 
 ## Update deployment manifests
 
-Edit `eks-setup/k8s/*/05-deployment.yaml` — set the `image:` field to your chosen registry (ECR or Docker Hub) before Phase 6.
+Edit `infra/k8s/*/05-deployment.yaml` — set the `image:` field to your chosen registry (ECR or Docker Hub) before Phase 6.
 
 ---
 

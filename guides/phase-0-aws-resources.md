@@ -6,86 +6,41 @@ Create all AWS-managed resources **before** provisioning the EKS cluster. The mi
 
 ---
 
+## Steps 1–3 — DynamoDB, S3, SQS (automated)
+
+Run the provisioning script. It creates both DynamoDB tables, the S3 bucket, and the SQS queue — and prints the export commands you need for later scripts.
+
+```bash
+./infra/01-aws-resources.sh
+```
+
+Copy and export the output values:
+
+```bash
+export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
+export S3_BUCKET="demo-product-images-xxxx"
+export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/ACCOUNT_ID/orders"
+export DYNAMODB_PRODUCTS_TABLE="products_table"
+export DYNAMODB_ORDERS_TABLE="orders_table"
+```
+
+These are used by:
+- `infra/03-oidc-irsa.sh` — needs `PRODUCT_IMAGES_BUCKET`
+- `infra/04-k8s-setup.sh` — needs `S3_BUCKET`, `SQS_QUEUE_URL`
+
+---
+
 ## Values to save
 
-As you create resources below, save these — you will need them in Phase 5:
+After completing all steps, you need these for Phase 5 (`04-k8s-setup.sh`):
 
 | Variable | Set after |
 |---|---|
-| `PRODUCT_BUCKET` | Step 2 |
-| `SQS_QUEUE_URL` | Step 3 |
+| `S3_BUCKET` / `PRODUCT_IMAGES_BUCKET` | Step 1–3 script |
+| `SQS_QUEUE_URL` | Step 1–3 script |
 | `DAX_ENDPOINT` | Step 4 |
 | `RDS_HOST`, `RDS_PASSWORD` | Step 5 |
 | `EFS_FILE_SYSTEM_ID` | Step 6 |
-
----
-
-## Step 1 — DynamoDB Tables
-
-```bash
-# products_table — used by product-service
-aws dynamodb create-table \
-  --table-name products_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region ap-southeast-1
-
-# orders_table — used by order-service
-aws dynamodb create-table \
-  --table-name orders_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region ap-southeast-1
-
-# Verify both tables are ACTIVE
-aws dynamodb describe-table --table-name products_table \
-  --query 'Table.TableStatus' --region ap-southeast-1
-aws dynamodb describe-table --table-name orders_table \
-  --query 'Table.TableStatus' --region ap-southeast-1
-```
-
----
-
-## Step 2 — S3 Bucket (product images)
-
-```bash
-PRODUCT_BUCKET="demo-product-images-$(openssl rand -hex 4)"
-echo "PRODUCT_BUCKET=$PRODUCT_BUCKET"   # save this value
-
-aws s3api create-bucket \
-  --bucket "$PRODUCT_BUCKET" \
-  --region ap-southeast-1 \
-  --create-bucket-configuration LocationConstraint=ap-southeast-1
-
-# Block public access — product-service uses pre-signed URLs only
-aws s3api put-public-access-block \
-  --bucket "$PRODUCT_BUCKET" \
-  --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-
-# Verify
-aws s3api get-bucket-location --bucket "$PRODUCT_BUCKET"
-```
-
----
-
-## Step 3 — SQS Queue
-
-```bash
-aws sqs create-queue \
-  --queue-name orders \
-  --attributes '{"VisibilityTimeout":"180"}' \
-  --region ap-southeast-1
-
-# Save the queue URL
-SQS_QUEUE_URL=$(aws sqs get-queue-url \
-  --queue-name orders \
-  --region ap-southeast-1 \
-  --query QueueUrl --output text)
-echo "SQS_QUEUE_URL=$SQS_QUEUE_URL"
-```
 
 ---
 
@@ -243,15 +198,21 @@ aws efs describe-mount-targets \
 ## Summary
 
 ```bash
-export PRODUCT_BUCKET="demo-product-images-xxxx"
+# From 01-aws-resources.sh output:
+export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
+export S3_BUCKET="demo-product-images-xxxx"
 export SQS_QUEUE_URL="https://sqs.ap-southeast-1.amazonaws.com/ACCOUNT_ID/orders"
+export DYNAMODB_PRODUCTS_TABLE="products_table"
+export DYNAMODB_ORDERS_TABLE="orders_table"
+
+# From steps 4-6 (manual):
 export DAX_ENDPOINT="daxs://dax-demo.xxxxxx.dax-clusters.ap-southeast-1.amazonaws.com:8111"
 export RDS_HOST="demo-aurora-cluster.cluster-xxxx.ap-southeast-1.rds.amazonaws.com"
 export RDS_PASSWORD="YourSecurePassword"
 export EFS_FILE_SYSTEM_ID="fs-0123456789abcdef0"
 ```
 
-These are passed to `eks-setup/04-k8s-setup.sh` in Phase 5.
+These are passed to `infra/04-k8s-setup.sh` in Phase 6.
 
 ---
 

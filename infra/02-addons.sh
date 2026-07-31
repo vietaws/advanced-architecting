@@ -11,7 +11,7 @@
 #
 # Usage:
 #   export AWS_ACCOUNT_ID=123456789012
-#   ./eks-setup/02-addons.sh
+#   ./infra/02-addons.sh
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""
@@ -192,5 +192,5 @@ echo "[5/5] AWS Load Balancer Controller OK ✅"
 echo ""
 echo "============================================================"
 echo "  All add-ons installed successfully"
-echo "  Next: ./eks-setup/03-oidc-irsa.sh"
+echo "  Next: ./infra/03-oidc-irsa.sh"
 echo "============================================================"
