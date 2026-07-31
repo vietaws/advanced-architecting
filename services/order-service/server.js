@@ -13,12 +13,12 @@ app.use(express.json());
 app.use('/orders', orderRoutes);
 
 // ── Health: liveness probe ────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
+app.get(['/health', '/orders/health'], (_req, res) => {
   res.json({ status: 'healthy', service: 'order-service' });
 });
 
 // ── Health: deep status (SQS + DynamoDB) ─────────────────────────────────────
-app.get('/health/status', async (_req, res) => {
+app.get(['/health/status', '/orders/health/status'], async (_req, res) => {
   const results = await Promise.allSettled([
 
     // 1. SQS — GetQueueAttributes confirms queue is reachable

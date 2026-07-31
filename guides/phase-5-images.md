@@ -15,7 +15,7 @@ Edit these once before running any commands below:
 ```bash
 # Docker Hub (update your actual user and repo)
 DOCKER_USER="vietaws"                  
-DOCKER_REPO="architecting-pro"         
+DOCKER_REPO="examples"         
 
 # AWS / ECR
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
@@ -71,10 +71,10 @@ for SVC in product-service provider-service order-service; do
   docker buildx build \
     --platform linux/amd64,linux/arm64 \
     --file "services/${SVC}/Dockerfile" \
-    --tag "${DOCKER_USER}/${DOCKER_REPO}:${SVC}-latest" \
+    --tag "${DOCKER_USER}/${DOCKER_REPO}:${SVC}" \
     --push \
     "services/${SVC}"
-  echo "✓ Pushed ${DOCKER_USER}/${DOCKER_REPO}:${SVC}-latest"
+  echo "✓ Pushed ${DOCKER_USER}/${DOCKER_REPO}:${SVC}"
 done
 ```
 

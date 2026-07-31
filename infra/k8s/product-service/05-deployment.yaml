@@ -18,7 +18,7 @@ spec:
       serviceAccountName: product-service-sa
       containers:
         - name: product-service
-          image: vietaws/examples:product-service-latest
+          image: vietaws/examples:product-service
           imagePullPolicy: Always
           ports:
             - containerPort: 3001

@@ -30,5 +30,5 @@
 window.APP_CONFIG = {
   // Set to your ALB endpoint once the backend is deployed.
   // Leave empty to run frontend-only (all services show as Disconnected).
-  API_URL: '',
+  API_URL: 'http://k8s-app-39f644cd8a-2098895631.ap-southeast-1.elb.amazonaws.com',
 };

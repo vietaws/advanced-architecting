@@ -24,12 +24,12 @@ app.use('/products', productRoutes);
 app.use('/products-dax', productsDaxRoutes);
 
 // ── Health: liveness probe ────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
+app.get(['/health', '/products/health'], (_req, res) => {
   res.json({ status: 'healthy', service: 'product-service' });
 });
 
 // ── Health: deep status (DynamoDB + DAX + S3) ─────────────────────────────────
-app.get('/health/status', async (_req, res) => {
+app.get(['/health/status', '/products/health/status'], async (_req, res) => {
   const results = await Promise.allSettled([
 
     // 1. DynamoDB — DescribeTable proves connectivity and table exists
