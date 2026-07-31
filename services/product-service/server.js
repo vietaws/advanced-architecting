@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -16,6 +17,10 @@ const productsDaxRoutes = require(join(__dirname, 'routes/products-dax.cjs'));
 
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app = express();
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

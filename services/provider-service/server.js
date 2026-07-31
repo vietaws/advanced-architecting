@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { promises as fs, constants as fsConstants } from 'fs';
 import logger from './logger.js';
 import providerRoutes from './routes/providers.js';
@@ -10,6 +11,10 @@ const PORT = process.env.PORT || 3002;
 const EFS_MOUNT_POINT = '/data/efs';
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

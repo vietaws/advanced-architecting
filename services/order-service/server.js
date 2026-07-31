@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import logger from './logger.js';
@@ -7,6 +8,10 @@ import orderRoutes from './routes/orders.js';
 const app = express();
 const PORT = process.env.PORT || 3003;
 
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────────────────
