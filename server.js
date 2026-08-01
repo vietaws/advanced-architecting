@@ -11,7 +11,7 @@ import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import logger from './logger.js';
 import productRoutes from './routes/products.js';
 import providerRoutes from './routes/providers.js';
-import stressRoutes from './routes/stress.js';
+import stressRoutes, { getStressStatus } from './routes/stress.js';
 import efsRoutes from './routes/efs.js';
 import orderRoutes from './routes/orders.js';
 
@@ -105,28 +105,9 @@ app.get('/health/status', async (req, res) => {
       return { service: 'efs', status: 'connected' };
     })(),
 
-    // 7. Stress — check running state from in-process status
+    // 7. Stress — read in-process state directly, no HTTP loopback
     (async () => {
-      const stressRes = await Promise.race([
-        new Promise((resolve, reject) => {
-          const port = process.env.PORT || 3001;
-          const req = http.get(`http://localhost:${port}/stress/status`, (r) => {
-            let data = '';
-            r.on('data', chunk => data += chunk);
-            r.on('end', () => {
-              try { resolve(JSON.parse(data)); }
-              catch (e) { reject(new Error('Invalid JSON from /stress/status')); }
-            });
-          });
-          req.on('error', reject);
-          req.setTimeout(3000, () => {
-            req.destroy(new Error('Stress status request timed out after 3s'));
-          });
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Stress health check timed out after 4s')), 4000)
-        )
-      ]);
+      const stressRes = getStressStatus();
       return { service: 'stress', status: stressRes.running ? 'running' : 'stopped' };
     })(),
 

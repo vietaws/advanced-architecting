@@ -56,6 +56,16 @@ async function getInstanceId() {
   }
 }
 
+export function getStressStatus() {
+  const cpu = getCPUUsage();
+  return {
+    running: workers.length > 0,
+    workers: workers.length,
+    cpu: cpu.usage,
+    cores: cpu.cores,
+  };
+}
+
 function getCPUUsage() {
   const cpus = os.cpus();
   let totalIdle = 0, totalTick = 0;
