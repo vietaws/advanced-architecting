@@ -23,6 +23,10 @@ const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 const productsDaxRoutes = require('./routes/products-dax.cjs');
 
+// Reuse the module-level DAX singleton so the TLS connection is established
+// once at startup and reused on every health check (avoids per-request handshake)
+const { daxClient, productsTableName: daxTableName } = require('./db/dax.cjs');
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -40,7 +44,6 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/health/status', async (req, res) => {
-  const require = createRequire(import.meta.url);
   const results = await Promise.allSettled([
 
     // 1. DynamoDB — DescribeTable on products_table
@@ -57,18 +60,20 @@ app.get('/health/status', async (req, res) => {
       return { service: 'aurora', status: 'connected' };
     })(),
 
-    // 3. DAX — lightweight scan with Limit 1
+    // 3. DAX — lightweight scan with Limit 1, using the module-level singleton
+    // so the TLS connection is warm (established at startup, not per-request).
+    // Promise.race adds a hard 5s timeout so a slow/hung DAX never blocks the response.
     (async () => {
       try {
-        const AmazonDaxClient = require('amazon-dax-client');
-        const daxEndpoint = process.env.DAX_ENDPOINT;
-        const region = process.env.AWS_REGION;
-        const tableName = process.env.DYNAMODB_PRODUCTS_TABLE;
+        logger.info({ action: 'health.dax', table: daxTableName }, 'DAX check starting');
 
-        logger.info({ action: 'health.dax', endpoint: daxEndpoint, region, table: tableName }, 'DAX check starting');
-
-        const client = new AmazonDaxClient({ endpoints: [daxEndpoint], region });
-        await client.scan({ TableName: tableName, Limit: 1 }).promise();
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('DAX health check timed out after 5s')), 5000)
+        );
+        await Promise.race([
+          daxClient.scan({ TableName: daxTableName, Limit: 1 }).promise(),
+          timeout
+        ]);
         return { service: 'dax', status: 'connected' };
       } catch (err) {
         logger.warn({ action: 'health.dax', error: err.message, code: err.code, name: err.name, stack: err.stack?.split('\n')[1] }, 'DAX check failed');
@@ -102,14 +107,26 @@ app.get('/health/status', async (req, res) => {
 
     // 7. Stress — check running state from in-process status
     (async () => {
-      const stressRes = await new Promise((resolve, reject) => {
-        const port = process.env.PORT || 3001;
-        http.get(`http://localhost:${port}/stress/status`, (r) => {
-          let data = '';
-          r.on('data', chunk => data += chunk);
-          r.on('end', () => resolve(JSON.parse(data)));
-        }).on('error', reject);
-      });
+      const stressRes = await Promise.race([
+        new Promise((resolve, reject) => {
+          const port = process.env.PORT || 3001;
+          const req = http.get(`http://localhost:${port}/stress/status`, (r) => {
+            let data = '';
+            r.on('data', chunk => data += chunk);
+            r.on('end', () => {
+              try { resolve(JSON.parse(data)); }
+              catch (e) { reject(new Error('Invalid JSON from /stress/status')); }
+            });
+          });
+          req.on('error', reject);
+          req.setTimeout(3000, () => {
+            req.destroy(new Error('Stress status request timed out after 3s'));
+          });
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Stress health check timed out after 4s')), 4000)
+        )
+      ]);
       return { service: 'stress', status: stressRes.running ? 'running' : 'stopped' };
     })(),
 
