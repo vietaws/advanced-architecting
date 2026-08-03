@@ -3,18 +3,15 @@
 # teardown-eks.sh — Delete all Kubernetes and EKS resources
 #
 # Deletes (in order):
-#   1. K8s app namespace and EFS PVC
-#   2. ALB Controller (Helm + CRDs)
-#   3. EKS managed add-ons
-#   4. Add-on IAM roles and policies
-#   5. iamserviceaccount CloudFormation stacks (via eksctl)
-#   6. App service IAM roles and policies
-#   7. EKS cluster — node groups, OIDC, cluster service role, VPC (via eksctl)
+#   1. Scale down pods, delete Ingress, wait for ALB, force-delete ALB if needed
+#   2. EKS add-ons (parallel, no-wait)           [parallel]
+#   3. Add-on IAM roles + app IAM roles          [parallel]
+#   4. EKS cluster via eksctl (node groups, iamserviceaccount stacks, OIDC, VPC)
 #
-# Notes:
-#   - eksctl delete cluster handles its own CloudFormation stacks automatically
-#   - eksctl-created roles (ServiceRole, NodeInstanceRole) are deleted with the stack
-#   - Does NOT delete: DynamoDB, SQS, Aurora, EFS, S3, DAX, CloudFront, ECR
+# eksctl delete cluster handles its own CloudFormation stacks automatically,
+# including iamserviceaccount stacks — no need to delete them separately.
+#
+# Does NOT delete: DynamoDB, SQS, Aurora, EFS, S3, DAX, CloudFront, ECR
 #
 # Usage:
 #   export AWS_ACCOUNT_ID=123456789012
@@ -36,127 +33,172 @@ echo ""
 read -p "This will delete the EKS cluster and all related resources. Continue? (y/N) " CONFIRM
 [[ "${CONFIRM}" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
 
-# ── Step 1: K8s app resources ─────────────────────────────────────────────────
-echo ""
-echo "[1/7] Deleting K8s app resources..."
-kubectl delete namespace app --ignore-not-found 2>/dev/null || true
-kubectl delete -f infra/k8s/provider-service/02-efs-pvc.yaml \
-  --ignore-not-found 2>/dev/null || true
-echo "[1/7] Done"
-
-# ── Step 2: ALB Controller (Helm + CRDs) ─────────────────────────────────────
-echo ""
-echo "[2/7] Removing ALB Controller..."
-helm uninstall aws-load-balancer-controller -n kube-system 2>/dev/null \
-  && echo "  ✓ Helm release deleted" || echo "  Helm release not found"
-kubectl delete crd ingressclassparams.elbv2.k8s.aws 2>/dev/null || true
-kubectl delete crd targetgroupbindings.elbv2.k8s.aws 2>/dev/null || true
-echo "[2/7] Done"
-
-# ── Step 3: EKS managed add-ons ──────────────────────────────────────────────
-echo ""
-echo "[3/7] Deleting EKS managed add-ons..."
-for ADDON in aws-ebs-csi-driver aws-efs-csi-driver kube-proxy coredns; do
-  aws eks delete-addon \
-    --cluster-name "${CLUSTER_NAME}" \
-    --addon-name   "${ADDON}" \
-    --region       "${REGION}" 2>/dev/null \
-    && echo "  ✓ ${ADDON}" || echo "  not found: ${ADDON}"
-done
-echo "[3/7] Done"
-
-# ── Step 4: Add-on IAM roles and policies ────────────────────────────────────
-echo ""
-echo "[4/7] Deleting add-on IAM roles and policies..."
-
-# EBS CSI
-aws iam detach-role-policy --role-name eks-ebs-csi-driver-role \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy 2>/dev/null || true
-aws iam delete-role --role-name eks-ebs-csi-driver-role 2>/dev/null \
-  && echo "  ✓ eks-ebs-csi-driver-role" || echo "  not found: eks-ebs-csi-driver-role"
-
-# EFS CSI
-aws iam detach-role-policy --role-name eks-efs-csi-driver-role \
-  --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AmazonEFSCSIDriverPolicy" 2>/dev/null || true
-aws iam delete-role --role-name eks-efs-csi-driver-role 2>/dev/null \
-  && echo "  ✓ eks-efs-csi-driver-role" || echo "  not found: eks-efs-csi-driver-role"
-
-# ALB Controller
-aws iam detach-role-policy --role-name eks-alb-controller-role \
-  --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy" 2>/dev/null || true
-aws iam delete-role --role-name eks-alb-controller-role 2>/dev/null \
-  && echo "  ✓ eks-alb-controller-role" || echo "  not found: eks-alb-controller-role"
-
-for POLICY in AmazonEFSCSIDriverPolicy AWSLoadBalancerControllerIAMPolicy; do
-  aws iam delete-policy \
-    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${POLICY}" 2>/dev/null \
-    && echo "  ✓ policy: ${POLICY}" || echo "  not found: ${POLICY}"
-done
-echo "[4/7] Done"
-
-# ── Step 5: iamserviceaccount stacks (via eksctl) ────────────────────────────
-# eksctl delete iamserviceaccount deletes both the K8s SA and its CloudFormation
-# stack. Before deleting, disable termination protection if enabled.
-echo ""
-echo "[5/7] Deleting iamserviceaccount stacks via eksctl..."
-
-for SA in ebs-csi-controller-sa efs-csi-controller-sa aws-load-balancer-controller; do
-  STACK_NAME="eksctl-${CLUSTER_NAME}-addon-iamserviceaccount-kube-system-${SA}"
-
-  # Disable termination protection if enabled
-  PROTECTION=$(aws cloudformation describe-stacks \
-    --stack-name "${STACK_NAME}" --region "${REGION}" \
-    --query 'Stacks[0].EnableTerminationProtection' \
-    --output text 2>/dev/null || echo "False")
-
-  if [[ "${PROTECTION}" == "True" ]]; then
-    echo "  Disabling termination protection on ${STACK_NAME}..."
-    aws cloudformation update-termination-protection \
-      --stack-name "${STACK_NAME}" \
-      --no-enable-termination-protection \
-      --region "${REGION}"
-  fi
-
-  eksctl delete iamserviceaccount \
-    --cluster   "${CLUSTER_NAME}" \
-    --region    "${REGION}" \
-    --namespace kube-system \
-    --name      "${SA}" 2>/dev/null \
-    && echo "  ✓ iamserviceaccount: ${SA}" || echo "  not found: ${SA}"
-done
-echo "[5/7] Done"
-
-# ── Step 6: App service IAM roles and policies ────────────────────────────────
-echo ""
-echo "[6/7] Deleting app service IAM roles..."
-for ROLE in eks-product-service-role eks-order-service-role; do
-  POLICIES=$(aws iam list-attached-role-policies --role-name "${ROLE}" \
-    --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || true)
-  for POLICY_ARN in ${POLICIES}; do
-    aws iam detach-role-policy --role-name "${ROLE}" --policy-arn "${POLICY_ARN}" 2>/dev/null || true
+# ── Helper: wait for background jobs and report failures ─────────────────────
+wait_all() {
+  local failed=0
+  for pid in "$@"; do
+    wait "$pid" || { echo "  ⚠ background task $pid failed (non-fatal)"; failed=1; }
   done
-  aws iam delete-role --role-name "${ROLE}" 2>/dev/null \
-    && echo "  ✓ ${ROLE}" || echo "  not found: ${ROLE}"
-done
+  return $failed
+}
 
-for POLICY in ProductServicePolicy OrderServicePolicy; do
-  aws iam delete-policy \
-    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${POLICY}" 2>/dev/null \
-    && echo "  ✓ policy: ${POLICY}" || echo "  not found: ${POLICY}"
-done
-echo "[6/7] Done"
-
-# ── Step 7: EKS cluster (via eksctl) ──────────────────────────────────────────
-# eksctl delete cluster:
-#   - deletes node groups
-#   - deletes cluster CloudFormation stack (including ServiceRole + NodeInstanceRole)
-#   - deletes OIDC provider
-#   - deletes VPC and all networking resources
+# ── Step 1: Delete ALB and K8s app resources ─────────────────────────────────
 echo ""
-echo "[7/7] Deleting EKS cluster via eksctl: ${CLUSTER_NAME}..."
-echo "  Duration: ~10 minutes"
+echo "[1/4] Removing ALB and K8s app resources..."
 
-# Disable termination protection on cluster stack if enabled
+# a. Scale down all deployments — nothing can recreate the ALB
+echo "  Scaling down deployments..."
+kubectl scale deployment --all -n app --replicas=0 2>/dev/null || true
+
+# b. Delete Ingress
+echo "  Deleting Ingress..."
+kubectl delete ingress app-ingress -n app --ignore-not-found 2>/dev/null || true
+
+# c. Delete ALB directly via AWS CLI — find all ALBs in the EKS VPC
+echo "  Looking up ALBs in cluster VPC..."
+EKS_VPC_ID=$(aws eks describe-cluster \
+  --name "${CLUSTER_NAME}" \
+  --region "${REGION}" \
+  --query 'cluster.resourcesVpcConfig.vpcId' \
+  --output text 2>/dev/null || true)
+echo "  EKS VPC: ${EKS_VPC_ID}"
+
+if [[ -n "${EKS_VPC_ID}" && "${EKS_VPC_ID}" != "None" ]]; then
+  ALB_ARNS=$(aws elbv2 describe-load-balancers \
+    --region "${REGION}" \
+    --query "LoadBalancers[?VpcId=='${EKS_VPC_ID}'].LoadBalancerArn" \
+    --output text 2>/dev/null || true)
+
+  if [[ -n "${ALB_ARNS}" ]]; then
+    for ARN in ${ALB_ARNS}; do
+      echo "  Found ALB: ${ARN}"
+
+      # Collect target groups while ALB still exists
+      TG_ARNS=$(aws elbv2 describe-target-groups \
+        --load-balancer-arn "${ARN}" \
+        --region "${REGION}" \
+        --query 'TargetGroups[*].TargetGroupArn' \
+        --output text 2>/dev/null || true)
+
+      # Delete the ALB
+      aws elbv2 delete-load-balancer \
+        --load-balancer-arn "${ARN}" \
+        --region "${REGION}" \
+        && echo "  ✓ ALB delete initiated" || echo "  ⚠ could not delete ALB"
+
+      # Wait for ALB to be fully gone before deleting target groups
+      echo "  Waiting for ALB deletion..."
+      aws elbv2 wait load-balancers-deleted \
+        --load-balancer-arns "${ARN}" \
+        --region "${REGION}" 2>/dev/null || sleep 30
+      echo "  ✓ ALB deleted"
+
+      # Delete target groups
+      for TG_ARN in ${TG_ARNS}; do
+        aws elbv2 delete-target-group \
+          --target-group-arn "${TG_ARN}" \
+          --region "${REGION}" 2>/dev/null \
+          && echo "  ✓ target group deleted: ${TG_ARN##*/}" || true
+      done
+    done
+  else
+    echo "  ✓ No ALBs found in VPC"
+  fi
+fi
+
+# d. Delete the namespace (remaining K8s objects)
+echo "  Deleting namespace app..."
+kubectl delete namespace app --ignore-not-found --wait=false 2>/dev/null || true
+
+echo "[1/4] Done"
+
+# ── Step 2: EKS add-ons (parallel) ───────────────────────────────────────────
+# Helm uninstall is skipped — the cluster is being deleted anyway.
+# ALB deprovisioning was already triggered in step 1 via namespace deletion.
+echo ""
+echo "[2/4] Deleting EKS add-ons in parallel..."
+
+for ADDON in aws-ebs-csi-driver aws-efs-csi-driver kube-proxy coredns; do
+  (
+    aws eks delete-addon \
+      --cluster-name "${CLUSTER_NAME}" \
+      --addon-name   "${ADDON}" \
+      --region       "${REGION}" \
+      --no-preserve 2>/dev/null \
+      && echo "  ✓ add-on delete initiated: ${ADDON}" \
+      || echo "  not found: ${ADDON}"
+  ) &
+done
+wait
+echo "[2/4] Done"
+
+# ── Step 3: IAM roles and policies (parallel) ─────────────────────────────────
+echo ""
+echo "[3/4] Deleting IAM roles and policies in parallel..."
+
+# Add-on IAM roles
+(
+  # EBS CSI
+  aws iam detach-role-policy --role-name eks-ebs-csi-driver-role \
+    --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy 2>/dev/null || true
+  aws iam delete-role --role-name eks-ebs-csi-driver-role 2>/dev/null \
+    && echo "  ✓ eks-ebs-csi-driver-role" || echo "  not found: eks-ebs-csi-driver-role"
+) &
+PID_EBS_ROLE=$!
+
+(
+  # EFS CSI
+  aws iam detach-role-policy --role-name eks-efs-csi-driver-role \
+    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AmazonEFSCSIDriverPolicy" 2>/dev/null || true
+  aws iam delete-role --role-name eks-efs-csi-driver-role 2>/dev/null \
+    && echo "  ✓ eks-efs-csi-driver-role" || echo "  not found: eks-efs-csi-driver-role"
+  aws iam delete-policy \
+    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AmazonEFSCSIDriverPolicy" 2>/dev/null \
+    && echo "  ✓ policy: AmazonEFSCSIDriverPolicy" || echo "  not found: AmazonEFSCSIDriverPolicy"
+) &
+PID_EFS_ROLE=$!
+
+(
+  # ALB Controller
+  aws iam detach-role-policy --role-name eks-alb-controller-role \
+    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy" 2>/dev/null || true
+  aws iam delete-role --role-name eks-alb-controller-role 2>/dev/null \
+    && echo "  ✓ eks-alb-controller-role" || echo "  not found: eks-alb-controller-role"
+  aws iam delete-policy \
+    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/AWSLoadBalancerControllerIAMPolicy" 2>/dev/null \
+    && echo "  ✓ policy: AWSLoadBalancerControllerIAMPolicy" || echo "  not found: AWSLoadBalancerControllerIAMPolicy"
+) &
+PID_ALB_ROLE=$!
+
+# App service IAM roles
+(
+  for ROLE in eks-product-service-role eks-order-service-role; do
+    POLICIES=$(aws iam list-attached-role-policies --role-name "${ROLE}" \
+      --query 'AttachedPolicies[*].PolicyArn' --output text 2>/dev/null || true)
+    for POLICY_ARN in ${POLICIES}; do
+      aws iam detach-role-policy --role-name "${ROLE}" --policy-arn "${POLICY_ARN}" 2>/dev/null || true
+    done
+    aws iam delete-role --role-name "${ROLE}" 2>/dev/null \
+      && echo "  ✓ ${ROLE}" || echo "  not found: ${ROLE}"
+  done
+  for POLICY in ProductServicePolicy OrderServicePolicy; do
+    aws iam delete-policy \
+      --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${POLICY}" 2>/dev/null \
+      && echo "  ✓ policy: ${POLICY}" || echo "  not found: ${POLICY}"
+  done
+) &
+PID_APP_ROLES=$!
+
+wait_all $PID_EBS_ROLE $PID_EFS_ROLE $PID_ALB_ROLE $PID_APP_ROLES || true
+echo "[3/4] Done"
+
+# ── Step 4: EKS cluster via eksctl ────────────────────────────────────────────
+# Deletes: node groups, cluster CF stack (ServiceRole + NodeInstanceRole),
+#          iamserviceaccount stacks, OIDC provider, VPC and all networking.
+# Duration: ~10 minutes
+echo ""
+echo "[4/4] Deleting EKS cluster: ${CLUSTER_NAME} (~10 min)..."
+
 CLUSTER_STACK="eksctl-${CLUSTER_NAME}-cluster"
 PROTECTION=$(aws cloudformation describe-stacks \
   --stack-name "${CLUSTER_STACK}" --region "${REGION}" \
@@ -172,7 +214,7 @@ if [[ "${PROTECTION}" == "True" ]]; then
 fi
 
 eksctl delete cluster --name "${CLUSTER_NAME}" --region "${REGION}"
-echo "[7/7] Done"
+echo "[4/4] Done"
 
 echo ""
 echo "============================================================"
