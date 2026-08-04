@@ -33,11 +33,14 @@ runuser -l postgres -c "psql -d demo -c \"CREATE TABLE IF NOT EXISTS products (i
 runuser -l postgres -c "psql -d demo -c \"INSERT INTO products (name, price, sku) VALUES ('Mouse', 19.99, 'SKU001'), ('Laptop', 2999.99, 'SKU002'), ('Keyboard', 39.99, 'SKU003');\""
 runuser -l postgres -c "psql -d demo -c \"GRANT SELECT ON products TO dbadmin;\""
 
-# Allow password auth from 10.0.0.0/8 and listen on all interfaces
+# Configure authentication and network listening
 PG_DATA=$(runuser -l postgres -c "psql -t -c 'SHOW data_directory;'" | tr -d ' \n')
+
 sed -i 's/\bident\b/md5/g' "${PG_DATA}/pg_hba.conf"
-echo "host  demo  dbadmin  10.0.0.0/8  md5" >> "${PG_DATA}/pg_hba.conf"
+sed -i 's/\bpeer\b/md5/g'  "${PG_DATA}/pg_hba.conf"
+
 sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_DATA}/postgresql.conf"
+sed -i "s/listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_DATA}/postgresql.conf"
 
 systemctl restart postgresql
 
