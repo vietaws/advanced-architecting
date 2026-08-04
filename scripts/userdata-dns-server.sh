@@ -48,7 +48,7 @@ options {
 
     # Default: forward unknown queries to VPC A resolver (safe for AWS services)
     # Replaced per-scenario during the demo
-    forwarders { 10.1.0.2; };
+    forwarders { 10.2.0.2; 8.8.8.8; };
     forward first;
 };
 

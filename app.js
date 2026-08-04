@@ -6,8 +6,8 @@ const { Client } = require('pg');
 const DB_CONFIG = {
   host: 'db.corp.local',
   port: 5432,
-  database: 'corp_demo',
-  user: 'demo',
+  database: 'demo',
+  user: 'dbadmin',
   password: 'DemoPassword',
   connectionTimeoutMillis: 3000,
 };

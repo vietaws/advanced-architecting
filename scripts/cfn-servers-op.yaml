@@ -144,7 +144,7 @@ Resources:
             '    recursion yes;' \
             '    dnssec-validation no;' \
             '    querylog yes;' \
-            '    forwarders { 10.1.0.2; };' \
+            '    forwarders { 10.2.0.2; 8.8.8.8; };' \
             '    forward first;' \
             '};' \
             'logging {' \
@@ -195,7 +195,7 @@ Resources:
           echo "[$(date)] DNS Server setup complete."
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-DNS-Server"
+          Value: "OP-DNS-Server"
 
   # -- App Server (10.2.1.20) --------------------------------------------------
   # Express.js app on port 80, responds with server info as JSON and HTML.
@@ -219,7 +219,7 @@ Resources:
           echo "[$(date)] Starting App Server setup..."
 
           dnf update -y
-          dnf install -y nodejs bind-utils nc
+          dnf install -y nodejs postgresql17 bind-utils nc
 
           hostnamectl set-hostname app.corp.local
 
@@ -281,7 +281,7 @@ Resources:
           echo "[$(date)] App Server setup complete."
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-App-Server"
+          Value: "OP-App-Server"
 
   # -- DB Server (10.2.1.30) ---------------------------------------------------
 
@@ -313,18 +313,18 @@ Resources:
           systemctl start postgresql
 
           # Create user and database
-          runuser -l postgres -c "psql -c \"CREATE USER demo WITH PASSWORD 'DemoPassword';\""
-          runuser -l postgres -c "psql -c \"CREATE DATABASE corp_demo OWNER demo;\""
+          runuser -l postgres -c "psql -c \"CREATE USER dbadmin WITH PASSWORD 'DemoPassword';\""
+          runuser -l postgres -c "psql -c \"CREATE DATABASE demo OWNER dbadmin;\""
 
           # Create schema and seed data
-          runuser -l postgres -c "psql -d corp_demo -c \"CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, name VARCHAR(100), price VARCHAR(100), sku VARCHAR(50));\""
-          runuser -l postgres -c "psql -d corp_demo -c \"INSERT INTO products (name, price, sku) VALUES ('Mouse','$19.99','SKU001'),('Laptop','$2999.99','SKU002'),('Keyboard','$39.99','SKU003');\""
-          runuser -l postgres -c "psql -d corp_demo -c \"GRANT SELECT ON products TO demo;\""
+          runuser -l postgres -c "psql -d demo -c \"CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, name VARCHAR(100), price VARCHAR(100), sku VARCHAR(50));\""
+          runuser -l postgres -c "psql -d demo -c \"INSERT INTO products (name, price, sku) VALUES ('Mouse','$19.99','SKU001'),('Laptop','$2999.99','SKU002'),('Keyboard','$39.99','SKU003');\""
+          runuser -l postgres -c "psql -d demo -c \"GRANT SELECT ON products TO dbadmin;\""
 
           # Allow password auth from 10.0.0.0/8 and listen on all interfaces
           PG_DATA=$(runuser -l postgres -c "psql -t -c 'SHOW data_directory;'" | tr -d ' \n')
           sed -i 's/\bident\b/md5/g' "${PG_DATA}/pg_hba.conf"
-          echo "host  corp_demo  demo  10.0.0.0/8  md5" >> "${PG_DATA}/pg_hba.conf"
+          echo "host  demo  dbadmin  10.0.0.0/8  md5" >> "${PG_DATA}/pg_hba.conf"
           sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_DATA}/postgresql.conf"
 
           systemctl restart postgresql
@@ -351,14 +351,14 @@ Resources:
             'dig +noall +answer app.cloud.corp.local' \
             'echo ""' \
             'echo "-- DB self-check --"' \
-            'PGPASSWORD=DemoPassword psql -h localhost -U demo -d corp_demo -c "SELECT * FROM products;" 2>/dev/null || echo "DB not ready"' \
+            'PGPASSWORD=DemoPassword psql -h 127.0.0.1 -U dbadmin -d demo -c "SELECT * FROM products;" 2>/dev/null || echo "DB not ready"' \
             > /usr/local/bin/dns-test
           chmod +x /usr/local/bin/dns-test
 
-          echo "[$(date)] DB Server setup complete. DB: corp_demo | User: demo | Password: DemoPassword | Port: 5432"
+          echo "[$(date)] DB Server setup complete. DB: demo | User: dbadmin | Password: DemoPassword | Port: 5432"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-DB-Server"
+          Value: "OP-DB-Server"
 
 # =============================================================================
 Outputs:

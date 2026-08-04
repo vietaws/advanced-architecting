@@ -100,7 +100,7 @@ chmod +x /usr/local/bin/dns-test
 cat > /usr/local/bin/db-test << 'SCRIPT'
 #!/bin/bash
 echo "Testing PostgreSQL connection to db.corp.local:5432 ..."
-PGPASSWORD=DemoPassword psql -h db.corp.local -U demo -d corp_demo \
+PGPASSWORD=DemoPassword psql -h db.corp.local -U dbadmin -d demo \
     -c "SELECT * FROM products;" \
     && echo "SUCCESS" \
     || echo "FAILED — check DNS and security group rules"

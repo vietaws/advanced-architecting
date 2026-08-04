@@ -95,19 +95,19 @@ zone "1.10.in-addr.arpa" IN {
 zone "amazonaws.com" IN {
     type forward;
     forward only;
-    forwarders { 10.1.0.2; };
+    forwarders { 10.2.0.2; 8.8.8.8; };
 };
 
 zone "ap-southeast-1.compute.internal" IN {
     type forward;
     forward only;
-    forwarders { 10.1.0.2; };
+    forwarders { 10.2.0.2; 8.8.8.8; };
 };
 
 zone "s3.ap-southeast-1.amazonaws.com" IN {
     type forward;
     forward only;
-    forwarders { 10.1.0.2; };
+    forwarders { 10.2.0.2; 8.8.8.8; };
 };
 
 # Internet fallback
