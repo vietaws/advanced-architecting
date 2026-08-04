@@ -1,138 +1,229 @@
-# Product-Provider Management Application
+# Hybrid DNS Demo — Amazon Route 53 & On-Premises
+
+A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 53) and an on-premises environment simulated via VPC Peering.
+
+---
+
+## What This Demo Covers
+
+| Route 53 / DNS Feature | Demonstrated In |
+|---|---|
+| Private Hosted Zone (PHZ) | Scenarios 1, 2, 3 |
+| PHZ — multi-VPC association | Scenario 2 |
+| PHZ — CNAME and Alias records | Scenarios 2, 3, Advanced |
+| Inbound Resolver Endpoint | Scenarios 2, 3 |
+| Outbound Resolver Endpoint | Scenario 3 |
+| Resolver Rules (FORWARD type) | Scenario 3 |
+| Resolver Query Logging → CloudWatch | Scenario 2 |
+| DNS Firewall + managed domain lists | Advanced Features |
+| Resolver Rule sharing via AWS RAM | Advanced Features |
+| Custom DHCP Options | Scenario 1 |
+| BIND conditional forwarding | Scenarios 1, 3 |
+| S3 Gateway Endpoint DNS | Foundation |
+
+---
 
 ## Architecture
-- **Application Tier**: Node.js on EC2 with Auto Scaling
-- **Load Balancer**: Application Load Balancer (ALB)
-- **Databases**: 
-  - DynamoDB: `products_table` (products), `orders_table` (orders)
-  - RDS PostgreSQL: `providers_db` (providers)
-- **Storage**: S3 (product images), EFS (shared images)
-- **Queue**: SQS (order processing)
 
-## Setup Instructions
-
-### 1. Prerequisites
-- EC2 instance with Node.js installed
-- IAM role attached to EC2 with policies:
-  - `AmazonDynamoDBFullAccess`
-  - `AmazonS3FullAccess`
-  - `AmazonSQSFullAccess`
-
-### 2. Database Setup
-
-**DynamoDB Tables:**
-```bash
-# Products table
-aws dynamodb create-table \
-  --table-name products_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
-
-# Orders table
-aws dynamodb create-table \
-  --table-name orders_table \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region us-east-1
+```
+┌─────────────────────────────────────────────────────┐
+│              VPC A — Cloud (10.1.0.0/16)            │
+│                                                     │
+│  Subnet 10.1.1.0/24 (AZ-a)                         │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  EC2-Cloud          10.1.1.50                │   │
+│  │  app.cloud.corp.local                        │   │
+│  │                                              │   │
+│  │  Inbound Resolver   10.1.1.10  (Scenarios 2, 3)    │   │
+│  │  Outbound Resolver  10.1.1.11  (Scenario 3)     │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                     │
+│  Subnet 10.1.2.0/24 (AZ-b) — Resolver HA           │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Inbound Resolver   10.1.2.10  (Scenarios 2, 3)    │   │
+│  │  Outbound Resolver  10.1.2.11  (Scenario 3)     │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                     │
+│  Route 53 PHZ: cloud.corp.local                     │
+│  S3 Gateway Endpoint                                │
+└──────────────────────┬──────────────────────────────┘
+                       │ VPC Peering
+                       │ (real world: VPN / Direct Connect)
+┌──────────────────────┴──────────────────────────────┐
+│           VPC OP — On-Premises (10.2.0.0/16)        │
+│                                                     │
+│  Subnet 10.2.1.0/24                                 │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  DNS Server (BIND)  10.2.1.10                │   │
+│  │  dns.corp.local                              │   │
+│  │                                              │   │
+│  │  App Server         10.2.1.20                │   │
+│  │  app.corp.local                              │   │
+│  │                                              │   │
+│  │  DB Server (MySQL)  10.2.1.30                │   │
+│  │  db.corp.local                               │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
 ```
 
-**RDS PostgreSQL:**
-Connect to your RDS instance and run:
-```bash
-psql -h db.viet.vn -U admin -d products_db -f setup.sql
+### Domain Names
+
+| Domain | Owner | Records |
+|--------|-------|---------|
+| `cloud.corp.local` | Route 53 Private Hosted Zone | `app.cloud.corp.local` → `10.1.1.50` |
+| `corp.local` | BIND on DNS Server | `app.corp.local` → `10.2.1.20`, `db.corp.local` → `10.2.1.30` |
+
+---
+
+## Three Scenarios
+
+The same base infrastructure supports three DNS architectures, demonstrated in sequence:
+
+### Scenario 1 — All DNS on On-Premises
+BIND is authoritative for both `corp.local` and `cloud.corp.local`. VPC A uses custom DHCP options to point at BIND. AWS service queries (S3, EC2 APIs) are conditionally forwarded back to `10.1.0.2`.
+
+- **Cost:** ~$0/month Route 53 (no resolver endpoints)
+- **Best for:** Early cloud adoption, on-prem team retains full control
+
+### Scenario 2 — All DNS on AWS
+Route 53 hosts two PHZs: `cloud.corp.local` and `corp.local`. BIND becomes a pure forwarder to the Inbound Resolver Endpoint. Resolver Query Logging provides full visibility in CloudWatch.
+
+- **Cost:** ~$184/month Route 53 (inbound endpoint only)
+- **Best for:** Cloud-first organisations, centralised DNS visibility
+
+### Scenario 3 — Split DNS
+Route 53 owns `cloud.corp.local`. BIND owns `corp.local`. Cross-domain queries are routed via Resolver Endpoints. Each environment resolves its own domain locally with no round-trip.
+
+- **Cost:** ~$438/month Route 53 (inbound + outbound endpoints + rule)
+- **Best for:** Long-term hybrid, best performance, smallest blast radius
+
+---
+
+## Repository Structure
+
+```
+.
+├── README.md
+├── app.js                          # Express app for App Server (copy to /opt/app/ on instance)
+├── scripts/                        # EC2 user-data scripts
+│   ├── userdata-dns-server.sh      # BIND setup (10.2.1.10)
+│   ├── userdata-app-server.sh      # On-prem app server (10.2.1.20)
+│   ├── userdata-db-server.sh       # On-prem DB server — MariaDB (10.2.1.30)
+│   └── userdata-ec2-cloud.sh       # Cloud app server (10.1.1.50)
+└── guides/                         # Step-by-step demo guides
+    ├── 0-demo-plan.md              # 5-hour agenda, IP reference, pre-flight checklist
+    ├── 1-problem.md                # Problem statement — why hybrid DNS is needed
+    ├── 3-scenario-split-dns.md  # Foundation setup + Scenario 3: Split DNS
+    ├── 2-scenario-all-dns-aws.md      # Scenario 2: All DNS on AWS
+    ├── 1-scenario-all-dns-op.md         # Scenario 1: All DNS on On-Premises
+    └── 5-comparison.md             # Advanced Features + cost comparison
 ```
 
-**S3 Bucket:**
+---
+
+## Prerequisites
+
+- AWS account with permissions for: EC2, VPC, Route53, Route53Resolver, S3, Logs, RAM
+- AWS CLI configured (`aws configure`)
+- `jq` installed
+- An EC2 key pair in `ap-southeast-1`
+- SSM Session Manager (recommended for SSH-less access to private EC2s)
+  — attach `AmazonSSMManagedInstanceCore` IAM policy to the EC2 instance profile
+
+---
+
+## Quick Start
+
+### 1. Deploy base infrastructure
+
+Launch each EC2 instance manually in the AWS Console or via CLI, passing the corresponding script from `scripts/` as EC2 user-data:
+
+| Instance | IP | User-data script |
+|----------|----|-----------------|
+| DNS Server | `10.2.1.10` (VPC OP) | `scripts/userdata-dns-server.sh` |
+| App Server | `10.2.1.20` (VPC OP) | `scripts/userdata-app-server.sh` |
+| DB Server | `10.2.1.30` (VPC OP) | `scripts/userdata-db-server.sh` |
+| EC2-Cloud | `10.1.1.50` (VPC A) | `scripts/userdata-ec2-cloud.sh` |
+
+Follow `guides/3-scenario-split-dns.md` (Part 1) for the full step-by-step CLI commands to create VPCs, subnets, peering, security groups, and the S3 gateway endpoint.
+
+> User-data scripts run in the background on each EC2 after boot. Allow 3–5 min for BIND, MariaDB, and the HTTP servers to be ready.
+
+### 2. Follow the demo guides in order
+
+| Hour | Guide |
+|------|-------|
+| 1 | Infrastructure deployed above |
+| 2 | `guides/1-scenario-all-dns-op.md` |
+| 3 | `guides/2-scenario-all-dns-aws.md` |
+| 4 | `guides/3-scenario-split-dns.md` (Part 2) |
+| 5 | `guides/5-comparison.md` |
+
+### 3. Tear down
+
+Delete all resources in reverse order via the AWS Console or CLI:
+1. Route 53 Resolver Endpoints, Rules, PHZs, DNS Firewall rule groups, CloudWatch log groups
+2. EC2 instances
+3. S3 bucket
+4. VPC Peering connection
+5. Subnets, security groups, VPCs
+
+---
+
+## Demo Testing Commands
+
+Each EC2 has a `dns-test` helper pre-installed. Connect via SSM or SSH, then:
+
 ```bash
-aws s3 mb s3://demo_product_images_bucket
+# On any EC2 — quick DNS resolution check
+dns-test
+
+# On EC2-Cloud only — test MySQL across the hybrid boundary
+db-test
 ```
 
-### 3. Application Deployment
-
-Update `app_config.json` with your actual credentials and endpoints.
-
-Install dependencies and start:
-```bash
-npm install
-npm start
-```
-
-Access the web interface at: `http://<EC2-Public-IP>:3000`
-
-### 4. Auto Scaling Configuration
-
-Create Launch Template with:
-- AMI with Node.js and application code
-- IAM role with DynamoDB and S3 permissions
-- User data script to start application
-
-Create Auto Scaling Group:
-- Min: 2, Max: 10, Desired: 2
-- Target tracking policy (CPU 70%)
-- Attach to ALB target group
-
-### 5. ALB Setup
-
-- Create ALB with target group (port 3000)
-- Health check: `/health`
-- Register Auto Scaling Group
-
-### 6. EC2 Security Group
-
-Ensure your EC2 security group allows:
-- Port 3000 (from ALB or 0.0.0.0/0 for testing)
-- Port 22 (SSH for management)
-
-### 7. Quick Deploy to EC2
+Manual `dig` tests:
 
 ```bash
-# SSH to EC2
-ssh -i your-key.pem ec2-user@<EC2-IP>
+# Cloud domain
+dig app.cloud.corp.local
 
-# Install Node.js
-curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-sudo yum install -y nodejs git
+# On-prem domains
+dig app.corp.local
+dig db.corp.local
 
-# Clone/upload your application
-git clone <your-repo> || scp -r ./architecting ec2-user@<EC2-IP>:~
+# CNAME record
+dig api.cloud.corp.local
 
-# Navigate and install
-cd architecting
-npm install
+# AWS service (should always resolve)
+dig s3.ap-southeast-1.amazonaws.com
 
-# Start application (use PM2 for production)
-npm start
-
-# Or with PM2 for auto-restart
-sudo npm install -g pm2
-pm2 start server.js --name product-app
-pm2 startup
-pm2 save
+# Verify which DNS server answered
+dig app.corp.local +noall +answer +comments | grep SERVER
 ```
 
-## API Endpoints
+---
 
-**Products (DynamoDB):**
-- `POST /products` - Create product
-- `GET /products` - List all products
-- `GET /products/:id` - Get product by ID
-- `PUT /products/:id` - Update product
-- `DELETE /products/:id` - Delete product
+## Cost Summary
 
-**Providers (RDS PostgreSQL):**
-- `POST /providers` - Create provider
-- `GET /providers` - List all providers
-- `GET /providers/:id` - Get provider by ID
-- `PUT /providers/:id` - Update provider
-- `DELETE /providers/:id` - Delete provider
+| Scenario | Route 53 / month | Notes |
+|----------|:----------------:|-------|
+| All On-Prem (Scenario 1) | $0 | No resolver endpoints |
+| All AWS (Scenario 2) | ~$184 | Inbound endpoint (2 IPs HA) |
+| Split DNS (Scenario 3) | ~$438 | Inbound + Outbound endpoints + 1 rule |
 
-## Configuration
+The dominant cost in all cases is the Resolver Endpoint: **$0.125/hour per IP address**. For a demo/dev environment, reduce to 1 IP per endpoint (single AZ) to cut costs in half.
 
-All connection parameters are in `app_config.json`:
-- DynamoDB region and table name
-- RDS PostgreSQL connection details
-- S3 bucket name and region
-- Server port
+---
+
+## Key Concepts Recap
+
+**Inbound Resolver Endpoint** — a pair of IP addresses in your VPC that on-premises DNS servers can forward queries to. Queries arrive at these IPs and are answered by Route 53 Private Hosted Zones.
+
+**Outbound Resolver Endpoint** — a pair of IP addresses in your VPC that Route 53 uses as a source to send forwarded queries outbound. Used together with Resolver Rules.
+
+**Resolver Rule** — tells Route 53: "for domain X, send queries via the Outbound Endpoint to this target IP." Without a rule, Route 53 only resolves domains in its own hosted zones.
+
+**Private Hosted Zone** — a Route 53 hosted zone that resolves only from within associated VPCs. The domain name does not need to be publicly registered.
+
+**Split DNS** — a pattern where the same parent namespace (e.g. `corp.local`) is split between two authorities: Route 53 owns `cloud.corp.local`, BIND owns `corp.local`. Each side resolves its own sub-domain locally and forwards the other direction via Resolver Endpoints.

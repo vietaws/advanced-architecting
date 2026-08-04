@@ -1,0 +1,409 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Hybrid DNS Demo — Network Foundation
+  Deploys VPC A (Cloud) and VPC OP (On-Premises simulation), each with
+  2 public subnets and 2 private subnets across 2 AZs, an Internet Gateway,
+  route tables, and a VPC Peering connection between the two VPCs.
+  No NAT Gateway is included to keep costs minimal.
+
+# ── IP scheme ─────────────────────────────────────────────────────────────────
+# VPC A  (Cloud)      10.1.0.0/16
+#   Public  1a        10.1.0.0/24
+#   Public  1b        10.1.3.0/24
+#   Private 1a        10.1.1.0/24   ← EC2-Cloud (10.1.1.50), Resolver EPs
+#   Private 1b        10.1.2.0/24   ← Resolver HA IPs
+#
+# VPC OP (On-Premises) 10.2.0.0/16
+#   Public  1a        10.2.1.0/24   ← DNS (10.2.1.10), App (10.2.1.20), DB (10.2.1.30)
+#   Public  1b        10.2.3.0/24
+#   Private 1a        10.2.0.0/24
+#   Private 1b        10.2.2.0/24
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: hybrid-dns-demo
+    Description: Prefix applied to all resource Name tags.
+
+  VpcAcidr:
+    Type: String
+    Default: "10.1.0.0/16"
+    Description: CIDR block for VPC A (Cloud).
+
+  VpcOPcidr:
+    Type: String
+    Default: "10.2.0.0/16"
+    Description: CIDR block for VPC OP (On-Premises).
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: General
+        Parameters: [EnvironmentName]
+      - Label:
+          default: Network CIDRs
+        Parameters: [VpcAcidr, VpcOPcidr]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+Resources:
+
+  # ── VPC A (Cloud) ──────────────────────────────────────────────────────────
+
+  VpcA:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcAcidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-VPC-A-Cloud"
+
+  IgwA:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-IGW-A"
+
+  IgwAAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VpcA
+      InternetGatewayId: !Ref IgwA
+
+  # VPC A — Public Subnets
+  SubnetAPublic1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcA
+      CidrBlock: "10.1.0.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-Public-1a"
+
+  SubnetAPublic1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcA
+      CidrBlock: "10.1.3.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-Public-1b"
+
+  # VPC A — Private Subnets
+  SubnetAPrivate1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcA
+      CidrBlock: "10.1.1.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-Private-1a"
+
+  SubnetAPrivate1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcA
+      CidrBlock: "10.1.2.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-Private-1b"
+
+  # VPC A — Route Tables
+  RtAPublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcA
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-RT-Public"
+
+  RtAPublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAAttachment
+    Properties:
+      RouteTableId: !Ref RtAPublic
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref IgwA
+
+  RtAPublic1aAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetAPublic1a
+      RouteTableId: !Ref RtAPublic
+
+  RtAPublic1bAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetAPublic1b
+      RouteTableId: !Ref RtAPublic
+
+  RtAPrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcA
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-A-RT-Private"
+
+  RtAPrivate1aAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetAPrivate1a
+      RouteTableId: !Ref RtAPrivate
+
+  RtAPrivate1bAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetAPrivate1b
+      RouteTableId: !Ref RtAPrivate
+
+  # ── VPC OP (On-Premises) ───────────────────────────────────────────────────
+
+  VpcOP:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcOPcidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-VPC-OP-OnPrem"
+
+  IgwOP:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-IGW-OP"
+
+  IgwOPAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VpcOP
+      InternetGatewayId: !Ref IgwOP
+
+  # VPC OP — Public Subnets
+  SubnetOPPublic1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcOP
+      CidrBlock: "10.2.1.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-Public-1a"
+
+  SubnetOPPublic1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcOP
+      CidrBlock: "10.2.3.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-Public-1b"
+
+  # VPC OP — Private Subnets
+  SubnetOPPrivate1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcOP
+      CidrBlock: "10.2.0.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-Private-1a"
+
+  SubnetOPPrivate1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcOP
+      CidrBlock: "10.2.2.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-Private-1b"
+
+  # VPC OP — Route Tables
+  RtOPPublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcOP
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-RT-Public"
+
+  RtOPPublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwOPAttachment
+    Properties:
+      RouteTableId: !Ref RtOPPublic
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref IgwOP
+
+  RtOPPublic1aAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetOPPublic1a
+      RouteTableId: !Ref RtOPPublic
+
+  RtOPPublic1bAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetOPPublic1b
+      RouteTableId: !Ref RtOPPublic
+
+  RtOPPrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcOP
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-OP-RT-Private"
+
+  RtOPPrivate1aAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetOPPrivate1a
+      RouteTableId: !Ref RtOPPrivate
+
+  RtOPPrivate1bAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetOPPrivate1b
+      RouteTableId: !Ref RtOPPrivate
+
+  # ── VPC Peering ────────────────────────────────────────────────────────────
+
+  VpcPeering:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VpcA
+      PeerVpcId: !Ref VpcOP
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Peering-A-to-OP"
+
+  # VPC A private route → VPC OP via peering
+  RtAPrivatePeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtAPrivate
+      DestinationCidrBlock: !Ref VpcOPcidr
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+  # VPC A public route → VPC OP via peering
+  RtAPublicPeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtAPublic
+      DestinationCidrBlock: !Ref VpcOPcidr
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+  # VPC OP private route → VPC A via peering
+  RtOPPrivatePeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtOPPrivate
+      DestinationCidrBlock: !Ref VpcAcidr
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+  # VPC OP public route → VPC A via peering
+  RtOPPublicPeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtOPPublic
+      DestinationCidrBlock: !Ref VpcAcidr
+      VpcPeeringConnectionId: !Ref VpcPeering
+
+# ═══════════════════════════════════════════════════════════════════════════════
+Outputs:
+
+  VpcAId:
+    Description: VPC A (Cloud) ID
+    Value: !Ref VpcA
+    Export:
+      Name: !Sub "${EnvironmentName}-VpcA-Id"
+
+  VpcOPId:
+    Description: VPC OP (On-Premises) ID
+    Value: !Ref VpcOP
+    Export:
+      Name: !Sub "${EnvironmentName}-VpcOP-Id"
+
+  VpcPeeringId:
+    Description: VPC Peering Connection ID
+    Value: !Ref VpcPeering
+    Export:
+      Name: !Sub "${EnvironmentName}-VpcPeering-Id"
+
+  # VPC A subnets
+  SubnetAPublic1aId:
+    Description: VPC A Public Subnet 1a (10.1.0.0/24)
+    Value: !Ref SubnetAPublic1a
+    Export:
+      Name: !Sub "${EnvironmentName}-A-Public-1a-Id"
+
+  SubnetAPublic1bId:
+    Description: VPC A Public Subnet 1b (10.1.3.0/24)
+    Value: !Ref SubnetAPublic1b
+    Export:
+      Name: !Sub "${EnvironmentName}-A-Public-1b-Id"
+
+  SubnetAPrivate1aId:
+    Description: VPC A Private Subnet 1a (10.1.1.0/24) — EC2-Cloud, Resolver EP
+    Value: !Ref SubnetAPrivate1a
+    Export:
+      Name: !Sub "${EnvironmentName}-A-Private-1a-Id"
+
+  SubnetAPrivate1bId:
+    Description: VPC A Private Subnet 1b (10.1.2.0/24) — Resolver HA
+    Value: !Ref SubnetAPrivate1b
+    Export:
+      Name: !Sub "${EnvironmentName}-A-Private-1b-Id"
+
+  RtAPrivateId:
+    Description: VPC A Private Route Table ID (used for S3 Gateway Endpoint)
+    Value: !Ref RtAPrivate
+    Export:
+      Name: !Sub "${EnvironmentName}-A-RT-Private-Id"
+
+  # VPC OP subnets
+  SubnetOPPublic1aId:
+    Description: VPC OP Public Subnet 1a (10.2.1.0/24) — DNS, App, DB servers
+    Value: !Ref SubnetOPPublic1a
+    Export:
+      Name: !Sub "${EnvironmentName}-OP-Public-1a-Id"
+
+  SubnetOPPublic1bId:
+    Description: VPC OP Public Subnet 1b (10.2.3.0/24)
+    Value: !Ref SubnetOPPublic1b
+    Export:
+      Name: !Sub "${EnvironmentName}-OP-Public-1b-Id"
+
+  SubnetOPPrivate1aId:
+    Description: VPC OP Private Subnet 1a (10.2.0.0/24)
+    Value: !Ref SubnetOPPrivate1a
+    Export:
+      Name: !Sub "${EnvironmentName}-OP-Private-1a-Id"
+
+  SubnetOPPrivate1bId:
+    Description: VPC OP Private Subnet 1b (10.2.2.0/24)
+    Value: !Ref SubnetOPPrivate1b
+    Export:
+      Name: !Sub "${EnvironmentName}-OP-Private-1b-Id"

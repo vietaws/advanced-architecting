@@ -1,0 +1,412 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Hybrid DNS Demo - VPC OP Servers (On-Premises Simulation)
+  Deploys three EC2 instances in VPC OP public subnet 1a (10.2.1.0/24):
+    - DNS Server  (10.2.1.10)  BIND, corp.local authoritative
+    - App Server  (10.2.1.20)  Express.js HTTP server, public internet access
+    - DB Server   (10.2.1.30)  MariaDB, accessible from App Server only
+  All instances use Amazon Linux 2023 ARM64 on t4g.micro with SSM access.
+  Depends on: hybrid-dns-demo-network stack (cfn-network.yaml)
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: hybrid-dns-demo
+    Description: Must match the EnvironmentName used in the network stack.
+
+  LatestAL2023AmiArm64:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Amazon Linux 2023 ARM64 - resolved automatically via SSM.
+
+# =============================================================================
+Resources:
+
+  # -- Security Groups ---------------------------------------------------------
+
+  SgDnsServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-sg-dns-server"
+      GroupDescription: "BIND DNS Server - port 53 from internal networks only"
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VpcOP-Id"
+      SecurityGroupIngress:
+        - Description: "DNS UDP from internal"
+          IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: "10.0.0.0/8"
+        - Description: "DNS TCP from internal"
+          IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: "10.0.0.0/8"
+        - Description: "ICMP from internal"
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: "10.0.0.0/8"
+      SecurityGroupEgress:
+        - Description: "All outbound"
+          IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-sg-dns-server"
+
+  SgAppServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-sg-app-server"
+      GroupDescription: "App Server - HTTP public, ICMP internal"
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VpcOP-Id"
+      SecurityGroupIngress:
+        - Description: "HTTP from internet"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - Description: "ICMP from internal"
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: "10.0.0.0/8"
+      SecurityGroupEgress:
+        - Description: "All outbound"
+          IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-sg-app-server"
+
+  SgDbServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-sg-db-server"
+      GroupDescription: "DB Server - MySQL from App Server only"
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VpcOP-Id"
+      SecurityGroupIngress:
+        - Description: "PostgreSQL from App Server"
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref SgAppServer
+        - Description: "ICMP from internal"
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: "10.0.0.0/8"
+      SecurityGroupEgress:
+        - Description: "All outbound"
+          IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-sg-db-server"
+
+  # -- DNS Server (10.2.1.10) --------------------------------------------------
+  # Uses write-file.sh pattern: all config files written via printf to avoid
+  # heredoc indentation issues inside CFN Fn::Base64 blocks.
+
+  DnsServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAL2023AmiArm64
+      SubnetId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-OP-Public-1a-Id"
+      PrivateIpAddress: "10.2.1.10"
+      SecurityGroupIds:
+        - !Ref SgDnsServer
+      IamInstanceProfile: ec2-instance-role
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/userdata-dns-server.log) 2>&1
+          echo "[$(date)] Starting DNS Server setup..."
+
+          dnf update -y
+          dnf install -y bind bind-utils
+
+          mkdir -p /var/log/named /var/named/data
+
+          printf '%s\n' \
+            'options {' \
+            '    listen-on port 53 { any; };' \
+            '    listen-on-v6 port 53 { none; };' \
+            '    directory "/var/named";' \
+            '    allow-query     { 10.0.0.0/8; };' \
+            '    allow-recursion { 10.0.0.0/8; };' \
+            '    recursion yes;' \
+            '    dnssec-validation no;' \
+            '    querylog yes;' \
+            '    forwarders { 10.1.0.2; };' \
+            '    forward first;' \
+            '};' \
+            'logging {' \
+            '    channel query_log {' \
+            '        file "/var/log/named/query.log" versions 5 size 20m;' \
+            '        severity info; print-time yes; print-category yes;' \
+            '    };' \
+            '    category queries { query_log; };' \
+            '};' \
+            'zone "corp.local" IN {' \
+            '    type master;' \
+            '    file "/var/named/corp.local.zone";' \
+            '    allow-update { none; };' \
+            '    allow-transfer { none; };' \
+            '};' \
+            'zone "1.2.10.in-addr.arpa" IN {' \
+            '    type master;' \
+            '    file "/var/named/10.2.1.rev";' \
+            '    allow-update { none; };' \
+            '};' \
+            > /etc/named.conf
+
+          printf '%s\n' \
+            '$TTL 300' \
+            '@ IN SOA dns.corp.local. admin.corp.local. ( 2026080401 3600 1800 604800 300 )' \
+            '@ IN NS  dns.corp.local.' \
+            'dns IN A 10.2.1.10' \
+            'app IN A 10.2.1.20' \
+            'db  IN A 10.2.1.30' \
+            > /var/named/corp.local.zone
+
+          printf '%s\n' \
+            '$TTL 300' \
+            '@ IN SOA dns.corp.local. admin.corp.local. ( 2026080401 3600 1800 604800 300 )' \
+            '@ IN NS  dns.corp.local.' \
+            '10 IN PTR dns.corp.local.' \
+            '20 IN PTR app.corp.local.' \
+            '30 IN PTR db.corp.local.' \
+            > /var/named/10.2.1.rev
+
+          chown -R named:named /var/named /var/log/named
+          named-checkconf /etc/named.conf
+          named-checkzone corp.local /var/named/corp.local.zone
+
+          systemctl enable named
+          systemctl start named
+          hostnamectl set-hostname dns.corp.local
+          echo "[$(date)] DNS Server setup complete."
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-DNS-Server"
+
+  # -- App Server (10.2.1.20) --------------------------------------------------
+  # Express.js app on port 80, responds with server info as JSON and HTML.
+
+  AppServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAL2023AmiArm64
+      SubnetId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-OP-Public-1a-Id"
+      PrivateIpAddress: "10.2.1.20"
+      SecurityGroupIds:
+        - !Ref SgAppServer
+      IamInstanceProfile: ec2-instance-role
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/userdata-app-server.log) 2>&1
+          echo "[$(date)] Starting App Server setup..."
+
+          dnf update -y
+          dnf install -y nodejs bind-utils nc
+
+          hostnamectl set-hostname app.corp.local
+
+          mkdir -p /opt/app
+          cd /opt/app
+
+          npm init -y
+          npm install pg
+
+          # Dummy app — replace with app.js from repo root before demo
+          printf '%s\n' \
+            "const http = require('http');" \
+            "http.createServer((req, res) => {" \
+            "  res.writeHead(200, { 'Content-Type': 'text/html' });" \
+            "  res.end('<h1>app.corp.local</h1><p>App Server IP Address: 10.2.1.20</p>');" \
+            "}).listen(80, () => console.log('Listening on port 80'));" \
+            > /opt/app/app.js
+
+          printf '%s\n' \
+            '[Unit]' \
+            'Description=Hybrid DNS Demo App Server' \
+            'After=network.target' \
+            '[Service]' \
+            'WorkingDirectory=/opt/app' \
+            'ExecStart=/usr/bin/node app.js' \
+            'Restart=always' \
+            'RestartSec=3' \
+            'User=root' \
+            '[Install]' \
+            'WantedBy=multi-user.target' \
+            > /etc/systemd/system/demo-app.service
+
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'echo "=== DNS Test: app.corp.local (10.2.1.20) ==="' \
+            'echo "-- Current DNS server --"' \
+            'grep nameserver /etc/resolv.conf' \
+            'echo ""' \
+            'echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"' \
+            'dig @10.2.1.10 +noall +answer app.corp.local' \
+            'dig @10.2.1.10 +noall +answer db.corp.local' \
+            'dig @10.2.1.10 +noall +answer dns.corp.local' \
+            'echo ""' \
+            'echo "-- On-prem records (via configured DNS) --"' \
+            'dig +noall +answer app.corp.local' \
+            'dig +noall +answer db.corp.local' \
+            'echo ""' \
+            'echo "-- Cloud records (via configured DNS) --"' \
+            'dig +noall +answer app.cloud.corp.local' \
+            'echo ""' \
+            'echo "-- Connectivity to EC2-Cloud (direct IP) --"' \
+            'curl -sf --connect-timeout 3 http://10.1.1.50/ || echo "Not reachable via IP"' \
+            > /usr/local/bin/dns-test
+          chmod +x /usr/local/bin/dns-test
+
+          systemctl daemon-reload
+          systemctl enable demo-app
+          systemctl start demo-app
+          echo "[$(date)] App Server setup complete."
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-App-Server"
+
+  # -- DB Server (10.2.1.30) ---------------------------------------------------
+
+  DbServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAL2023AmiArm64
+      SubnetId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-OP-Public-1a-Id"
+      PrivateIpAddress: "10.2.1.30"
+      SecurityGroupIds:
+        - !Ref SgDbServer
+      IamInstanceProfile: ec2-instance-role
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          exec > >(tee /var/log/userdata-db-server.log) 2>&1
+          echo "[$(date)] Starting DB Server setup..."
+
+          dnf update -y
+          dnf install -y postgresql17-server bind-utils nc
+
+          hostnamectl set-hostname db.corp.local
+
+          postgresql-setup --initdb
+          systemctl enable postgresql
+          systemctl start postgresql
+
+          # Create user and database
+          runuser -l postgres -c "psql -c \"CREATE USER demo WITH PASSWORD 'DemoPassword';\""
+          runuser -l postgres -c "psql -c \"CREATE DATABASE corp_demo OWNER demo;\""
+
+          # Create schema and seed data
+          runuser -l postgres -c "psql -d corp_demo -c \"CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, name VARCHAR(100), price VARCHAR(100), sku VARCHAR(50));\""
+          runuser -l postgres -c "psql -d corp_demo -c \"INSERT INTO products (name, price, sku) VALUES ('Mouse','$19.99','SKU001'),('Laptop','$2999.99','SKU002'),('Keyboard','$39.99','SKU003');\""
+          runuser -l postgres -c "psql -d corp_demo -c \"GRANT SELECT ON products TO demo;\""
+
+          # Allow password auth from 10.0.0.0/8 and listen on all interfaces
+          PG_DATA=$(runuser -l postgres -c "psql -t -c 'SHOW data_directory;'" | tr -d ' \n')
+          sed -i 's/\bident\b/md5/g' "${PG_DATA}/pg_hba.conf"
+          echo "host  corp_demo  demo  10.0.0.0/8  md5" >> "${PG_DATA}/pg_hba.conf"
+          sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" "${PG_DATA}/postgresql.conf"
+
+          systemctl restart postgresql
+
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'echo "============================================"' \
+            'echo " DNS Test — db.corp.local (10.2.1.30)"' \
+            'echo "============================================"' \
+            'echo ""' \
+            'echo "-- Current DNS server --"' \
+            'grep nameserver /etc/resolv.conf' \
+            'echo ""' \
+            'echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"' \
+            'dig @10.2.1.10 +noall +answer app.corp.local' \
+            'dig @10.2.1.10 +noall +answer db.corp.local' \
+            'dig @10.2.1.10 +noall +answer dns.corp.local' \
+            'echo ""' \
+            'echo "-- On-prem records (via configured DNS) --"' \
+            'dig +noall +answer app.corp.local' \
+            'dig +noall +answer db.corp.local' \
+            'echo ""' \
+            'echo "-- Cloud records (via configured DNS) --"' \
+            'dig +noall +answer app.cloud.corp.local' \
+            'echo ""' \
+            'echo "-- DB self-check --"' \
+            'PGPASSWORD=DemoPassword psql -h localhost -U demo -d corp_demo -c "SELECT * FROM products;" 2>/dev/null || echo "DB not ready"' \
+            > /usr/local/bin/dns-test
+          chmod +x /usr/local/bin/dns-test
+
+          echo "[$(date)] DB Server setup complete. DB: corp_demo | User: demo | Password: DemoPassword | Port: 5432"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-DB-Server"
+
+# =============================================================================
+Outputs:
+
+  DnsServerInstanceId:
+    Description: DNS Server Instance ID
+    Value: !Ref DnsServer
+    Export:
+      Name: !Sub "${EnvironmentName}-DnsServer-Id"
+
+  DnsServerPrivateIp:
+    Description: DNS Server Private IP (10.2.1.10)
+    Value: !GetAtt DnsServer.PrivateIp
+
+  AppServerInstanceId:
+    Description: App Server Instance ID
+    Value: !Ref AppServer
+    Export:
+      Name: !Sub "${EnvironmentName}-AppServer-Id"
+
+  AppServerPublicIp:
+    Description: App Server Public IP
+    Value: !GetAtt AppServer.PublicIp
+
+  DbServerInstanceId:
+    Description: DB Server Instance ID
+    Value: !Ref DbServer
+    Export:
+      Name: !Sub "${EnvironmentName}-DbServer-Id"
+
+  DbServerPrivateIp:
+    Description: DB Server Private IP (10.2.1.30)
+    Value: !GetAtt DbServer.PrivateIp
+
+  SgDnsServerId:
+    Description: DNS Server Security Group ID
+    Value: !Ref SgDnsServer
+    Export:
+      Name: !Sub "${EnvironmentName}-SgDns-Id"
+
+  SgAppServerId:
+    Description: App Server Security Group ID
+    Value: !Ref SgAppServer
+    Export:
+      Name: !Sub "${EnvironmentName}-SgApp-Id"
+
+  SgDbServerId:
+    Description: DB Server Security Group ID
+    Value: !Ref SgDbServer
+    Export:
+      Name: !Sub "${EnvironmentName}-SgDb-Id"
