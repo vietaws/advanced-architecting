@@ -203,9 +203,9 @@ options {
     dnssec-validation no;
 };
 
-zone "corp.local" IN {
+zone "op.viet.vn" IN {
     type master;
-    file "/var/named/corp.local.zone";
+    file "/var/named/op.viet.vn.zone";
     allow-update { none; };
 };
 
@@ -216,11 +216,11 @@ zone "2.10.in-addr.arpa" IN {
 };
 EOF
 
-cat > /var/named/corp.local.zone << 'EOF'
+cat > /var/named/op.viet.vn.zone << 'EOF'
 $TTL 300
-@   IN  SOA dns.corp.local. admin.corp.local. (
+@   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
-@       IN  NS  dns.corp.local.
+@       IN  NS  dns.op.viet.vn.
 dns     IN  A   10.2.1.10
 app     IN  A   10.2.1.20
 db      IN  A   10.2.1.30
@@ -228,15 +228,15 @@ EOF
 
 cat > /var/named/10.2.rev << 'EOF'
 $TTL 300
-@   IN  SOA dns.corp.local. admin.corp.local. (
+@   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
-@   IN  NS  dns.corp.local.
-10  IN  PTR dns.corp.local.
-20  IN  PTR app.corp.local.
-30  IN  PTR db.corp.local.
+@   IN  NS  dns.op.viet.vn.
+10  IN  PTR dns.op.viet.vn.
+20  IN  PTR app.op.viet.vn.
+30  IN  PTR db.op.viet.vn.
 EOF
 
-chown named:named /var/named/corp.local.zone /var/named/10.2.rev
+chown named:named /var/named/op.viet.vn.zone /var/named/10.2.rev
 systemctl start named
 USERDATA
 
@@ -290,12 +290,12 @@ ping -c3 10.2.1.20   # from EC2-Cloud → App Server
 ping -c3 10.1.1.50   # from App Server → EC2-Cloud
 
 # DNS is NOT yet cross-environment (expected at this stage)
-dig app.cloud.corp.local   # NXDOMAIN — not configured yet
-dig app.corp.local     # NXDOMAIN from EC2-Cloud — expected
+dig app.cloud.viet.vn   # NXDOMAIN — not configured yet
+dig app.op.viet.vn     # NXDOMAIN from EC2-Cloud — expected
 
 # BIND is running on DNS Server
-dig @10.2.1.10 app.corp.local   # should return 10.2.1.20
-dig @10.2.1.10 db.corp.local    # should return 10.2.1.30
+dig @10.2.1.10 app.op.viet.vn   # should return 10.2.1.20
+dig @10.2.1.10 db.op.viet.vn    # should return 10.2.1.30
 
 # S3 reachable from EC2-Cloud
 aws s3 ls s3://$BUCKET --region ap-southeast-1
@@ -310,37 +310,37 @@ aws s3 ls s3://$BUCKET --region ap-southeast-1
 Each environment is authoritative for its own domain. Cross-domain queries are forwarded via Route 53 Resolver endpoints.
 
 ```
-EC2-Cloud queries app.cloud.corp.local
+EC2-Cloud queries app.cloud.viet.vn
   → VPC DNS (10.1.0.2)
-  → Route 53 PHZ: cloud.corp.local
+  → Route 53 PHZ: cloud.viet.vn
   → Returns 10.1.1.50  ✓ (never leaves VPC A)
 
-EC2-Cloud queries app.corp.local
+EC2-Cloud queries app.op.viet.vn
   → VPC DNS (10.1.0.2)
-  → Resolver Rule: corp.local → Outbound Endpoint
+  → Resolver Rule: op.viet.vn → Outbound Endpoint
   → VPC Peering → BIND (10.2.1.10)
   → Returns 10.2.1.20  ✓
 
-App Server queries app.cloud.corp.local
+App Server queries app.cloud.viet.vn
   → DHCP → BIND (10.2.1.10)
-  → Forwarder: cloud.corp.local → Inbound Endpoint (10.1.1.10)
+  → Forwarder: cloud.viet.vn → Inbound Endpoint (10.1.1.10)
   → VPC Peering → Route 53 PHZ
   → Returns 10.1.1.50  ✓
 
-App Server queries app.corp.local
+App Server queries app.op.viet.vn
   → BIND (10.2.1.10)
-  → Authoritative zone corp.local
+  → Authoritative zone op.viet.vn
   → Returns 10.2.1.20  ✓ (never leaves VPC OP)
 ```
 
 **Prerequisite:** Complete Part 1 and have the Route 53 Inbound Endpoint already deployed (IPs `10.1.1.10` and `10.1.2.10`). If running this scenario standalone, create the inbound endpoint first — see `2-scenario-all-dns-aws.md` Step 1.
 
-## Step 1 — Route 53 Private Hosted Zone for cloud.corp.local
+## Step 1 — Route 53 Private Hosted Zone for cloud.viet.vn
 
 ```bash
 # Create PHZ and associate with VPC A
 PHZ_CLOUD=$(aws route53 create-hosted-zone \
-  --name cloud.corp.local \
+  --name cloud.viet.vn \
   --vpc VPCRegion=ap-southeast-1,VPCId=$VPC_A_ID \
   --caller-reference "demo-viet-vn-$(date +%s)" \
   --hosted-zone-config Comment="Cloud private zone",PrivateZone=true \
@@ -353,7 +353,7 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "app.cloud.corp.local",
+        "Name": "app.cloud.viet.vn",
         "Type": "A",
         "TTL": 300,
         "ResourceRecords": [{"Value": "10.1.1.50"}]
@@ -362,7 +362,7 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "web.cloud.corp.local",
+        "Name": "web.cloud.viet.vn",
         "Type": "A",
         "TTL": 300,
         "ResourceRecords": [{"Value": "10.1.1.51"}]
@@ -371,10 +371,10 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "api.cloud.corp.local",
+        "Name": "api.cloud.viet.vn",
         "Type": "CNAME",
         "TTL": 300,
-        "ResourceRecords": [{"Value": "app.cloud.corp.local"}]
+        "ResourceRecords": [{"Value": "app.cloud.viet.vn"}]
       }
     }
   ]
@@ -385,7 +385,7 @@ aws route53 change-resource-record-sets \
   --hosted-zone-id $PHZ_CLOUD \
   --change-batch file:///tmp/cloud-records.json
 
-echo "PHZ cloud.corp.local: $PHZ_CLOUD"
+echo "PHZ cloud.viet.vn: $PHZ_CLOUD"
 ```
 
 ## Step 2 — Create Resolver Endpoints Security Group
@@ -451,16 +451,16 @@ aws route53resolver get-resolver-endpoint \
   --query 'ResolverEndpoint.Status'
 ```
 
-## Step 5 — Create Resolver Rule for corp.local
+## Step 5 — Create Resolver Rule for op.viet.vn
 
-Tells VPC A: "for `corp.local`, send queries to BIND via the Outbound Endpoint."
+Tells VPC A: "for `op.viet.vn`, send queries to BIND via the Outbound Endpoint."
 
 ```bash
 RULE_ID=$(aws route53resolver create-resolver-rule \
   --creator-request-id "rule-corp-local-$(date +%s)" \
   --name "Forward-corp-local-to-BIND" \
   --rule-type FORWARD \
-  --domain-name corp.local \
+  --domain-name op.viet.vn \
   --resolver-endpoint-id $OUTBOUND_EP \
   --target-ips Ip=10.2.1.10,Port=53 \
   --region ap-southeast-1 \
@@ -475,7 +475,7 @@ aws route53resolver associate-resolver-rule \
 echo "Resolver Rule: $RULE_ID"
 ```
 
-## Step 6 — Configure BIND to Forward cloud.corp.local to Inbound Endpoint
+## Step 6 — Configure BIND to Forward cloud.viet.vn to Inbound Endpoint
 
 SSH to the DNS Server (`10.2.1.10`) and update `/etc/named.conf`:
 
@@ -492,9 +492,9 @@ options {
 };
 
 # On-prem domain: BIND is authoritative
-zone "corp.local" IN {
+zone "op.viet.vn" IN {
     type master;
-    file "/var/named/corp.local.zone";
+    file "/var/named/op.viet.vn.zone";
     allow-update { none; };
 };
 
@@ -505,7 +505,7 @@ zone "2.10.in-addr.arpa" IN {
 };
 
 # Cloud domain: forward to Route 53 Inbound Endpoint
-zone "cloud.corp.local" IN {
+zone "cloud.viet.vn" IN {
     type forward;
     forward only;
     forwarders { 10.1.1.10; 10.1.2.10; };
@@ -522,18 +522,18 @@ sudo systemctl status named
 # ── From EC2-Cloud (10.1.1.50) ───────────────────────────────────
 
 # Cloud → Cloud: resolves directly via VPC DNS, no BIND involved
-dig app.cloud.corp.local
+dig app.cloud.viet.vn
 # Expected: 10.1.1.50
 
 # CNAME record
-dig api.cloud.corp.local
-# Expected: CNAME → app.cloud.corp.local → 10.1.1.50
+dig api.cloud.viet.vn
+# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
 
 # Cloud → On-prem: goes via Outbound Endpoint → BIND
-dig app.corp.local
+dig app.op.viet.vn
 # Expected: 10.2.1.20
 
-dig db.corp.local
+dig db.op.viet.vn
 # Expected: 10.2.1.30
 
 # AWS services still resolve correctly
@@ -543,11 +543,11 @@ dig s3.ap-southeast-1.amazonaws.com
 # ── From App Server (10.2.1.20) ──────────────────────────────────
 
 # On-prem → On-prem: resolves directly in BIND, no AWS hop
-dig @10.2.1.10 app.corp.local
+dig @10.2.1.10 app.op.viet.vn
 # Expected: 10.2.1.20
 
 # On-prem → Cloud: BIND forwards to Inbound Endpoint
-dig @10.2.1.10 app.cloud.corp.local
+dig @10.2.1.10 app.cloud.viet.vn
 # Expected: 10.1.1.50
 ```
 
@@ -558,20 +558,20 @@ dig @10.2.1.10 app.cloud.corp.local
 sudo systemctl stop named
 
 # 2. From EC2-Cloud: cloud DNS still works
-dig app.cloud.corp.local   # still returns 10.1.1.50 ✓
+dig app.cloud.viet.vn   # still returns 10.1.1.50 ✓
 
 # 3. From EC2-Cloud: on-prem DNS fails (expected)
-dig app.corp.local     # times out ✗
+dig app.op.viet.vn     # times out ✗
 
 # 4. From App Server: on-prem DNS also fails
-dig app.corp.local     # times out ✗
+dig app.op.viet.vn     # times out ✗
 
 # 5. Restart BIND → automatic recovery
 sudo systemctl start named
-dig app.corp.local     # returns 10.2.1.20 ✓
+dig app.op.viet.vn     # returns 10.2.1.20 ✓
 ```
 
-**Talking point:** In Split DNS, an on-prem DNS failure only affects `corp.local` resolution. Cloud resources keep working. Compare to Scenario 2 (All On-Prem) where BIND failure takes down both environments.
+**Talking point:** In Split DNS, an on-prem DNS failure only affects `op.viet.vn` resolution. Cloud resources keep working. Compare to Scenario 2 (All On-Prem) where BIND failure takes down both environments.
 
 ## Cost (Split DNS)
 
@@ -579,8 +579,8 @@ dig app.corp.local     # returns 10.2.1.20 ✓
 |-----------|------------|---------|
 | Inbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
 | Outbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
-| Resolver Rule (`corp.local`) | 1 rule | $73.00 |
-| PHZ `cloud.corp.local` | 1 zone | $0.50 |
+| Resolver Rule (`op.viet.vn`) | 1 rule | $73.00 |
+| PHZ `cloud.viet.vn` | 1 zone | $0.50 |
 | DNS queries (est. 1M) | — | $0.40 |
 | **Total (Route 53)** | | **~$438/month** |
 

@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Hybrid DNS Demo - VPC OP Servers (On-Premises Simulation)
   Deploys three EC2 instances in VPC OP public subnet 1a (10.2.1.0/24):
-    - DNS Server  (10.2.1.10)  BIND, corp.local authoritative
+    - DNS Server  (10.2.1.10)  BIND, op.viet.vn authoritative
     - App Server  (10.2.1.20)  Express.js HTTP server, public internet access
     - DB Server   (10.2.1.30)  MariaDB, accessible from App Server only
   All instances use Amazon Linux 2023 ARM64 on t4g.micro with SSM access.
@@ -154,9 +154,9 @@ Resources:
             '    };' \
             '    category queries { query_log; };' \
             '};' \
-            'zone "corp.local" IN {' \
+            'zone "op.viet.vn" IN {' \
             '    type master;' \
-            '    file "/var/named/corp.local.zone";' \
+            '    file "/var/named/op.viet.vn.zone";' \
             '    allow-update { none; };' \
             '    allow-transfer { none; };' \
             '};' \
@@ -169,29 +169,29 @@ Resources:
 
           printf '%s\n' \
             '$TTL 300' \
-            '@ IN SOA dns.corp.local. admin.corp.local. ( 2026080401 3600 1800 604800 300 )' \
-            '@ IN NS  dns.corp.local.' \
+            '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )' \
+            '@ IN NS  dns.op.viet.vn.' \
             'dns IN A 10.2.1.10' \
             'app IN A 10.2.1.20' \
             'db  IN A 10.2.1.30' \
-            > /var/named/corp.local.zone
+            > /var/named/op.viet.vn.zone
 
           printf '%s\n' \
             '$TTL 300' \
-            '@ IN SOA dns.corp.local. admin.corp.local. ( 2026080401 3600 1800 604800 300 )' \
-            '@ IN NS  dns.corp.local.' \
-            '10 IN PTR dns.corp.local.' \
-            '20 IN PTR app.corp.local.' \
-            '30 IN PTR db.corp.local.' \
+            '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )' \
+            '@ IN NS  dns.op.viet.vn.' \
+            '10 IN PTR dns.op.viet.vn.' \
+            '20 IN PTR app.op.viet.vn.' \
+            '30 IN PTR db.op.viet.vn.' \
             > /var/named/10.2.1.rev
 
           chown -R named:named /var/named /var/log/named
           named-checkconf /etc/named.conf
-          named-checkzone corp.local /var/named/corp.local.zone
+          named-checkzone op.viet.vn /var/named/op.viet.vn.zone
 
           systemctl enable named
           systemctl start named
-          hostnamectl set-hostname dns.corp.local
+          hostnamectl set-hostname dns.op.viet.vn
           echo "[$(date)] DNS Server setup complete."
       Tags:
         - Key: Name
@@ -221,7 +221,7 @@ Resources:
           dnf update -y
           dnf install -y nodejs postgresql17 bind-utils nc
 
-          hostnamectl set-hostname app.corp.local
+          hostnamectl set-hostname app.op.viet.vn
 
           mkdir -p /opt/app
           cd /opt/app
@@ -234,7 +234,7 @@ Resources:
             "const http = require('http');" \
             "http.createServer((req, res) => {" \
             "  res.writeHead(200, { 'Content-Type': 'text/html' });" \
-            "  res.end('<h1>app.corp.local</h1><p>App Server IP Address: 10.2.1.20</p>');" \
+            "  res.end('<h1>app.op.viet.vn</h1><p>App Server IP Address: 10.2.1.20</p>');" \
             "}).listen(80, () => console.log('Listening on port 80'));" \
             > /opt/app/app.js
 
@@ -254,21 +254,21 @@ Resources:
 
           printf '%s\n' \
             '#!/bin/bash' \
-            'echo "=== DNS Test: app.corp.local (10.2.1.20) ==="' \
+            'echo "=== DNS Test: app.op.viet.vn (10.2.1.20) ==="' \
             'echo "-- Current DNS server --"' \
             'grep nameserver /etc/resolv.conf' \
             'echo ""' \
             'echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"' \
-            'dig @10.2.1.10 +noall +answer app.corp.local' \
-            'dig @10.2.1.10 +noall +answer db.corp.local' \
-            'dig @10.2.1.10 +noall +answer dns.corp.local' \
+            'dig @10.2.1.10 +noall +answer app.op.viet.vn' \
+            'dig @10.2.1.10 +noall +answer db.op.viet.vn' \
+            'dig @10.2.1.10 +noall +answer dns.op.viet.vn' \
             'echo ""' \
             'echo "-- On-prem records (via configured DNS) --"' \
-            'dig +noall +answer app.corp.local' \
-            'dig +noall +answer db.corp.local' \
+            'dig +noall +answer app.op.viet.vn' \
+            'dig +noall +answer db.op.viet.vn' \
             'echo ""' \
             'echo "-- Cloud records (via configured DNS) --"' \
-            'dig +noall +answer app.cloud.corp.local' \
+            'dig +noall +answer app.cloud.viet.vn' \
             'echo ""' \
             'echo "-- Connectivity to EC2-Cloud (direct IP) --"' \
             'curl -sf --connect-timeout 3 http://10.1.1.50/ || echo "Not reachable via IP"' \
@@ -309,7 +309,7 @@ Resources:
           dnf update -y
           dnf install -y postgresql17-server bind-utils nc
 
-          hostnamectl set-hostname db.corp.local
+          hostnamectl set-hostname db.op.viet.vn
 
           postgresql-setup --initdb
           systemctl enable postgresql
@@ -352,23 +352,23 @@ Resources:
           cat > /usr/local/bin/dns-test << 'SCRIPT'
           #!/bin/bash
           echo "============================================"
-          echo " DNS Test — db.corp.local (10.2.1.30)"
+          echo " DNS Test — db.op.viet.vn (10.2.1.30)"
           echo "============================================"
           echo ""
           echo "-- Current DNS server --"
           grep nameserver /etc/resolv.conf
           echo ""
           echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"
-          dig @10.2.1.10 +noall +answer app.corp.local
-          dig @10.2.1.10 +noall +answer db.corp.local
-          dig @10.2.1.10 +noall +answer dns.corp.local
+          dig @10.2.1.10 +noall +answer app.op.viet.vn
+          dig @10.2.1.10 +noall +answer db.op.viet.vn
+          dig @10.2.1.10 +noall +answer dns.op.viet.vn
           echo ""
           echo "-- On-prem records (via configured DNS) --"
-          dig +noall +answer app.corp.local
-          dig +noall +answer db.corp.local
+          dig +noall +answer app.op.viet.vn
+          dig +noall +answer db.op.viet.vn
           echo ""
           echo "-- Cloud records (via configured DNS) --"
-          dig +noall +answer app.cloud.corp.local
+          dig +noall +answer app.cloud.viet.vn
           echo ""
           echo "-- DB self-check --"
           PGPASSWORD=DemoPassword psql -h 127.0.0.1 -U dbadmin -d demo \

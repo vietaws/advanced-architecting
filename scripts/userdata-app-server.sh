@@ -1,14 +1,14 @@
 #!/bin/bash
 # =============================================================================
 # Hybrid DNS Demo — On-Premises App Server
-# VPC OP | IP: 10.2.1.20 | Hostname: app.corp.local
+# VPC OP | IP: 10.2.1.20 | Hostname: app.op.viet.vn
 #
 # Simulates an on-premises application server. Runs a simple HTTP server
 # so cross-environment connectivity can be tested end-to-end (DNS + TCP).
 #
 # After first boot, verify with:
 #   curl http://10.2.1.20        # direct IP — should work immediately
-#   curl http://app.corp.local   # DNS — works after DNS scenario is configured
+#   curl http://app.op.viet.vn   # DNS — works after DNS scenario is configured
 # =============================================================================
 
 set -euo pipefail
@@ -21,7 +21,7 @@ dnf update -y
 dnf install -y bind-utils nc python3
 
 # ── 2. Set hostname ──────────────────────────────────────────────────────────
-hostnamectl set-hostname app.corp.local
+hostnamectl set-hostname app.op.viet.vn
 
 # ── 3. Simple HTTP server (Python) ───────────────────────────────────────────
 # Serves a plain-text page identifying this host — useful for demo curl tests
@@ -33,7 +33,7 @@ cat > /var/www/app/index.html << 'EOF'
 <head><title>On-Prem App Server</title></head>
 <body>
   <h1>On-Premises App Server</h1>
-  <p><strong>Hostname:</strong> app.corp.local</p>
+  <p><strong>Hostname:</strong> app.op.viet.vn</p>
   <p><strong>IP:</strong> 10.2.1.20</p>
   <p><strong>Environment:</strong> VPC OP (simulated on-premises)</p>
   <p>If you can reach this page from EC2-Cloud, hybrid DNS and routing are working correctly.</p>
@@ -68,23 +68,23 @@ systemctl start demo-app
 cat > /usr/local/bin/dns-test << 'SCRIPT'
 #!/bin/bash
 echo "============================================"
-echo " DNS Test — app.corp.local (10.2.1.20)"
+echo " DNS Test — app.op.viet.vn (10.2.1.20)"
 echo "============================================"
 echo ""
 echo "-- Current DNS server --"
 grep nameserver /etc/resolv.conf
 echo ""
 echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"
-dig @10.2.1.10 +noall +answer app.corp.local
-dig @10.2.1.10 +noall +answer db.corp.local
-dig @10.2.1.10 +noall +answer dns.corp.local
+dig @10.2.1.10 +noall +answer app.op.viet.vn
+dig @10.2.1.10 +noall +answer db.op.viet.vn
+dig @10.2.1.10 +noall +answer dns.op.viet.vn
 echo ""
 echo "-- On-prem records (via configured DNS) --"
-dig +noall +answer app.corp.local
-dig +noall +answer db.corp.local
+dig +noall +answer app.op.viet.vn
+dig +noall +answer db.op.viet.vn
 echo ""
 echo "-- Cloud records (via configured DNS) --"
-dig +noall +answer app.cloud.corp.local
+dig +noall +answer app.cloud.viet.vn
 echo ""
 echo "-- Connectivity to EC2-Cloud (direct IP) --"
 curl -sf --connect-timeout 3 http://10.1.1.50/ || echo "Not reachable via IP"

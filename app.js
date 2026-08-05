@@ -4,7 +4,7 @@ const http = require('http');
 const { Client } = require('pg');
 
 const DB_CONFIG = {
-  host: 'db.corp.local',
+  host: 'db.op.viet.vn',
   port: 5432,
   database: 'demo',
   user: 'dbadmin',
@@ -263,11 +263,11 @@ function layout(title, body) {
   <div class="container">
     <div class="header">
       <h1>${title}</h1>
-      <p>app.corp.local &nbsp;·&nbsp; 10.2.1.20 &nbsp;·&nbsp; VPC OP (on-premises)</p>
+      <p>app.op.viet.vn &nbsp;·&nbsp; 10.2.1.20 &nbsp;·&nbsp; VPC OP (on-premises)</p>
     </div>
     <div class="body">${body}</div>
     <div class="footer">
-      DB: db.corp.local &nbsp;·&nbsp; demo &nbsp;·&nbsp; 10.2.1.30
+      DB: db.op.viet.vn &nbsp;·&nbsp; demo &nbsp;·&nbsp; 10.2.1.30
     </div>
   </div>
   <script>
@@ -345,7 +345,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('Products', body));
+  res.end(layout('Inventory OP', body));
 }
 
 function newForm(res, err = null) {
@@ -444,7 +444,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', host: 'app.corp.local', ip: '10.2.1.20' }));
+      res.end(JSON.stringify({ status: 'ok', host: 'app.op.viet.vn', ip: '10.2.1.20' }));
       return;
     }
 

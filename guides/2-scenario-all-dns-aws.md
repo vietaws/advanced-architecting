@@ -2,29 +2,29 @@
 
 ## Concept
 
-Route 53 is the single DNS authority for **both** environments. It hosts private hosted zones for both `cloud.corp.local` (cloud resources) and `corp.local` (on-premises resources). BIND on-premises becomes a pure forwarder — it forwards every query to the Route 53 Inbound Resolver Endpoint and has no authoritative zones of its own.
+Route 53 is the single DNS authority for **both** environments. It hosts private hosted zones for both `cloud.viet.vn` (cloud resources) and `op.viet.vn` (on-premises resources). BIND on-premises becomes a pure forwarder — it forwards every query to the Route 53 Inbound Resolver Endpoint and has no authoritative zones of its own.
 
 ```
-EC2-Cloud queries app.cloud.corp.local
+EC2-Cloud queries app.cloud.viet.vn
   → VPC DNS (10.1.0.2)
-  → Route 53 PHZ: cloud.corp.local
+  → Route 53 PHZ: cloud.viet.vn
   → Returns 10.1.1.50  ✓  (instant, never leaves VPC A)
 
-EC2-Cloud queries app.corp.local
+EC2-Cloud queries app.op.viet.vn
   → VPC DNS (10.1.0.2)
-  → Route 53 PHZ: corp.local (hosted in AWS)
+  → Route 53 PHZ: op.viet.vn (hosted in AWS)
   → Returns 10.2.1.20  ✓
 
-App Server queries app.cloud.corp.local
+App Server queries app.cloud.viet.vn
   → BIND (10.2.1.10) — forwarder only
   → Inbound Endpoint (10.1.1.10)
-  → Route 53 PHZ: cloud.corp.local
+  → Route 53 PHZ: cloud.viet.vn
   → Returns 10.1.1.50  ✓
 
-App Server queries app.corp.local
+App Server queries app.op.viet.vn
   → BIND (10.2.1.10) — forwarder only
   → Inbound Endpoint (10.1.1.10)
-  → Route 53 PHZ: corp.local
+  → Route 53 PHZ: op.viet.vn
   → Returns 10.2.1.20  ✓
 ```
 
@@ -34,11 +34,11 @@ App Server queries app.corp.local
 
 ---
 
-## Step 1 — Create Route 53 PHZ for cloud.corp.local
+## Step 1 — Create Route 53 PHZ for cloud.viet.vn
 
 ```bash
 PHZ_CLOUD=$(aws route53 create-hosted-zone \
-  --name cloud.corp.local \
+  --name cloud.viet.vn \
   --vpc VPCRegion=ap-southeast-1,VPCId=$VPC_A_ID \
   --caller-reference "demo-viet-vn-$(date +%s)" \
   --hosted-zone-config Comment="Cloud resources",PrivateZone=true \
@@ -58,7 +58,7 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "app.cloud.corp.local",
+        "Name": "app.cloud.viet.vn",
         "Type": "A", "TTL": 300,
         "ResourceRecords": [{"Value": "10.1.1.50"}]
       }
@@ -66,7 +66,7 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "web.cloud.corp.local",
+        "Name": "web.cloud.viet.vn",
         "Type": "A", "TTL": 300,
         "ResourceRecords": [{"Value": "10.1.1.51"}]
       }
@@ -74,9 +74,9 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "api.cloud.corp.local",
+        "Name": "api.cloud.viet.vn",
         "Type": "CNAME", "TTL": 300,
-        "ResourceRecords": [{"Value": "app.cloud.corp.local"}]
+        "ResourceRecords": [{"Value": "app.cloud.viet.vn"}]
       }
     }
   ]
@@ -87,18 +87,18 @@ aws route53 change-resource-record-sets \
   --hosted-zone-id $PHZ_CLOUD \
   --change-batch file:///tmp/cloud-records.json
 
-echo "PHZ cloud.corp.local: $PHZ_CLOUD"
+echo "PHZ cloud.viet.vn: $PHZ_CLOUD"
 ```
 
 ---
 
-## Step 2 — Create Route 53 PHZ for corp.local
+## Step 2 — Create Route 53 PHZ for op.viet.vn
 
 Route 53 now hosts on-premises records. Records must be updated manually when on-prem IPs change (or automated via Lambda/EventBridge).
 
 ```bash
 PHZ_ONPREM=$(aws route53 create-hosted-zone \
-  --name corp.local \
+  --name op.viet.vn \
   --vpc VPCRegion=ap-southeast-1,VPCId=$VPC_A_ID \
   --caller-reference "corp-local-$(date +%s)" \
   --hosted-zone-config Comment="On-prem resources managed in Route 53",PrivateZone=true \
@@ -114,7 +114,7 @@ cat > /tmp/onprem-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "dns.corp.local",
+        "Name": "dns.op.viet.vn",
         "Type": "A", "TTL": 300,
         "ResourceRecords": [{"Value": "10.2.1.10"}]
       }
@@ -122,7 +122,7 @@ cat > /tmp/onprem-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "app.corp.local",
+        "Name": "app.op.viet.vn",
         "Type": "A", "TTL": 300,
         "ResourceRecords": [{"Value": "10.2.1.20"}]
       }
@@ -130,7 +130,7 @@ cat > /tmp/onprem-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "db.corp.local",
+        "Name": "db.op.viet.vn",
         "Type": "A", "TTL": 300,
         "ResourceRecords": [{"Value": "10.2.1.30"}]
       }
@@ -143,7 +143,7 @@ aws route53 change-resource-record-sets \
   --hosted-zone-id $PHZ_ONPREM \
   --change-batch file:///tmp/onprem-records.json
 
-echo "PHZ corp.local: $PHZ_ONPREM"
+echo "PHZ op.viet.vn: $PHZ_ONPREM"
 ```
 
 ---
@@ -274,18 +274,18 @@ echo "Query Log Config: $QLOG_ID"
 # ── From EC2-Cloud (10.1.1.50) ───────────────────────────────────
 
 # Cloud → Cloud: VPC DNS answers directly, no BIND involved
-dig app.cloud.corp.local
+dig app.cloud.viet.vn
 # Expected: 10.1.1.50
 
 # CNAME chain
-dig api.cloud.corp.local
-# Expected: CNAME → app.cloud.corp.local → 10.1.1.50
+dig api.cloud.viet.vn
+# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
 
 # Cloud → On-prem: Route 53 PHZ answers (no Outbound Endpoint needed)
-dig app.corp.local
+dig app.op.viet.vn
 # Expected: 10.2.1.20
 
-dig db.corp.local
+dig db.op.viet.vn
 # Expected: 10.2.1.30
 
 # AWS services resolve normally
@@ -296,18 +296,18 @@ dig s3.ap-southeast-1.amazonaws.com
 # ── From App Server (10.2.1.20) ──────────────────────────────────
 
 # On-prem → Cloud: BIND forwards to Inbound Endpoint → PHZ
-dig @10.2.1.10 app.cloud.corp.local
+dig @10.2.1.10 app.cloud.viet.vn
 # Expected: 10.1.1.50
 
-# On-prem → On-prem: BIND forwards to Inbound Endpoint → PHZ corp.local
-dig @10.2.1.10 app.corp.local
+# On-prem → On-prem: BIND forwards to Inbound Endpoint → PHZ op.viet.vn
+dig @10.2.1.10 app.op.viet.vn
 # Expected: 10.2.1.20
 
 
 # ── CloudWatch Logs (show live) ──────────────────────────────────
 # After running the digs above, open CloudWatch Logs:
 # Log group: /aws/route53/resolver-queries
-# Filter: { $.queryName = "app.cloud.corp.local." }
+# Filter: { $.queryName = "app.cloud.viet.vn." }
 # Show: srcAddr (on-prem IP), queryName, resolverEndpointId
 ```
 
@@ -318,12 +318,12 @@ dig @10.2.1.10 app.corp.local
 sudo systemctl stop named   # on DNS Server
 
 # From EC2-Cloud: both domains still resolve (Route 53 PHZ handles everything)
-dig app.cloud.corp.local     # ✓ still works
-dig app.corp.local       # ✓ still works
+dig app.cloud.viet.vn     # ✓ still works
+dig app.op.viet.vn       # ✓ still works
 
 # From App Server: BIND is down — on-prem queries fail
-dig app.cloud.corp.local     # ✗ times out (BIND was the forwarder)
-dig app.corp.local       # ✗ times out
+dig app.cloud.viet.vn     # ✗ times out (BIND was the forwarder)
+dig app.op.viet.vn       # ✗ times out
 
 # Restart BIND → recovery
 sudo systemctl start named
@@ -338,8 +338,8 @@ sudo systemctl start named
 | Component | IPs / Count | Monthly |
 |-----------|------------|---------|
 | Inbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
-| PHZ `cloud.corp.local` | 1 zone | $0.50 |
-| PHZ `corp.local` | 1 zone | $0.50 |
+| PHZ `cloud.viet.vn` | 1 zone | $0.50 |
+| PHZ `op.viet.vn` | 1 zone | $0.50 |
 | DNS queries (est. 1M) | — | $0.40 |
 | **Total (Route 53)** | | **~$183.90/month** |
 

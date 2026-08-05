@@ -43,7 +43,7 @@ FW_DOMAIN_LIST=$(aws route53resolver create-firewall-domain-list \
 aws route53resolver update-firewall-domains \
   --firewall-domain-list-id $FW_DOMAIN_LIST \
   --operation ADD \
-  --domains "malware-test.corp.local" "exfil.badactor.com" \
+  --domains "malware-test.op.viet.vn" "exfil.badactor.com" \
   --region ap-southeast-1
 ```
 
@@ -77,14 +77,14 @@ aws route53resolver associate-firewall-rule-group \
 # From EC2-Cloud (10.1.1.50)
 
 # Blocked domain returns NXDOMAIN
-dig malware-test.corp.local
+dig malware-test.op.viet.vn
 # Expected: NXDOMAIN (blocked by firewall)
 
 dig exfil.badactor.com
 # Expected: NXDOMAIN
 
 # Legitimate domains still resolve
-dig app.cloud.corp.local
+dig app.cloud.viet.vn
 # Expected: 10.1.1.50
 
 # Check CloudWatch Logs for firewall block events
@@ -116,13 +116,13 @@ A CNAME in a Private Hosted Zone works the same as in a public zone — it point
 
 ```bash
 # CNAME already created in the All-AWS or Split DNS scenario:
-# api.cloud.corp.local → app.cloud.corp.local → 10.1.1.50
+# api.cloud.viet.vn → app.cloud.viet.vn → 10.1.1.50
 
-dig api.cloud.corp.local
-# Returns: CNAME api.cloud.corp.local → app.cloud.corp.local, then A 10.1.1.50
+dig api.cloud.viet.vn
+# Returns: CNAME api.cloud.viet.vn → app.cloud.viet.vn, then A 10.1.1.50
 ```
 
-**Limitation:** You cannot use a CNAME at the zone apex (`cloud.corp.local` itself). Use an Alias record there instead.
+**Limitation:** You cannot use a CNAME at the zone apex (`cloud.viet.vn` itself). Use an Alias record there instead.
 
 ## Alias Records
 
@@ -140,11 +140,11 @@ cat > /tmp/alias-record.json << EOF
   "Changes": [{
     "Action": "CREATE",
     "ResourceRecordSet": {
-      "Name": "cloud.corp.local",
+      "Name": "cloud.viet.vn",
       "Type": "A",
       "AliasTarget": {
         "HostedZoneId": "$PHZ_CLOUD",
-        "DNSName": "app.cloud.corp.local",
+        "DNSName": "app.cloud.viet.vn",
         "EvaluateTargetHealth": false
       }
     }
@@ -157,11 +157,11 @@ aws route53 change-resource-record-sets \
   --change-batch file:///tmp/alias-record.json
 
 # Test zone apex resolution
-dig cloud.corp.local
+dig cloud.viet.vn
 # Expected: 10.1.1.50 (resolves through alias chain, no CNAME shown)
 ```
 
-**Key difference to show:** `dig api.cloud.corp.local` shows the CNAME in the answer section. `dig cloud.corp.local` with an Alias record returns only the A record — the alias is transparent at the DNS level.
+**Key difference to show:** `dig api.cloud.viet.vn` shows the CNAME in the answer section. `dig cloud.viet.vn` with an Alias record returns only the A record — the alias is transparent at the DNS level.
 
 ---
 
@@ -169,7 +169,7 @@ dig cloud.corp.local
 
 ## The Problem
 
-In an AWS Organization with many accounts, each account's VPC that needs to resolve `corp.local` would need its own Outbound Resolver Endpoint and Resolver Rule. That is expensive and operationally complex.
+In an AWS Organization with many accounts, each account's VPC that needs to resolve `op.viet.vn` would need its own Outbound Resolver Endpoint and Resolver Rule. That is expensive and operationally complex.
 
 ## The Solution
 
@@ -178,12 +178,12 @@ Share the Resolver Rule (and its associated Outbound Endpoint) from a central ne
 ```
 Central Networking Account
   └── Outbound Resolver Endpoint
-  └── Resolver Rule: corp.local → BIND (10.2.1.10)
+  └── Resolver Rule: op.viet.vn → BIND (10.2.1.10)
         └── Shared via RAM to Org / OUs / specific accounts
 
-Dev Account VPC A     → associates shared rule → resolves corp.local
-Prod Account VPC B    → associates shared rule → resolves corp.local
-Data Account VPC C    → associates shared rule → resolves corp.local
+Dev Account VPC A     → associates shared rule → resolves op.viet.vn
+Prod Account VPC B    → associates shared rule → resolves op.viet.vn
+Data Account VPC C    → associates shared rule → resolves op.viet.vn
 ```
 
 ## Step 1 — Share the Resolver Rule
@@ -219,7 +219,7 @@ aws route53resolver associate-resolver-rule \
   --region ap-southeast-1
 ```
 
-**Talking point:** One Outbound Endpoint in the central account handles `corp.local` resolution for the entire organization. This is the standard pattern in AWS Landing Zone / Control Tower environments.
+**Talking point:** One Outbound Endpoint in the central account handles `op.viet.vn` resolution for the entire organization. This is the standard pattern in AWS Landing Zone / Control Tower environments.
 
 ---
 
@@ -232,8 +232,8 @@ aws route53resolver associate-resolver-rule \
 | Inbound Resolver (2 IPs) | $182.50 | — | $182.50 |
 | Outbound Resolver (2 IPs) | — | — | $182.50 |
 | Resolver Rule(s) | — | — | $73.00 |
-| PHZ `cloud.corp.local` | $0.50 | — | $0.50 |
-| PHZ `corp.local` | $0.50 | — | — |
+| PHZ `cloud.viet.vn` | $0.50 | — | $0.50 |
+| PHZ `op.viet.vn` | $0.50 | — | — |
 | DNS queries (1M est.) | $0.40 | — | $0.40 |
 | **Route 53 Total** | **~$184/mo** | **$0/mo** | **~$438/mo** |
 
@@ -243,19 +243,19 @@ aws route53resolver associate-resolver-rule \
 
 | Query | Scenario 1: All AWS | Scenario 2: All On-Prem | Scenario 3: Split DNS |
 |-------|:-------------------:|:-----------------------:|:---------------------:|
-| `app.cloud.corp.local` from EC2-Cloud | ⚡ <1ms (local VPC DNS) | ~5ms (VPC Peering to BIND) | ⚡ <1ms (local VPC DNS) |
-| `app.corp.local` from EC2-Cloud | ⚡ <1ms (PHZ in Route 53) | ~5ms (VPC Peering to BIND) | ~5ms (Outbound EP → BIND) |
-| `app.cloud.corp.local` from App Server | ~5ms (BIND → Inbound EP) | ~2ms (local BIND) | ~5ms (BIND → Inbound EP) |
-| `app.corp.local` from App Server | ~5ms (BIND → Inbound EP) | ⚡ <2ms (local BIND) | ⚡ <2ms (local BIND) |
+| `app.cloud.viet.vn` from EC2-Cloud | ⚡ <1ms (local VPC DNS) | ~5ms (VPC Peering to BIND) | ⚡ <1ms (local VPC DNS) |
+| `app.op.viet.vn` from EC2-Cloud | ⚡ <1ms (PHZ in Route 53) | ~5ms (VPC Peering to BIND) | ~5ms (Outbound EP → BIND) |
+| `app.cloud.viet.vn` from App Server | ~5ms (BIND → Inbound EP) | ~2ms (local BIND) | ~5ms (BIND → Inbound EP) |
+| `app.op.viet.vn` from App Server | ~5ms (BIND → Inbound EP) | ⚡ <2ms (local BIND) | ⚡ <2ms (local BIND) |
 
 ## Resilience Comparison
 
 | Failure | Scenario 1: All AWS | Scenario 2: All On-Prem | Scenario 3: Split DNS |
 |---------|:-------------------:|:-----------------------:|:---------------------:|
-| BIND goes down | On-prem VMs lose DNS | **Both environments** lose DNS | Only `corp.local` fails |
+| BIND goes down | On-prem VMs lose DNS | **Both environments** lose DNS | Only `op.viet.vn` fails |
 | VPC Peering breaks | On-prem VMs lose DNS | **Both environments** lose DNS | Only cross-domain fails |
-| Route 53 outage | **Both environments** affected | No impact | `cloud.corp.local` affected |
-| AWS region down | **Both environments** affected | On-prem continues | `cloud.corp.local` affected |
+| Route 53 outage | **Both environments** affected | No impact | `cloud.viet.vn` affected |
+| AWS region down | **Both environments** affected | On-prem continues | `cloud.viet.vn` affected |
 
 ## Decision Framework
 
@@ -289,7 +289,7 @@ Year 0-1: Scenario 2 (All On-Prem)
 
 Year 1-2: Scenario 3 (Split DNS)
   └── Add Resolver Endpoints as cloud footprint grows
-  └── Route 53 owns cloud.corp.local, BIND owns corp.local
+  └── Route 53 owns cloud.viet.vn, BIND owns op.viet.vn
   └── Implement DNS Firewall for cloud egress control
 
 Year 3+: Scenario 1 (All AWS) or stay at Scenario 3

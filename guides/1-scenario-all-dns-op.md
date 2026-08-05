@@ -2,17 +2,17 @@
 
 ## Concept
 
-BIND on-premises is the single DNS authority for **both** environments. VPC A is configured via custom DHCP options to use BIND as its DNS server. BIND holds authoritative zones for both `corp.local` and `cloud.corp.local`, and conditionally forwards AWS service queries back to the VPC A built-in resolver (`10.1.0.2`) to avoid breaking S3, EC2 metadata, and other AWS-managed endpoints.
+BIND on-premises is the single DNS authority for **both** environments. VPC A is configured via custom DHCP options to use BIND as its DNS server. BIND holds authoritative zones for both `op.viet.vn` and `cloud.viet.vn`, and conditionally forwards AWS service queries back to the VPC A built-in resolver (`10.1.0.2`) to avoid breaking S3, EC2 metadata, and other AWS-managed endpoints.
 
 ```
-EC2-Cloud queries app.cloud.corp.local
+EC2-Cloud queries app.cloud.viet.vn
   → Custom DHCP → BIND (10.2.1.10) via VPC Peering
-  → Authoritative zone: cloud.corp.local
+  → Authoritative zone: cloud.viet.vn
   → Returns 10.1.1.50  ✓
 
-EC2-Cloud queries app.corp.local
+EC2-Cloud queries app.op.viet.vn
   → Custom DHCP → BIND (10.2.1.10) via VPC Peering
-  → Authoritative zone: corp.local
+  → Authoritative zone: op.viet.vn
   → Returns 10.2.1.20  ✓
 
 EC2-Cloud queries s3.ap-southeast-1.amazonaws.com
@@ -20,9 +20,9 @@ EC2-Cloud queries s3.ap-southeast-1.amazonaws.com
   → Conditional forwarder: amazonaws.com → 10.1.0.2
   → VPC A built-in resolver → AWS-managed answer  ✓
 
-App Server queries app.cloud.corp.local
+App Server queries app.cloud.viet.vn
   → DHCP → BIND (10.2.1.10) (local, same VPC)
-  → Authoritative zone: cloud.corp.local
+  → Authoritative zone: cloud.viet.vn
   → Returns 10.1.1.50  ✓
 ```
 
@@ -34,7 +34,7 @@ App Server queries app.cloud.corp.local
 
 ## Step 1 — Expand BIND Configuration
 
-BIND already serves `corp.local` from the foundation setup. Add the `cloud.corp.local` authoritative zone and conditional forwarders for AWS services.
+BIND already serves `op.viet.vn` from the foundation setup. Add the `cloud.viet.vn` authoritative zone and conditional forwarders for AWS services.
 
 SSH to the DNS Server (`10.2.1.10`) and replace `/etc/named.conf`:
 
@@ -64,15 +64,15 @@ logging {
 
 # ── Authoritative zones ──────────────────────────────────────────
 
-zone "corp.local" IN {
+zone "op.viet.vn" IN {
     type master;
-    file "/var/named/corp.local.zone";
+    file "/var/named/op.viet.vn.zone";
     allow-update { none; };
 };
 
-zone "cloud.corp.local" IN {
+zone "cloud.viet.vn" IN {
     type master;
-    file "/var/named/cloud.corp.local.zone";
+    file "/var/named/cloud.viet.vn.zone";
     allow-update { none; };
 };
 
@@ -122,35 +122,35 @@ sudo mkdir -p /var/log/named
 sudo chown named:named /var/log/named
 ```
 
-## Step 2 — Create Zone File for cloud.corp.local
+## Step 2 — Create Zone File for cloud.viet.vn
 
 ```bash
 # Run on DNS Server (10.2.1.10)
-sudo tee /var/named/cloud.corp.local.zone > /dev/null << 'EOF'
+sudo tee /var/named/cloud.viet.vn.zone > /dev/null << 'EOF'
 $TTL 300
-@   IN  SOA dns.corp.local. admin.corp.local. (
+@   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
-@       IN  NS  dns.corp.local.
+@       IN  NS  dns.op.viet.vn.
 app     IN  A   10.1.1.50
 web     IN  A   10.1.1.51
-api     IN  CNAME app.cloud.corp.local.
+api     IN  CNAME app.cloud.viet.vn.
 EOF
 
 sudo tee /var/named/10.1.rev > /dev/null << 'EOF'
 $TTL 300
-@   IN  SOA dns.corp.local. admin.corp.local. (
+@   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
-@   IN  NS  dns.corp.local.
-50  IN  PTR app.cloud.corp.local.
-51  IN  PTR web.cloud.corp.local.
+@   IN  NS  dns.op.viet.vn.
+50  IN  PTR app.cloud.viet.vn.
+51  IN  PTR web.cloud.viet.vn.
 EOF
 
-sudo chown named:named /var/named/cloud.corp.local.zone /var/named/10.1.rev
+sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.rev
 
 # Validate and reload
 sudo named-checkconf /etc/named.conf
-sudo named-checkzone cloud.corp.local /var/named/cloud.corp.local.zone
-sudo named-checkzone corp.local /var/named/corp.local.zone
+sudo named-checkzone cloud.viet.vn /var/named/cloud.viet.vn.zone
+sudo named-checkzone op.viet.vn /var/named/op.viet.vn.zone
 sudo systemctl restart named
 sudo systemctl status named
 ```
@@ -162,7 +162,7 @@ This overrides the default `AmazonProvidedDNS` for VPC A, directing all EC2 DNS 
 ```bash
 DHCP_OPT_ID=$(aws ec2 create-dhcp-options \
   --dhcp-configurations \
-    "Key=domain-name,Values=cloud.corp.local" \
+    "Key=domain-name,Values=cloud.viet.vn" \
     "Key=domain-name-servers,Values=10.2.1.10" \
   --tag-specifications 'ResourceType=dhcp-options,Tags=[{Key=Name,Value=DHCP-OnPrem-DNS}]' \
   --region ap-southeast-1 \
@@ -194,7 +194,7 @@ VPC OP by default uses `10.2.0.2` (AmazonProvidedDNS). For EC2s in VPC OP to als
 ```bash
 DHCP_OP_ID=$(aws ec2 create-dhcp-options \
   --dhcp-configurations \
-    "Key=domain-name,Values=corp.local" \
+    "Key=domain-name,Values=op.viet.vn" \
     "Key=domain-name-servers,Values=10.2.1.10" \
   --tag-specifications 'ResourceType=dhcp-options,Tags=[{Key=Name,Value=DHCP-CorpLocal}]' \
   --region ap-southeast-1 \
@@ -217,18 +217,18 @@ aws ec2 associate-dhcp-options \
 cat /etc/resolv.conf
 # nameserver 10.2.1.10
 
-# Cloud → Cloud: BIND answers from cloud.corp.local zone
-dig app.cloud.corp.local
+# Cloud → Cloud: BIND answers from cloud.viet.vn zone
+dig app.cloud.viet.vn
 # Expected: 10.1.1.50
 
-dig api.cloud.corp.local
-# Expected: CNAME → app.cloud.corp.local → 10.1.1.50
+dig api.cloud.viet.vn
+# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
 
-# Cloud → On-prem: BIND answers from corp.local zone
-dig app.corp.local
+# Cloud → On-prem: BIND answers from op.viet.vn zone
+dig app.op.viet.vn
 # Expected: 10.2.1.20
 
-dig db.corp.local
+dig db.op.viet.vn
 # Expected: 10.2.1.30
 
 # AWS services: conditional forwarder kicks in → 10.1.0.2 answers
@@ -241,10 +241,10 @@ aws s3 ls --region ap-southeast-1
 
 # ── From App Server (10.2.1.20) ──────────────────────────────────
 
-dig app.corp.local
+dig app.op.viet.vn
 # Expected: 10.2.1.20
 
-dig app.cloud.corp.local
+dig app.cloud.viet.vn
 # Expected: 10.1.1.50
 
 
@@ -262,20 +262,20 @@ sudo tail -f /var/log/named/query.log
 sudo systemctl stop named    # on DNS Server
 
 # 2. From EC2-Cloud
-dig app.cloud.corp.local         # ✗ times out
-dig app.corp.local           # ✗ times out
+dig app.cloud.viet.vn         # ✗ times out
+dig app.op.viet.vn           # ✗ times out
 aws s3 ls                    # ✗ fails (S3 DNS broken too)
 
 # 3. From App Server
-dig app.cloud.corp.local         # ✗ times out
-dig app.corp.local           # ✗ times out
+dig app.cloud.viet.vn         # ✗ times out
+dig app.op.viet.vn           # ✗ times out
 
 # 4. Restart BIND → full recovery
 sudo systemctl start named
-dig app.cloud.corp.local         # ✓ 10.1.1.50
+dig app.cloud.viet.vn         # ✓ 10.1.1.50
 ```
 
-**Talking point:** BIND is a single point of failure for both environments. In production this requires HA (primary + secondary BIND) or adding `10.2.1.11` as a secondary DNS server and listing both IPs in the DHCP options. Compare this to Split DNS (Scenario 3) where a BIND failure only affects `corp.local`.
+**Talking point:** BIND is a single point of failure for both environments. In production this requires HA (primary + secondary BIND) or adding `10.2.1.11` as a secondary DNS server and listing both IPs in the DHCP options. Compare this to Split DNS (Scenario 3) where a BIND failure only affects `op.viet.vn`.
 
 ---
 
@@ -303,7 +303,7 @@ aws ec2 associate-dhcp-options \
 | Component | Details | Monthly |
 |-----------|---------|---------|
 | EC2 t3.micro (DNS Server) | Already deployed in foundation | $7.59 |
-| PHZ `cloud.corp.local` (optional) | Not required for this scenario | $0 |
+| PHZ `cloud.viet.vn` (optional) | Not required for this scenario | $0 |
 | Route 53 Resolver Endpoints | None needed | $0 |
 | Resolver Rules | None needed | $0 |
 | **Route 53 total** | | **$0** |

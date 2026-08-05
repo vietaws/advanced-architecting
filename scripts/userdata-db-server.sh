@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # Hybrid DNS Demo — On-Premises DB Server
-# VPC OP | IP: 10.2.1.30 | Hostname: db.corp.local
+# VPC OP | IP: 10.2.1.30 | Hostname: db.op.viet.vn
 #
 # After first boot, verify with:
 #   nc -zv 10.2.1.30 5432
@@ -18,7 +18,7 @@ TABLE_NAME="products"
 dnf update -y
 dnf install -y postgresql17-server bind-utils nc
 
-hostnamectl set-hostname db.corp.local
+hostnamectl set-hostname db.op.viet.vn
 
 # Initialize and start database
 postgresql-setup --initdb
@@ -75,23 +75,23 @@ systemctl restart postgresql
 cat > /usr/local/bin/dns-test << 'SCRIPT'
 #!/bin/bash
 echo "============================================"
-echo " DNS Test — db.corp.local (10.2.1.30)"
+echo " DNS Test — db.op.viet.vn (10.2.1.30)"
 echo "============================================"
 echo ""
 echo "-- Current DNS server --"
 grep nameserver /etc/resolv.conf
 echo ""
 echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"
-dig @10.2.1.10 +noall +answer app.corp.local
-dig @10.2.1.10 +noall +answer db.corp.local
-dig @10.2.1.10 +noall +answer dns.corp.local
+dig @10.2.1.10 +noall +answer app.op.viet.vn
+dig @10.2.1.10 +noall +answer db.op.viet.vn
+dig @10.2.1.10 +noall +answer dns.op.viet.vn
 echo ""
 echo "-- On-prem records (via configured DNS) --"
-dig +noall +answer app.corp.local
-dig +noall +answer db.corp.local
+dig +noall +answer app.op.viet.vn
+dig +noall +answer db.op.viet.vn
 echo ""
 echo "-- Cloud records (via configured DNS) --"
-dig +noall +answer app.cloud.corp.local
+dig +noall +answer app.cloud.viet.vn
 echo ""
 echo "-- DB self-check --"
 PGPASSWORD=demoPassword psql -h 127.0.0.1 -U dbadmin -d demo \

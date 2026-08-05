@@ -32,7 +32,7 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 │  Subnet 10.1.1.0/24 (AZ-a)                         │
 │  ┌──────────────────────────────────────────────┐   │
 │  │  EC2-Cloud          10.1.1.50                │   │
-│  │  app.cloud.corp.local                        │   │
+│  │  app.cloud.viet.vn                        │   │
 │  │                                              │   │
 │  │  Inbound Resolver   10.1.1.10  (Scenarios 2, 3)    │   │
 │  │  Outbound Resolver  10.1.1.11  (Scenario 3)     │   │
@@ -44,7 +44,7 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 │  │  Outbound Resolver  10.1.2.11  (Scenario 3)     │   │
 │  └──────────────────────────────────────────────┘   │
 │                                                     │
-│  Route 53 PHZ: cloud.corp.local                     │
+│  Route 53 PHZ: cloud.viet.vn                     │
 │  S3 Gateway Endpoint                                │
 └──────────────────────┬──────────────────────────────┘
                        │ VPC Peering
@@ -55,13 +55,13 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 │  Subnet 10.2.1.0/24                                 │
 │  ┌──────────────────────────────────────────────┐   │
 │  │  DNS Server (BIND)  10.2.1.10                │   │
-│  │  dns.corp.local                              │   │
+│  │  dns.op.viet.vn                              │   │
 │  │                                              │   │
 │  │  App Server         10.2.1.20                │   │
-│  │  app.corp.local                              │   │
+│  │  app.op.viet.vn                              │   │
 │  │                                              │   │
 │  │  DB Server (MySQL)  10.2.1.30                │   │
-│  │  db.corp.local                               │   │
+│  │  db.op.viet.vn                               │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -70,8 +70,8 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 
 | Domain | Owner | Records |
 |--------|-------|---------|
-| `cloud.corp.local` | Route 53 Private Hosted Zone | `app.cloud.corp.local` → `10.1.1.50` |
-| `corp.local` | BIND on DNS Server | `app.corp.local` → `10.2.1.20`, `db.corp.local` → `10.2.1.30` |
+| `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn` → `10.1.1.50` |
+| `op.viet.vn` | BIND on DNS Server | `app.op.viet.vn` → `10.2.1.20`, `db.op.viet.vn` → `10.2.1.30` |
 
 ---
 
@@ -80,19 +80,19 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 The same base infrastructure supports three DNS architectures, demonstrated in sequence:
 
 ### Scenario 1 — All DNS on On-Premises
-BIND is authoritative for both `corp.local` and `cloud.corp.local`. VPC A uses custom DHCP options to point at BIND. AWS service queries (S3, EC2 APIs) are conditionally forwarded back to `10.1.0.2`.
+BIND is authoritative for both `op.viet.vn` and `cloud.viet.vn`. VPC A uses custom DHCP options to point at BIND. AWS service queries (S3, EC2 APIs) are conditionally forwarded back to `10.1.0.2`.
 
 - **Cost:** ~$0/month Route 53 (no resolver endpoints)
 - **Best for:** Early cloud adoption, on-prem team retains full control
 
 ### Scenario 2 — All DNS on AWS
-Route 53 hosts two PHZs: `cloud.corp.local` and `corp.local`. BIND becomes a pure forwarder to the Inbound Resolver Endpoint. Resolver Query Logging provides full visibility in CloudWatch.
+Route 53 hosts two PHZs: `cloud.viet.vn` and `op.viet.vn`. BIND becomes a pure forwarder to the Inbound Resolver Endpoint. Resolver Query Logging provides full visibility in CloudWatch.
 
 - **Cost:** ~$184/month Route 53 (inbound endpoint only)
 - **Best for:** Cloud-first organisations, centralised DNS visibility
 
 ### Scenario 3 — Split DNS
-Route 53 owns `cloud.corp.local`. BIND owns `corp.local`. Cross-domain queries are routed via Resolver Endpoints. Each environment resolves its own domain locally with no round-trip.
+Route 53 owns `cloud.viet.vn`. BIND owns `op.viet.vn`. Cross-domain queries are routed via Resolver Endpoints. Each environment resolves its own domain locally with no round-trip.
 
 - **Cost:** ~$438/month Route 53 (inbound + outbound endpoints + rule)
 - **Best for:** Long-term hybrid, best performance, smallest blast radius
@@ -186,20 +186,20 @@ Manual `dig` tests:
 
 ```bash
 # Cloud domain
-dig app.cloud.corp.local
+dig app.cloud.viet.vn
 
 # On-prem domains
-dig app.corp.local
-dig db.corp.local
+dig app.op.viet.vn
+dig db.op.viet.vn
 
 # CNAME record
-dig api.cloud.corp.local
+dig api.cloud.viet.vn
 
 # AWS service (should always resolve)
 dig s3.ap-southeast-1.amazonaws.com
 
 # Verify which DNS server answered
-dig app.corp.local +noall +answer +comments | grep SERVER
+dig app.op.viet.vn +noall +answer +comments | grep SERVER
 ```
 
 ---
@@ -226,4 +226,4 @@ The dominant cost in all cases is the Resolver Endpoint: **$0.125/hour per IP ad
 
 **Private Hosted Zone** — a Route 53 hosted zone that resolves only from within associated VPCs. The domain name does not need to be publicly registered.
 
-**Split DNS** — a pattern where the same parent namespace (e.g. `corp.local`) is split between two authorities: Route 53 owns `cloud.corp.local`, BIND owns `corp.local`. Each side resolves its own sub-domain locally and forwards the other direction via Resolver Endpoints.
+**Split DNS** — a pattern where the same parent namespace (e.g. `op.viet.vn`) is split between two authorities: Route 53 owns `cloud.viet.vn`, BIND owns `op.viet.vn`. Each side resolves its own sub-domain locally and forwards the other direction via Resolver Endpoints.

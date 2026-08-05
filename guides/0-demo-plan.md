@@ -4,10 +4,10 @@
 
 | Environment | Domain | Authority | Example Records |
 |---|---|---|---|
-| AWS Cloud (VPC A) | `cloud.corp.local` | Route 53 Private Hosted Zone | `app.cloud.corp.local`, `web.cloud.corp.local` |
-| On-Premises (VPC OP) | `corp.local` | BIND on EC2 | `app.corp.local`, `db.corp.local`, `dns.corp.local` |
+| AWS Cloud (VPC A) | `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn`, `web.cloud.viet.vn` |
+| On-Premises (VPC OP) | `op.viet.vn` | BIND on EC2 | `app.op.viet.vn`, `db.op.viet.vn`, `dns.op.viet.vn` |
 
-> `cloud.corp.local` is treated as a **private** hosted zone throughout this demo — it resolves only inside the VPCs, not on the public internet. In a real environment this would be a domain you own, with a separate public hosted zone for external traffic.
+> `cloud.viet.vn` is treated as a **private** hosted zone throughout this demo — it resolves only inside the VPCs, not on the public internet. In a real environment this would be a domain you own, with a separate public hosted zone for external traffic.
 
 ---
 
@@ -23,7 +23,7 @@
 │  │                  │   │                       │   │
 │  │ EC2-Cloud        │   │ (Resolver IPs only)   │   │
 │  │ 10.1.1.50        │   │                       │   │
-│  │ app.cloud.corp.local │   │                       │   │
+│  │ app.cloud.viet.vn │   │                       │   │
 │  │                  │   │                       │   │
 │  │ Inbound EP       │   │ Inbound EP            │   │
 │  │ 10.1.1.10        │   │ 10.1.2.10             │   │
@@ -31,7 +31,7 @@
 │  │ 10.1.1.11        │   │ 10.1.2.11             │   │
 │  └──────────────────┘   └───────────────────────┘   │
 │                                                     │
-│  Route 53 Private Hosted Zone: cloud.corp.local         │
+│  Route 53 Private Hosted Zone: cloud.viet.vn         │
 │  S3 Gateway Endpoint                                │
 └─────────────────────────┬───────────────────────────┘
                           │ VPC Peering
@@ -43,11 +43,11 @@
 │  │ Private Subnet OP — 10.2.1.0/24              │   │
 │  │                                              │   │
 │  │ DNS Server (BIND)     App Server             │   │
-│  │ dns.corp.local        app.corp.local         │   │
+│  │ dns.op.viet.vn        app.op.viet.vn         │   │
 │  │ 10.2.1.10             10.2.1.20              │   │
 │  │                                              │   │
 │  │                       DB Server (simulated)  │   │
-│  │                       db.corp.local          │   │
+│  │                       db.op.viet.vn          │   │
 │  │                       10.2.1.30              │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
@@ -59,7 +59,7 @@
 
 | Level | Scenario | Key Activities | Guide |
 |------|----------|----------------|-------|
-| **0** | Foundation Setup | Deploy VPCs, EC2s, VPC Peering, BIND, S3 | `3-scenario-split-dns.md` §Foundation |
+| **0** | Foundation Setup | Deploy VPCs, EC2s, VPC Peering, BIND, S3 |  |
 | **1** | Scenario 1: All DNS on On-Premises | DHCP override, BIND authoritative for both domains | `1-scenario-all-dns-op.md` |
 | **2** | Scenario 2: All DNS on AWS | Route 53 PHZ for both domains, Inbound Endpoint, Query Logging | `2-scenario-all-dns-aws.md` |
 | **3** | Scenario 3: Split DNS | Outbound Endpoint + Resolver Rule, each side owns its zone | `3-scenario-split-dns.md` §Split DNS |
@@ -87,28 +87,16 @@
 | S3 Bucket | `ap-southeast-1`, private |
 | S3 Gateway Endpoint | VPC A route table |
 
-### End-state check
-
-```bash
-# From EC2-Cloud: ping App Server
-ping 10.2.1.20   # should work via VPC peering
-
-# From App Server: ping EC2-Cloud
-ping 10.1.1.50   # should work
-
-# From EC2-Cloud: S3 access
-aws s3 ls        # should work via gateway endpoint
-```
 
 ---
 
 ## Scenario 1: All DNS on On-Premises
 
-**Scenario:** On-prem team controls everything. BIND is authoritative for both `corp.local` and `cloud.corp.local`. VPC A is configured to use BIND as its DNS server via custom DHCP options.
+**Scenario:** On-prem team controls everything. BIND is authoritative for both `op.viet.vn` and `cloud.viet.vn`. VPC A is configured to use BIND as its DNS server via custom DHCP options.
 
 **Key demo moments:**
-1. `dig app.corp.local` from EC2-Cloud → BIND answers
-2. `dig app.cloud.corp.local` from App Server → BIND answers
+1. `dig app.op.viet.vn` from EC2-Cloud → BIND answers
+2. `dig app.cloud.viet.vn` from App Server → BIND answers
 3. `aws s3 ls` from EC2-Cloud → works (AWS service DNS forwarded correctly)
 4. Tail BIND query log → all queries visible in one place
 5. Disable BIND → both VPCs lose DNS (illustrate single point of failure)
@@ -121,15 +109,15 @@ aws s3 ls        # should work via gateway endpoint
 
 ## Scenario 2: All DNS on AWS
 
-**Scenario:** AWS manages DNS for both environments. Route 53 has two PHZs: `cloud.corp.local` and `corp.local`. BIND becomes a pure forwarder.
+**Scenario:** AWS manages DNS for both environments. Route 53 has two PHZs: `cloud.viet.vn` and `op.viet.vn`. BIND becomes a pure forwarder.
 
 **Key demo moments:**
-1. Create Route 53 PHZ for `cloud.corp.local` + associate with VPC A and VPC OP
-2. Create Route 53 PHZ for `corp.local` + add records for on-prem hosts
+1. Create Route 53 PHZ for `cloud.viet.vn` + associate with VPC A and VPC OP
+2. Create Route 53 PHZ for `op.viet.vn` + add records for on-prem hosts
 3. Deploy Inbound Resolver Endpoint (2 IPs for HA)
 4. Reconfigure BIND to forward everything to `10.1.1.10` and `10.1.2.10`
-5. `dig app.cloud.corp.local` from EC2-Cloud → VPC DNS resolves directly (no BIND hop)
-6. `dig app.corp.local` from App Server → BIND → Inbound Endpoint → PHZ
+5. `dig app.cloud.viet.vn` from EC2-Cloud → VPC DNS resolves directly (no BIND hop)
+6. `dig app.op.viet.vn` from App Server → BIND → Inbound Endpoint → PHZ
 7. Enable Resolver Query Logging → show CloudWatch Logs with live traces
 8. Disable BIND → cloud-to-cloud DNS still works; on-prem-to-cloud DNS still works
 
@@ -141,15 +129,15 @@ aws s3 ls        # should work via gateway endpoint
 
 ## Scenario 3: Split DNS
 
-**Scenario:** Best of both. Route 53 owns `cloud.corp.local`. BIND owns `corp.local`. They forward cross-domain queries to each other via Resolver endpoints.
+**Scenario:** Best of both. Route 53 owns `cloud.viet.vn`. BIND owns `op.viet.vn`. They forward cross-domain queries to each other via Resolver endpoints.
 
 **Key demo moments:**
-1. Deploy Outbound Resolver Endpoint + Resolver Rule for `corp.local` → BIND
-2. BIND keeps `corp.local` zone, adds forwarder for `cloud.corp.local` → Inbound Endpoint
-3. `dig app.cloud.corp.local` from EC2-Cloud → resolves locally in VPC, never touches BIND
-4. `dig app.corp.local` from EC2-Cloud → Outbound Endpoint → BIND → answer
-5. `dig app.corp.local` from App Server → goes straight to BIND, no AWS hop
-6. Kill BIND → cloud DNS still works, only `corp.local` queries fail
+1. Deploy Outbound Resolver Endpoint + Resolver Rule for `op.viet.vn` → BIND
+2. BIND keeps `op.viet.vn` zone, adds forwarder for `cloud.viet.vn` → Inbound Endpoint
+3. `dig app.cloud.viet.vn` from EC2-Cloud → resolves locally in VPC, never touches BIND
+4. `dig app.op.viet.vn` from EC2-Cloud → Outbound Endpoint → BIND → answer
+5. `dig app.op.viet.vn` from App Server → goes straight to BIND, no AWS hop
+6. Kill BIND → cloud DNS still works, only `op.viet.vn` queries fail
 7. Restart BIND → automatic recovery
 
 **Cost:** ~$365/month (inbound + outbound endpoints)
@@ -160,26 +148,26 @@ aws s3 ls        # should work via gateway endpoint
 
 ## Advanced Features + Wrap-up
 
-### DNS Firewall (15 min)
-- Create a rule group blocking `malware-test.corp.local`
+### DNS Firewall
+- Create a rule group blocking `malware-test.op.viet.vn`
 - Attach to VPC A
 - Show blocked response in CloudWatch Logs
 
-### CNAME and Alias Records in PHZ (10 min)
-- Add `api.cloud.corp.local CNAME app.cloud.corp.local`
+### CNAME and Alias Records in PHZ
+- Add `api.cloud.viet.vn CNAME app.cloud.viet.vn`
 - Show alias behavior vs CNAME
 - Contrast with public hosted zone behavior
 
-### Resolver Rule Sharing via RAM (10 min)
-- Show how `corp.local` Resolver Rule can be shared to other AWS accounts
-- Use case: multiple accounts in an AWS Organization all resolving `corp.local`
+### Resolver Rule Sharing via RAM
+- Show how `op.viet.vn` Resolver Rule can be shared to other AWS accounts
+- Use case: multiple accounts in an AWS Organization all resolving `op.viet.vn`
 
-### Cost Comparison (10 min)
+### Cost Comparison
 - Walk through all 3 scenarios side by side
 - Map cost to real-world use cases
 - Show migration roadmap
 
-### Wrap-up Q&A (15 min)
+### Wrap-up Q&A 
 
 **Full guide:** `5-comparison.md`
 
@@ -189,25 +177,15 @@ aws s3 ls        # should work via gateway endpoint
 
 | Host | VPC | IP | Hostname |
 |------|----|-----|----------|
-| EC2-Cloud | VPC A | `10.1.1.50` | `app.cloud.corp.local` |
+| EC2-Cloud | VPC A | `10.1.1.50` | `app.cloud.viet.vn` |
 | Inbound Resolver (AZ-a) | VPC A | `10.1.1.10` | — |
 | Inbound Resolver (AZ-b) | VPC A | `10.1.2.10` | — |
 | Outbound Resolver (AZ-a) | VPC A | `10.1.1.11` | — |
 | Outbound Resolver (AZ-b) | VPC A | `10.1.2.11` | — |
-| DNS Server (BIND) | VPC OP | `10.2.1.10` | `dns.corp.local` |
-| App Server | VPC OP | `10.2.1.20` | `app.corp.local` |
-| DB Server (simulated) | VPC OP | `10.2.1.30` | `db.corp.local` |
+| DNS Server (BIND) | VPC OP | `10.2.1.10` | `dns.op.viet.vn` |
+| App Server | VPC OP | `10.2.1.20` | `app.op.viet.vn` |
+| DB Server (simulated) | VPC OP | `10.2.1.30` | `db.op.viet.vn` |
 | VPC A DNS Resolver | VPC A | `10.1.0.2` | AmazonProvidedDNS |
 | VPC OP DNS Resolver | VPC OP | `10.2.0.2` | AmazonProvidedDNS |
 
 ---
-
-## Pre-Demo Checklist
-
-- [ ] AWS account with sufficient IAM permissions (EC2, VPC, Route53, Route53Resolver, S3)
-- [ ] Region set to `ap-southeast-1` (Singapore)
-- [ ] Key pair created for EC2 SSH access
-- [ ] `jq` installed locally for parsing AWS CLI output
-- [ ] Two terminal windows open: one for VPC A EC2, one for VPC OP App Server
-- [ ] CloudWatch Log Groups pre-created (Resolver Query Logging has ~2 min delay on first setup)
-- [ ] `bind-utils` (`dig`, `nslookup`) available on EC2 instances
