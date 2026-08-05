@@ -1,14 +1,14 @@
 #!/bin/bash
 # =============================================================================
 # Hybrid DNS Demo — EC2 Cloud App Server
-# VPC A | IP: 10.1.1.50 | Hostname: app.cloud.viet.vn
+# VPC A | IP: 10.1.0.40 | Hostname: app.cloud.viet.vn
 #
 # Simulates a cloud-hosted application. Runs a simple HTTP server so that
 # on-premises servers can test connectivity in both directions.
 # Also pre-installs all tools needed for DNS testing during the demo.
 #
 # After first boot, verify with:
-#   curl http://10.1.1.50              # direct IP
+#   curl http://10.1.0.40              # direct IP
 #   curl http://app.cloud.viet.vn   # via DNS (after scenario configured)
 #   aws s3 ls --region ap-southeast-1  # S3 via gateway endpoint
 # =============================================================================
@@ -35,7 +35,7 @@ cat > /var/www/app/index.html << 'EOF'
 <body>
   <h1>Cloud App Server</h1>
   <p><strong>Hostname:</strong> app.cloud.viet.vn</p>
-  <p><strong>IP:</strong> 10.1.1.50</p>
+  <p><strong>IP:</strong> 10.1.0.40</p>
   <p><strong>Environment:</strong> VPC A (AWS Cloud, ap-southeast-1)</p>
   <p>If you can reach this page from the on-premises app server, hybrid DNS and routing are working correctly.</p>
 </body>
@@ -67,7 +67,7 @@ systemctl start demo-app
 cat > /usr/local/bin/dns-test << 'SCRIPT'
 #!/bin/bash
 echo "============================================"
-echo " DNS Test — app.cloud.viet.vn (10.1.1.50)"
+echo " DNS Test — app.cloud.viet.vn (10.1.0.40)"
 echo "============================================"
 echo ""
 echo "-- Cloud records (Route 53 PHZ) --"

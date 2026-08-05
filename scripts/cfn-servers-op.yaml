@@ -108,8 +108,6 @@ Resources:
           Value: !Sub "${EnvironmentName}-sg-db-server"
 
   # -- DNS Server (10.2.1.10) --------------------------------------------------
-  # Uses write-file.sh pattern: all config files written via printf to avoid
-  # heredoc indentation issues inside CFN Fn::Base64 blocks.
 
   DnsServer:
     Type: AWS::EC2::Instance
@@ -134,56 +132,65 @@ Resources:
 
           mkdir -p /var/log/named /var/named/data
 
-          printf '%s\n' \
-            'options {' \
-            '    listen-on port 53 { any; };' \
-            '    listen-on-v6 port 53 { none; };' \
-            '    directory "/var/named";' \
-            '    allow-query     { 10.0.0.0/8; };' \
-            '    allow-recursion { 10.0.0.0/8; };' \
-            '    recursion yes;' \
-            '    dnssec-validation no;' \
-            '    querylog yes;' \
-            '    forwarders { 10.2.0.2; 8.8.8.8; };' \
-            '    forward first;' \
-            '};' \
-            'logging {' \
-            '    channel query_log {' \
-            '        file "/var/log/named/query.log" versions 5 size 20m;' \
-            '        severity info; print-time yes; print-category yes;' \
-            '    };' \
-            '    category queries { query_log; };' \
-            '};' \
-            'zone "op.viet.vn" IN {' \
-            '    type master;' \
-            '    file "/var/named/op.viet.vn.zone";' \
-            '    allow-update { none; };' \
-            '    allow-transfer { none; };' \
-            '};' \
-            'zone "1.2.10.in-addr.arpa" IN {' \
-            '    type master;' \
-            '    file "/var/named/10.2.1.rev";' \
-            '    allow-update { none; };' \
-            '};' \
-            > /etc/named.conf
+          # Write /etc/named.conf
+          python3 -c "
+          open('/etc/named.conf','w').write(
+          'options {\n'
+          '    listen-on port 53 { any; };\n'
+          '    listen-on-v6 port 53 { none; };\n'
+          '    directory \"/var/named\";\n'
+          '    allow-query     { 10.0.0.0/8; };\n'
+          '    allow-recursion { 10.0.0.0/8; };\n'
+          '    recursion yes;\n'
+          '    dnssec-validation no;\n'
+          '    querylog yes;\n'
+          '    forwarders { 10.2.0.2; 8.8.8.8; };\n'
+          '    forward first;\n'
+          '};\n'
+          'logging {\n'
+          '    channel query_log {\n'
+          '        file \"/var/log/named/query.log\" versions 5 size 20m;\n'
+          '        severity info; print-time yes; print-category yes;\n'
+          '    };\n'
+          '    category queries { query_log; };\n'
+          '};\n'
+          'zone \"op.viet.vn\" IN {\n'
+          '    type master;\n'
+          '    file \"/var/named/op.viet.vn.zone\";\n'
+          '    allow-update { none; };\n'
+          '    allow-transfer { none; };\n'
+          '};\n'
+          'zone \"1.2.10.in-addr.arpa\" IN {\n'
+          '    type master;\n'
+          '    file \"/var/named/10.2.1.rev\";\n'
+          '    allow-update { none; };\n'
+          '};\n'
+          )
+          "
 
-          printf '%s\n' \
-            '$TTL 300' \
-            '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )' \
-            '@ IN NS  dns.op.viet.vn.' \
-            'dns IN A 10.2.1.10' \
-            'app IN A 10.2.1.20' \
-            'db  IN A 10.2.1.30' \
-            > /var/named/op.viet.vn.zone
+          # Write forward zone
+          python3 -c "
+          open('/var/named/op.viet.vn.zone','w').write(
+          '\$TTL 300\n'
+          '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )\n'
+          '@ IN NS  dns.op.viet.vn.\n'
+          'dns IN A 10.2.1.10\n'
+          'app IN A 10.2.1.20\n'
+          'db  IN A 10.2.1.30\n'
+          )
+          "
 
-          printf '%s\n' \
-            '$TTL 300' \
-            '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )' \
-            '@ IN NS  dns.op.viet.vn.' \
-            '10 IN PTR dns.op.viet.vn.' \
-            '20 IN PTR app.op.viet.vn.' \
-            '30 IN PTR db.op.viet.vn.' \
-            > /var/named/10.2.1.rev
+          # Write reverse zone
+          python3 -c "
+          open('/var/named/10.2.1.rev','w').write(
+          '\$TTL 300\n'
+          '@ IN SOA dns.op.viet.vn. admin.op.viet.vn. ( 2026080401 3600 1800 604800 300 )\n'
+          '@ IN NS  dns.op.viet.vn.\n'
+          '10 IN PTR dns.op.viet.vn.\n'
+          '20 IN PTR app.op.viet.vn.\n'
+          '30 IN PTR db.op.viet.vn.\n'
+          )
+          "
 
           chown -R named:named /var/named /var/log/named
           named-checkconf /etc/named.conf
@@ -219,7 +226,7 @@ Resources:
           echo "[$(date)] Starting App Server setup..."
 
           dnf update -y
-          dnf install -y nodejs postgresql17 bind-utils nc
+          dnf install -y nodejs postgresql18 bind-utils nc
 
           hostnamectl set-hostname app.op.viet.vn
 
@@ -229,50 +236,61 @@ Resources:
           npm init -y
           npm install pg
 
-          # Dummy app — replace with app.js from repo root before demo
-          printf '%s\n' \
-            "const http = require('http');" \
-            "http.createServer((req, res) => {" \
-            "  res.writeHead(200, { 'Content-Type': 'text/html' });" \
-            "  res.end('<h1>app.op.viet.vn</h1><p>App Server IP Address: 10.2.1.20</p>');" \
-            "}).listen(80, () => console.log('Listening on port 80'));" \
-            > /opt/app/app.js
+          # Dummy app — replace with op-app.js from repo root before demo
+          python3 -c "
+          open('/opt/app/app.js','w').write(
+          'const http = require(\"http\");\n'
+          'http.createServer((req, res) => {\n'
+          '  res.writeHead(200, { \"Content-Type\": \"text/html\" });\n'
+          '  res.end(\"<h1>app.op.viet.vn</h1><p>Replace with op-app.js from repo.</p>\");\n'
+          '}).listen(80, () => console.log(\"Listening on port 80\"));\n'
+          )
+          "
 
-          printf '%s\n' \
-            '[Unit]' \
-            'Description=Hybrid DNS Demo App Server' \
-            'After=network.target' \
-            '[Service]' \
-            'WorkingDirectory=/opt/app' \
-            'ExecStart=/usr/bin/node app.js' \
-            'Restart=always' \
-            'RestartSec=3' \
-            'User=root' \
-            '[Install]' \
-            'WantedBy=multi-user.target' \
-            > /etc/systemd/system/demo-app.service
+          # Write systemd service
+          python3 -c "
+          open('/etc/systemd/system/demo-app.service','w').write(
+          '[Unit]\n'
+          'Description=Hybrid DNS Demo App Server\n'
+          'After=network.target\n'
+          '[Service]\n'
+          'WorkingDirectory=/opt/app\n'
+          'ExecStart=/usr/bin/node app.js\n'
+          'Restart=always\n'
+          'RestartSec=3\n'
+          'User=root\n'
+          '[Install]\n'
+          'WantedBy=multi-user.target\n'
+          )
+          "
 
-          printf '%s\n' \
-            '#!/bin/bash' \
-            'echo "=== DNS Test: app.op.viet.vn (10.2.1.20) ==="' \
-            'echo "-- Current DNS server --"' \
-            'grep nameserver /etc/resolv.conf' \
-            'echo ""' \
-            'echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"' \
-            'dig @10.2.1.10 +noall +answer app.op.viet.vn' \
-            'dig @10.2.1.10 +noall +answer db.op.viet.vn' \
-            'dig @10.2.1.10 +noall +answer dns.op.viet.vn' \
-            'echo ""' \
-            'echo "-- On-prem records (via configured DNS) --"' \
-            'dig +noall +answer app.op.viet.vn' \
-            'dig +noall +answer db.op.viet.vn' \
-            'echo ""' \
-            'echo "-- Cloud records (via configured DNS) --"' \
-            'dig +noall +answer app.cloud.viet.vn' \
-            'echo ""' \
-            'echo "-- Connectivity to EC2-Cloud (direct IP) --"' \
-            'curl -sf --connect-timeout 3 http://10.1.1.50/ || echo "Not reachable via IP"' \
-            > /usr/local/bin/dns-test
+          # Write dns-test helper
+          python3 -c "
+          open('/usr/local/bin/dns-test','w').write(
+          '#!/bin/bash\n'
+          'echo \"============================================\"\n'
+          'echo \" DNS Test: app.op.viet.vn (10.2.1.20)\"\n'
+          'echo \"============================================\"\n'
+          'echo \"\"\n'
+          'echo \"-- Current DNS server --\"\n'
+          'grep nameserver /etc/resolv.conf\n'
+          'echo \"\"\n'
+          'echo \"-- On-prem records (via BIND directly @ 10.2.1.10) --\"\n'
+          'dig @10.2.1.10 +noall +answer app.op.viet.vn\n'
+          'dig @10.2.1.10 +noall +answer db.op.viet.vn\n'
+          'dig @10.2.1.10 +noall +answer dns.op.viet.vn\n'
+          'echo \"\"\n'
+          'echo \"-- On-prem records (via configured DNS) --\"\n'
+          'dig +noall +answer app.op.viet.vn\n'
+          'dig +noall +answer db.op.viet.vn\n'
+          'echo \"\"\n'
+          'echo \"-- Cloud records (via configured DNS) --\"\n'
+          'dig +noall +answer app.cloud.viet.vn\n'
+          'echo \"\"\n'
+          'echo \"-- Connectivity to EC2-Cloud (direct IP) --\"\n'
+          'curl -sf --connect-timeout 3 http://10.1.0.40/ || echo \"Not reachable via IP\"\n'
+          )
+          "
           chmod +x /usr/local/bin/dns-test
 
           systemctl daemon-reload
@@ -307,7 +325,7 @@ Resources:
           TABLE_NAME="products"
 
           dnf update -y
-          dnf install -y postgresql17-server bind-utils nc
+          dnf install -y postgresql18-server bind-utils nc
 
           hostnamectl set-hostname db.op.viet.vn
 

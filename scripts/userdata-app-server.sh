@@ -87,7 +87,7 @@ echo "-- Cloud records (via configured DNS) --"
 dig +noall +answer app.cloud.viet.vn
 echo ""
 echo "-- Connectivity to EC2-Cloud (direct IP) --"
-curl -sf --connect-timeout 3 http://10.1.1.50/ || echo "Not reachable via IP"
+curl -sf --connect-timeout 3 http://10.1.0.40/ || echo "Not reachable via IP"
 SCRIPT
 
 chmod +x /usr/local/bin/dns-test

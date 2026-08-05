@@ -10,7 +10,7 @@ Description: >
 # VPC A  (Cloud)      10.1.0.0/16
 #   Public  1a        10.1.0.0/24
 #   Public  1b        10.1.3.0/24
-#   Private 1a        10.1.1.0/24   ← EC2-Cloud (10.1.1.50), Resolver EPs
+#   Private 1a        10.1.1.0/24   ← EC2-Cloud (10.1.0.40), Resolver EPs
 #   Private 1b        10.1.2.0/24   ← Resolver HA IPs
 #
 # VPC OP (On-Premises) 10.2.0.0/16

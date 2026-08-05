@@ -1,7 +1,7 @@
-'use strict';
+import http from 'http';
+import pg from 'pg';
 
-const http = require('http');
-const { Client } = require('pg');
+const { Client } = pg;
 
 const DB_CONFIG = {
   host: 'db.op.viet.vn',
@@ -345,7 +345,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('Inventory OP', body));
+  res.end(layout('OP Inventory', body));
 }
 
 function newForm(res, err = null) {

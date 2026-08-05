@@ -31,7 +31,7 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 │                                                     │
 │  Subnet 10.1.1.0/24 (AZ-a)                         │
 │  ┌──────────────────────────────────────────────┐   │
-│  │  EC2-Cloud          10.1.1.50                │   │
+│  │  EC2-Cloud          10.1.0.40                │   │
 │  │  app.cloud.viet.vn                        │   │
 │  │                                              │   │
 │  │  Inbound Resolver   10.1.1.10  (Scenarios 2, 3)    │   │
@@ -70,7 +70,7 @@ A hands-on 5-hour demo covering hybrid DNS resolution between AWS (Amazon Route 
 
 | Domain | Owner | Records |
 |--------|-------|---------|
-| `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn` → `10.1.1.50` |
+| `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn` → `10.1.0.40` |
 | `op.viet.vn` | BIND on DNS Server | `app.op.viet.vn` → `10.2.1.20`, `db.op.viet.vn` → `10.2.1.30` |
 
 ---
@@ -104,12 +104,13 @@ Route 53 owns `cloud.viet.vn`. BIND owns `op.viet.vn`. Cross-domain queries are 
 ```
 .
 ├── README.md
-├── app.js                          # Express app for App Server (copy to /opt/app/ on instance)
+├── op-app.js                          # Express app for App Server on VPC OP (copy to /opt/app/)
+├── cloud-app.js                       # Express app for EC2-Cloud on VPC A (copy to /opt/app/)
 ├── scripts/                        # EC2 user-data scripts
 │   ├── userdata-dns-server.sh      # BIND setup (10.2.1.10)
 │   ├── userdata-app-server.sh      # On-prem app server (10.2.1.20)
 │   ├── userdata-db-server.sh       # On-prem DB server — MariaDB (10.2.1.30)
-│   └── userdata-ec2-cloud.sh       # Cloud app server (10.1.1.50)
+│   └── userdata-ec2-cloud.sh       # Cloud app server (10.1.0.40)
 └── guides/                         # Step-by-step demo guides
     ├── 0-demo-plan.md              # 5-hour agenda, IP reference, pre-flight checklist
     ├── 1-problem.md                # Problem statement — why hybrid DNS is needed
@@ -143,7 +144,7 @@ Launch each EC2 instance manually in the AWS Console or via CLI, passing the cor
 | DNS Server | `10.2.1.10` (VPC OP) | `scripts/userdata-dns-server.sh` |
 | App Server | `10.2.1.20` (VPC OP) | `scripts/userdata-app-server.sh` |
 | DB Server | `10.2.1.30` (VPC OP) | `scripts/userdata-db-server.sh` |
-| EC2-Cloud | `10.1.1.50` (VPC A) | `scripts/userdata-ec2-cloud.sh` |
+| EC2-Cloud | `10.1.0.40` (VPC A) | `scripts/userdata-ec2-cloud.sh` |
 
 Follow `guides/3-scenario-split-dns.md` (Part 1) for the full step-by-step CLI commands to create VPCs, subnets, peering, security groups, and the S3 gateway endpoint.
 

@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Hybrid DNS Demo - VPC A Cloud App Server
+  Deploys one EC2 instance in VPC A public subnet 1a (10.1.0.0/24):
+    - EC2-Cloud  (10.1.0.40)  Node.js app server, public internet access
+  Uses Amazon Linux 2023 ARM64 on t4g.micro with SSM access.
+  Depends on: hybrid-dns-demo-network stack (cfn-network.yaml)
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: hybrid-dns-demo
+    Description: Must match the EnvironmentName used in the network stack.
+
+  LatestAL2023AmiArm64:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Amazon Linux 2023 ARM64 - resolved automatically via SSM.
+
+# =============================================================================
+Resources:
+
+  # -- Security Group ----------------------------------------------------------
+
+  SgCloudApp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-sg-cloud-app"
+      GroupDescription: "Cloud App Server - HTTP public, ICMP internal"
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VpcA-Id"
+      SecurityGroupIngress:
+        - Description: "HTTP from internet"
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - Description: "ICMP from internal"
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: "10.0.0.0/8"
+      SecurityGroupEgress:
+        - Description: "All outbound"
+          IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-sg-cloud-app"
+
+  # -- EC2-Cloud (10.1.0.40) ---------------------------------------------------
+
+  CloudApp:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAL2023AmiArm64
+      SubnetId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-A-Public-1a-Id"
+      PrivateIpAddress: "10.1.0.40"
+      SecurityGroupIds:
+        - !Ref SgCloudApp
+      IamInstanceProfile: ec2-instance-role
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -e
+          exec > >(tee /var/log/userdata-ec2-cloud.log) 2>&1
+          echo "[$(date)] Starting EC2-Cloud setup..."
+
+          dnf update -y
+          dnf install -y nodejs bind-utils nc postgresql18
+
+          hostnamectl set-hostname app.cloud.viet.vn
+
+          mkdir -p /opt/app
+
+          # Write package.json with ES module type first, then install
+          python3 -c "
+          import json
+          pkg = {
+            'name': 'cloud-app',
+            'version': '1.0.0',
+            'type': 'module',
+            'main': 'cloud-app.js',
+            'scripts': { 'start': 'node cloud-app.js' },
+            'dependencies': { 'pg': '^8.13.3' }
+          }
+          open('/opt/app/package.json','w').write(json.dumps(pkg, indent=2))
+          "
+
+          cd /opt/app
+          npm install
+
+          # Dummy app — replace with cloud-app.js from repo root before demo
+          python3 -c "
+          open('/opt/app/app.js','w').write(
+          'import http from \"http\";\n'
+          'http.createServer((req, res) => {\n'
+          '  res.writeHead(200, { \"Content-Type\": \"text/html\" });\n'
+          '  res.end(\"<h1>app.cloud.viet.vn</h1><p>Replace with cloud-app.js from repo.</p>\");\n'
+          '}).listen(80, () => console.log(\"Listening on port 80\"));\n'
+          )
+          "
+
+          # Write systemd service
+          python3 -c "
+          open('/etc/systemd/system/cloud-app.service','w').write(
+          '[Unit]\n'
+          'Description=Hybrid DNS Demo Cloud App Server\n'
+          'After=network.target\n'
+          '[Service]\n'
+          'WorkingDirectory=/opt/app\n'
+          'ExecStart=/usr/bin/node app.js\n'
+          'Restart=always\n'
+          'RestartSec=3\n'
+          'User=root\n'
+          '[Install]\n'
+          'WantedBy=multi-user.target\n'
+          )
+          "
+
+          # Write dns-test helper
+          python3 -c "
+          open('/usr/local/bin/dns-test','w').write(
+          '#!/bin/bash\n'
+          'echo \"============================================\"\n'
+          'echo \" DNS Test: app.cloud.viet.vn (10.1.0.40)\"\n'
+          'echo \"============================================\"\n'
+          'echo \"\"\n'
+          'echo \"-- Current DNS server --\"\n'
+          'grep nameserver /etc/resolv.conf\n'
+          'echo \"\"\n'
+          'echo \"-- Cloud records (via configured DNS) --\"\n'
+          'dig +noall +answer app.cloud.viet.vn\n'
+          'echo \"\"\n'
+          'echo \"-- On-prem records (via configured DNS) --\"\n'
+          'dig +noall +answer app.op.viet.vn\n'
+          'dig +noall +answer db.op.viet.vn\n'
+          'dig +noall +answer dns.op.viet.vn\n'
+          'echo \"\"\n'
+          'echo \"-- AWS service DNS --\"\n'
+          'dig +noall +answer s3.ap-southeast-1.amazonaws.com\n'
+          'echo \"\"\n'
+          'echo \"-- Connectivity to OP App Server (direct IP) --\"\n'
+          'curl -sf --connect-timeout 3 http://10.2.1.20/ || echo \"Not reachable via IP\"\n'
+          )
+          "
+          chmod +x /usr/local/bin/dns-test
+
+          # Write db-test helper
+          python3 -c "
+          open('/usr/local/bin/db-test','w').write(
+          '#!/bin/bash\n'
+          'echo \"Testing PostgreSQL to db.op.viet.vn:5432 ...\"\n'
+          'PGPASSWORD=demoPassword psql -h db.op.viet.vn -U dbadmin -d demo \\\n'
+          '  -c \"SELECT * FROM products;\" \\\n'
+          '  && echo \"SUCCESS\" \\\n'
+          '  || echo \"FAILED - check DNS and security group\"\n'
+          )
+          "
+          chmod +x /usr/local/bin/db-test
+
+          systemctl daemon-reload
+          systemctl enable cloud-app
+          systemctl start cloud-app
+
+          echo "[$(date)] EC2-Cloud setup complete."
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-EC2-Cloud"
+
+# =============================================================================
+Outputs:
+
+  CloudAppInstanceId:
+    Description: EC2-Cloud Instance ID
+    Value: !Ref CloudApp
+    Export:
+      Name: !Sub "${EnvironmentName}-CloudApp-Id"
+
+  CloudAppPublicIp:
+    Description: EC2-Cloud Public IP
+    Value: !GetAtt CloudApp.PublicIp
+
+  CloudAppPrivateIp:
+    Description: EC2-Cloud Private IP (10.1.0.40)
+    Value: !GetAtt CloudApp.PrivateIp
+
+  SgCloudAppId:
+    Description: Cloud App Security Group ID
+    Value: !Ref SgCloudApp
+    Export:
+      Name: !Sub "${EnvironmentName}-SgCloudApp-Id"

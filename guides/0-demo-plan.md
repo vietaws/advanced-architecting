@@ -18,12 +18,17 @@
 │              VPC A — Cloud (10.1.0.0/16)            │
 │                                                     │
 │  ┌──────────────────┐   ┌───────────────────────┐   │
-│  │ Private Subnet A │   │ Private Subnet A2     │   │
-│  │ 10.1.1.0/24      │   │ 10.1.2.0/24           │   │
+│  │ Public Subnet A  │   │ Private Subnet A2     │   │
+│  │ 10.1.0.0/24      │   │ 10.1.2.0/24           │   │
 │  │                  │   │                       │   │
 │  │ EC2-Cloud        │   │ (Resolver IPs only)   │   │
-│  │ 10.1.1.50        │   │                       │   │
-│  │ app.cloud.viet.vn │   │                       │   │
+│  │ 10.1.0.40        │   │                       │   │
+│  │ app.cloud.viet.vn│   │                       │   │
+│  └──────────────────┘   └───────────────────────┘   │
+│                                                     │
+│  ┌──────────────────┐   ┌───────────────────────┐   │
+│  │ Private Subnet A │   │ Private Subnet A2     │   │
+│  │ 10.1.1.0/24      │   │ 10.1.2.0/24           │   │
 │  │                  │   │                       │   │
 │  │ Inbound EP       │   │ Inbound EP            │   │
 │  │ 10.1.1.10        │   │ 10.1.2.10             │   │
@@ -31,7 +36,7 @@
 │  │ 10.1.1.11        │   │ 10.1.2.11             │   │
 │  └──────────────────┘   └───────────────────────┘   │
 │                                                     │
-│  Route 53 Private Hosted Zone: cloud.viet.vn         │
+│  Route 53 Private Hosted Zone: cloud.viet.vn        │
 │  S3 Gateway Endpoint                                │
 └─────────────────────────┬───────────────────────────┘
                           │ VPC Peering
@@ -40,13 +45,13 @@
 │           VPC OP — On-Premises (10.2.0.0/16)        │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐   │
-│  │ Private Subnet OP — 10.2.1.0/24              │   │
+│  │ Public Subnet OP — 10.2.1.0/24               │   │
 │  │                                              │   │
 │  │ DNS Server (BIND)     App Server             │   │
 │  │ dns.op.viet.vn        app.op.viet.vn         │   │
 │  │ 10.2.1.10             10.2.1.20              │   │
 │  │                                              │   │
-│  │                       DB Server (simulated)  │   │
+│  │                       DB Server              │   │
 │  │                       db.op.viet.vn          │   │
 │  │                       10.2.1.30              │   │
 │  └──────────────────────────────────────────────┘   │
@@ -81,7 +86,7 @@
 | VPC OP | `10.2.0.0/16` |
 | Subnet OP | `10.2.1.0/24` |
 | VPC Peering | VPC A ↔ VPC OP, routes added both sides |
-| EC2-Cloud | VPC A, `10.1.1.50`, private only, no public IP |
+| EC2-Cloud | VPC A, `10.1.0.40`, private only, no public IP |
 | DNS Server (BIND) | VPC OP, `10.2.1.10`, BIND installed and running |
 | App Server | VPC OP, `10.2.1.20` |
 | S3 Bucket | `ap-southeast-1`, private |
@@ -177,7 +182,7 @@
 
 | Host | VPC | IP | Hostname |
 |------|----|-----|----------|
-| EC2-Cloud | VPC A | `10.1.1.50` | `app.cloud.viet.vn` |
+| EC2-Cloud | VPC A | `10.1.0.40` | `app.cloud.viet.vn` |
 | Inbound Resolver (AZ-a) | VPC A | `10.1.1.10` | — |
 | Inbound Resolver (AZ-b) | VPC A | `10.1.2.10` | — |
 | Outbound Resolver (AZ-a) | VPC A | `10.1.1.11` | — |

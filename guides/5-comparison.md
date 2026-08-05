@@ -74,7 +74,7 @@ aws route53resolver associate-firewall-rule-group \
 ## Demo Verification
 
 ```bash
-# From EC2-Cloud (10.1.1.50)
+# From EC2-Cloud (10.1.0.40)
 
 # Blocked domain returns NXDOMAIN
 dig malware-test.op.viet.vn
@@ -85,7 +85,7 @@ dig exfil.badactor.com
 
 # Legitimate domains still resolve
 dig app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 # Check CloudWatch Logs for firewall block events
 # Filter: { $.firewall_rule_action = "BLOCK" }
@@ -116,10 +116,10 @@ A CNAME in a Private Hosted Zone works the same as in a public zone — it point
 
 ```bash
 # CNAME already created in the All-AWS or Split DNS scenario:
-# api.cloud.viet.vn → app.cloud.viet.vn → 10.1.1.50
+# api.cloud.viet.vn → app.cloud.viet.vn → 10.1.0.40
 
 dig api.cloud.viet.vn
-# Returns: CNAME api.cloud.viet.vn → app.cloud.viet.vn, then A 10.1.1.50
+# Returns: CNAME api.cloud.viet.vn → app.cloud.viet.vn, then A 10.1.0.40
 ```
 
 **Limitation:** You cannot use a CNAME at the zone apex (`cloud.viet.vn` itself). Use an Alias record there instead.
@@ -158,7 +158,7 @@ aws route53 change-resource-record-sets \
 
 # Test zone apex resolution
 dig cloud.viet.vn
-# Expected: 10.1.1.50 (resolves through alias chain, no CNAME shown)
+# Expected: 10.1.0.40 (resolves through alias chain, no CNAME shown)
 ```
 
 **Key difference to show:** `dig api.cloud.viet.vn` shows the CNAME in the answer section. `dig cloud.viet.vn` with an Alias record returns only the A record — the alias is transparent at the DNS level.

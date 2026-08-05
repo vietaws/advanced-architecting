@@ -8,7 +8,7 @@ BIND on-premises is the single DNS authority for **both** environments. VPC A is
 EC2-Cloud queries app.cloud.viet.vn
   → Custom DHCP → BIND (10.2.1.10) via VPC Peering
   → Authoritative zone: cloud.viet.vn
-  → Returns 10.1.1.50  ✓
+  → Returns 10.1.0.40  ✓
 
 EC2-Cloud queries app.op.viet.vn
   → Custom DHCP → BIND (10.2.1.10) via VPC Peering
@@ -23,7 +23,7 @@ EC2-Cloud queries s3.ap-southeast-1.amazonaws.com
 App Server queries app.cloud.viet.vn
   → DHCP → BIND (10.2.1.10) (local, same VPC)
   → Authoritative zone: cloud.viet.vn
-  → Returns 10.1.1.50  ✓
+  → Returns 10.1.0.40  ✓
 ```
 
 **No Route 53 Resolver Endpoints needed.** The only Route 53 component used is the Private Hosted Zone, and even that is optional in this scenario.
@@ -131,7 +131,7 @@ $TTL 300
 @   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
 @       IN  NS  dns.op.viet.vn.
-app     IN  A   10.1.1.50
+app     IN  A   10.1.0.40
 web     IN  A   10.1.1.51
 api     IN  CNAME app.cloud.viet.vn.
 EOF
@@ -211,7 +211,7 @@ aws ec2 associate-dhcp-options \
 ## Demo Verification
 
 ```bash
-# ── From EC2-Cloud (10.1.1.50) ───────────────────────────────────
+# ── From EC2-Cloud (10.1.0.40) ───────────────────────────────────
 
 # Confirm DNS server is BIND on-prem
 cat /etc/resolv.conf
@@ -219,10 +219,10 @@ cat /etc/resolv.conf
 
 # Cloud → Cloud: BIND answers from cloud.viet.vn zone
 dig app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 dig api.cloud.viet.vn
-# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
+# Expected: CNAME → app.cloud.viet.vn → 10.1.0.40
 
 # Cloud → On-prem: BIND answers from op.viet.vn zone
 dig app.op.viet.vn
@@ -245,7 +245,7 @@ dig app.op.viet.vn
 # Expected: 10.2.1.20
 
 dig app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 
 # ── Live query log on DNS Server ─────────────────────────────────
@@ -272,7 +272,7 @@ dig app.op.viet.vn           # ✗ times out
 
 # 4. Restart BIND → full recovery
 sudo systemctl start named
-dig app.cloud.viet.vn         # ✓ 10.1.1.50
+dig app.cloud.viet.vn         # ✓ 10.1.0.40
 ```
 
 **Talking point:** BIND is a single point of failure for both environments. In production this requires HA (primary + secondary BIND) or adding `10.2.1.11` as a secondary DNS server and listing both IPs in the DHCP options. Compare this to Split DNS (Scenario 3) where a BIND failure only affects `op.viet.vn`.

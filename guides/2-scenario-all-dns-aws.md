@@ -8,7 +8,7 @@ Route 53 is the single DNS authority for **both** environments. It hosts private
 EC2-Cloud queries app.cloud.viet.vn
   → VPC DNS (10.1.0.2)
   → Route 53 PHZ: cloud.viet.vn
-  → Returns 10.1.1.50  ✓  (instant, never leaves VPC A)
+  → Returns 10.1.0.40  ✓  (instant, never leaves VPC A)
 
 EC2-Cloud queries app.op.viet.vn
   → VPC DNS (10.1.0.2)
@@ -19,7 +19,7 @@ App Server queries app.cloud.viet.vn
   → BIND (10.2.1.10) — forwarder only
   → Inbound Endpoint (10.1.1.10)
   → Route 53 PHZ: cloud.viet.vn
-  → Returns 10.1.1.50  ✓
+  → Returns 10.1.0.40  ✓
 
 App Server queries app.op.viet.vn
   → BIND (10.2.1.10) — forwarder only
@@ -60,7 +60,7 @@ cat > /tmp/cloud-records.json << EOF
       "ResourceRecordSet": {
         "Name": "app.cloud.viet.vn",
         "Type": "A", "TTL": 300,
-        "ResourceRecords": [{"Value": "10.1.1.50"}]
+        "ResourceRecords": [{"Value": "10.1.0.40"}]
       }
     },
     {
@@ -271,15 +271,15 @@ echo "Query Log Config: $QLOG_ID"
 ## Demo Verification
 
 ```bash
-# ── From EC2-Cloud (10.1.1.50) ───────────────────────────────────
+# ── From EC2-Cloud (10.1.0.40) ───────────────────────────────────
 
 # Cloud → Cloud: VPC DNS answers directly, no BIND involved
 dig app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 # CNAME chain
 dig api.cloud.viet.vn
-# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
+# Expected: CNAME → app.cloud.viet.vn → 10.1.0.40
 
 # Cloud → On-prem: Route 53 PHZ answers (no Outbound Endpoint needed)
 dig app.op.viet.vn
@@ -297,7 +297,7 @@ dig s3.ap-southeast-1.amazonaws.com
 
 # On-prem → Cloud: BIND forwards to Inbound Endpoint → PHZ
 dig @10.2.1.10 app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 # On-prem → On-prem: BIND forwards to Inbound Endpoint → PHZ op.viet.vn
 dig @10.2.1.10 app.op.viet.vn

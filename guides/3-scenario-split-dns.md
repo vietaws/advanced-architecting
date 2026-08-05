@@ -21,7 +21,7 @@ VPC A (10.1.0.0/16)                    VPC OP (10.2.0.0/16)
 Subnet A   10.1.1.0/24                 Subnet OP  10.2.1.0/24
 Subnet A2  10.1.2.0/24 (HA)
                                          DNS Server  10.2.1.10
-EC2-Cloud  10.1.1.50                     App Server  10.2.1.20
+EC2-Cloud  10.1.0.40                     App Server  10.2.1.20
 S3 Gateway Endpoint
                    ←──── VPC Peering ────→
 ```
@@ -182,7 +182,7 @@ aws ec2 run-instances \
   --subnet-id $SUBNET_A \
   --security-group-ids $SG_A \
   --key-name $KEY_PAIR \
-  --private-ip-address 10.1.1.50 \
+  --private-ip-address 10.1.0.40 \
   --no-associate-public-ip-address \
   --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=EC2-Cloud}]' \
   --region ap-southeast-1
@@ -287,7 +287,7 @@ echo "S3 Bucket: $BUCKET"
 ```bash
 # IP connectivity works both ways
 ping -c3 10.2.1.20   # from EC2-Cloud → App Server
-ping -c3 10.1.1.50   # from App Server → EC2-Cloud
+ping -c3 10.1.0.40   # from App Server → EC2-Cloud
 
 # DNS is NOT yet cross-environment (expected at this stage)
 dig app.cloud.viet.vn   # NXDOMAIN — not configured yet
@@ -313,7 +313,7 @@ Each environment is authoritative for its own domain. Cross-domain queries are f
 EC2-Cloud queries app.cloud.viet.vn
   → VPC DNS (10.1.0.2)
   → Route 53 PHZ: cloud.viet.vn
-  → Returns 10.1.1.50  ✓ (never leaves VPC A)
+  → Returns 10.1.0.40  ✓ (never leaves VPC A)
 
 EC2-Cloud queries app.op.viet.vn
   → VPC DNS (10.1.0.2)
@@ -325,7 +325,7 @@ App Server queries app.cloud.viet.vn
   → DHCP → BIND (10.2.1.10)
   → Forwarder: cloud.viet.vn → Inbound Endpoint (10.1.1.10)
   → VPC Peering → Route 53 PHZ
-  → Returns 10.1.1.50  ✓
+  → Returns 10.1.0.40  ✓
 
 App Server queries app.op.viet.vn
   → BIND (10.2.1.10)
@@ -356,7 +356,7 @@ cat > /tmp/cloud-records.json << EOF
         "Name": "app.cloud.viet.vn",
         "Type": "A",
         "TTL": 300,
-        "ResourceRecords": [{"Value": "10.1.1.50"}]
+        "ResourceRecords": [{"Value": "10.1.0.40"}]
       }
     },
     {
@@ -519,15 +519,15 @@ sudo systemctl status named
 ## Demo Verification
 
 ```bash
-# ── From EC2-Cloud (10.1.1.50) ───────────────────────────────────
+# ── From EC2-Cloud (10.1.0.40) ───────────────────────────────────
 
 # Cloud → Cloud: resolves directly via VPC DNS, no BIND involved
 dig app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 
 # CNAME record
 dig api.cloud.viet.vn
-# Expected: CNAME → app.cloud.viet.vn → 10.1.1.50
+# Expected: CNAME → app.cloud.viet.vn → 10.1.0.40
 
 # Cloud → On-prem: goes via Outbound Endpoint → BIND
 dig app.op.viet.vn
@@ -548,7 +548,7 @@ dig @10.2.1.10 app.op.viet.vn
 
 # On-prem → Cloud: BIND forwards to Inbound Endpoint
 dig @10.2.1.10 app.cloud.viet.vn
-# Expected: 10.1.1.50
+# Expected: 10.1.0.40
 ```
 
 ## Blast Radius Test (Key Demo Moment)
@@ -558,7 +558,7 @@ dig @10.2.1.10 app.cloud.viet.vn
 sudo systemctl stop named
 
 # 2. From EC2-Cloud: cloud DNS still works
-dig app.cloud.viet.vn   # still returns 10.1.1.50 ✓
+dig app.cloud.viet.vn   # still returns 10.1.0.40 ✓
 
 # 3. From EC2-Cloud: on-prem DNS fails (expected)
 dig app.op.viet.vn     # times out ✗
