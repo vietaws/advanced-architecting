@@ -233,16 +233,29 @@ Resources:
           mkdir -p /opt/app
           cd /opt/app
 
-          npm init -y
-          npm install pg
+          # Write package.json with ES module support before npm install
+          python3 -c "
+          import json
+          pkg = {
+            'name': 'op-app',
+            'version': '1.0.0',
+            'type': 'module',
+            'main': 'app.js',
+            'scripts': { 'start': 'node app.js' },
+            'dependencies': { 'pg': '^8.13.3' }
+          }
+          open('/opt/app/package.json','w').write(json.dumps(pkg, indent=2))
+          "
 
-          # Dummy app — replace with op-app.js from repo root before demo
+          npm install
+
+          # Dummy app — copy op-app.js from repo, rename to app.js before demo
           python3 -c "
           open('/opt/app/app.js','w').write(
-          'const http = require(\"http\");\n'
+          'import http from \"http\";\n'
           'http.createServer((req, res) => {\n'
           '  res.writeHead(200, { \"Content-Type\": \"text/html\" });\n'
-          '  res.end(\"<h1>app.op.viet.vn</h1><p>Replace with op-app.js from repo.</p>\");\n'
+          '  res.end(\"<h1>app.op.viet.vn</h1><p>Copy op-app.js from repo and rename to app.js.</p>\");\n'
           '}).listen(80, () => console.log(\"Listening on port 80\"));\n'
           )
           "

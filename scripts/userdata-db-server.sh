@@ -16,7 +16,7 @@ DB_PASSWORD="demoPassword"
 TABLE_NAME="products"
 
 dnf update -y
-dnf install -y postgresql17-server bind-utils nc
+dnf install -y postgresql18-server bind-utils nc
 
 hostnamectl set-hostname db.op.viet.vn
 

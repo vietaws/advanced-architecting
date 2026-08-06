@@ -82,8 +82,8 @@ Resources:
             'name': 'cloud-app',
             'version': '1.0.0',
             'type': 'module',
-            'main': 'cloud-app.js',
-            'scripts': { 'start': 'node cloud-app.js' },
+            'main': 'app.js',
+            'scripts': { 'start': 'node app.js' },
             'dependencies': { 'pg': '^8.13.3' }
           }
           open('/opt/app/package.json','w').write(json.dumps(pkg, indent=2))
@@ -92,13 +92,13 @@ Resources:
           cd /opt/app
           npm install
 
-          # Dummy app — replace with cloud-app.js from repo root before demo
+          # Dummy app — copy cloud-app.js from repo, rename to app.js before demo
           python3 -c "
           open('/opt/app/app.js','w').write(
           'import http from \"http\";\n'
           'http.createServer((req, res) => {\n'
           '  res.writeHead(200, { \"Content-Type\": \"text/html\" });\n'
-          '  res.end(\"<h1>app.cloud.viet.vn</h1><p>Replace with cloud-app.js from repo.</p>\");\n'
+          '  res.end(\"<h1>app.cloud.viet.vn</h1><p>Copy cloud-app.js from repo and rename to app.js.</p>\");\n'
           '}).listen(80, () => console.log(\"Listening on port 80\"));\n'
           )
           "
@@ -168,7 +168,7 @@ Resources:
           echo "[$(date)] EC2-Cloud setup complete."
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-EC2-Cloud"
+          Value: "Cloud-App-Server"
 
 # =============================================================================
 Outputs:
