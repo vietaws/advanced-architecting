@@ -1,0 +1,1400 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Storage Gateway vs DataSync Demo - Network Foundation
+  Creates: Cloud VPC + OnPrem VPC, Subnets (public+private, 2 AZs each),
+  VPC Peering, Route Tables, Security Groups, NACLs, VPC Endpoints (SSM),
+  EFS File System, CloudWatch Dashboard.
+  Instances are created manually after this stack deploys.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - CloudVpcCidr
+          - OnPremVpcCidr
+      - Label:
+          default: Demo Configuration
+        Parameters:
+          - DemoPrefix
+          - EC2InstanceRoleName
+
+Parameters:
+  DemoPrefix:
+    Type: String
+    Default: sgw-datasync-demo
+    Description: Prefix used for all resource names and tags
+
+  EC2InstanceRoleName:
+    Type: String
+    Default: ec2-instance-role
+    Description: Pre-existing IAM role name attached to all EC2 instances (must have SSM + S3 + EFS + FSx permissions)
+
+  CloudVpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    Description: CIDR block for the Cloud VPC
+
+  OnPremVpcCidr:
+    Type: String
+    Default: 10.1.0.0/16
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    Description: CIDR block for the simulated On-Premises VPC
+
+# ---------------------------------------------------------------------------
+# MAPPINGS
+# ---------------------------------------------------------------------------
+Mappings:
+  SubnetConfig:
+    CloudPublic1a:
+      CIDR: 10.0.1.0/24
+    CloudPublic1b:
+      CIDR: 10.0.2.0/24
+    CloudPrivate1a:
+      CIDR: 10.0.101.0/24
+    CloudPrivate1b:
+      CIDR: 10.0.102.0/24
+    OnPremPublic1a:
+      CIDR: 10.1.1.0/24
+    OnPremPublic1b:
+      CIDR: 10.1.2.0/24
+    OnPremPrivate1a:
+      CIDR: 10.1.101.0/24
+    OnPremPrivate1b:
+      CIDR: 10.1.102.0/24
+
+# ---------------------------------------------------------------------------
+# RESOURCES
+# ---------------------------------------------------------------------------
+Resources:
+
+  # =========================================================================
+  # CLOUD VPC
+  # =========================================================================
+  CloudVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref CloudVpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-vpc
+        - Key: Demo
+          Value: !Ref DemoPrefix
+
+  CloudIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-igw
+
+  CloudIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref CloudVPC
+      InternetGatewayId: !Ref CloudIGW
+
+  # Cloud Subnets
+  CloudPublicSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudVPC
+      CidrBlock: !FindInMap [SubnetConfig, CloudPublic1a, CIDR]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-public-1a
+
+  CloudPublicSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudVPC
+      CidrBlock: !FindInMap [SubnetConfig, CloudPublic1b, CIDR]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-public-1b
+
+  CloudPrivateSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudVPC
+      CidrBlock: !FindInMap [SubnetConfig, CloudPrivate1a, CIDR]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-private-1a
+
+  CloudPrivateSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudVPC
+      CidrBlock: !FindInMap [SubnetConfig, CloudPrivate1b, CIDR]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-private-1b
+
+  # =========================================================================
+  # ON-PREM VPC
+  # =========================================================================
+  OnPremVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref OnPremVpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-vpc
+        - Key: Demo
+          Value: !Ref DemoPrefix
+
+  OnPremIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-igw
+
+  OnPremIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref OnPremVPC
+      InternetGatewayId: !Ref OnPremIGW
+
+  # OnPrem Subnets
+  OnPremPublicSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref OnPremVPC
+      CidrBlock: !FindInMap [SubnetConfig, OnPremPublic1a, CIDR]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-public-1a
+
+  OnPremPublicSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref OnPremVPC
+      CidrBlock: !FindInMap [SubnetConfig, OnPremPublic1b, CIDR]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-public-1b
+
+  OnPremPrivateSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref OnPremVPC
+      CidrBlock: !FindInMap [SubnetConfig, OnPremPrivate1a, CIDR]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-private-1a
+
+  OnPremPrivateSubnet1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref OnPremVPC
+      CidrBlock: !FindInMap [SubnetConfig, OnPremPrivate1b, CIDR]
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-private-1b
+
+  # =========================================================================
+  # VPC PEERING
+  # =========================================================================
+  VpcPeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref CloudVPC
+      PeerVpcId: !Ref OnPremVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-to-onprem-peering
+
+  # =========================================================================
+  # ROUTE TABLES - CLOUD VPC
+  # =========================================================================
+  CloudPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-public-rt
+
+  CloudPublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudIGWAttachment
+    Properties:
+      RouteTableId: !Ref CloudPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CloudIGW
+
+  CloudPublicPeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref CloudPublicRouteTable
+      DestinationCidrBlock: !Ref OnPremVpcCidr
+      VpcPeeringConnectionId: !Ref VpcPeeringConnection
+
+  CloudPublicSubnet1aRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudPublicSubnet1a
+      RouteTableId: !Ref CloudPublicRouteTable
+
+  CloudPublicSubnet1bRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudPublicSubnet1b
+      RouteTableId: !Ref CloudPublicRouteTable
+
+  CloudPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-private-rt
+
+  CloudPrivatePeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref CloudPrivateRouteTable
+      DestinationCidrBlock: !Ref OnPremVpcCidr
+      VpcPeeringConnectionId: !Ref VpcPeeringConnection
+
+  CloudPrivateSubnet1aRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudPrivateSubnet1a
+      RouteTableId: !Ref CloudPrivateRouteTable
+
+  CloudPrivateSubnet1bRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudPrivateSubnet1b
+      RouteTableId: !Ref CloudPrivateRouteTable
+
+  # =========================================================================
+  # ROUTE TABLES - ONPREM VPC
+  # =========================================================================
+  OnPremPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref OnPremVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-public-rt
+
+  OnPremPublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: OnPremIGWAttachment
+    Properties:
+      RouteTableId: !Ref OnPremPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref OnPremIGW
+
+  OnPremPublicPeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref OnPremPublicRouteTable
+      DestinationCidrBlock: !Ref CloudVpcCidr
+      VpcPeeringConnectionId: !Ref VpcPeeringConnection
+
+  OnPremPublicSubnet1aRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref OnPremPublicSubnet1a
+      RouteTableId: !Ref OnPremPublicRouteTable
+
+  OnPremPublicSubnet1bRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref OnPremPublicSubnet1b
+      RouteTableId: !Ref OnPremPublicRouteTable
+
+  OnPremPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref OnPremVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-private-rt
+
+  OnPremPrivatePeeringRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref OnPremPrivateRouteTable
+      DestinationCidrBlock: !Ref CloudVpcCidr
+      VpcPeeringConnectionId: !Ref VpcPeeringConnection
+
+  OnPremPrivateSubnet1aRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref OnPremPrivateSubnet1a
+      RouteTableId: !Ref OnPremPrivateRouteTable
+
+  OnPremPrivateSubnet1bRTAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref OnPremPrivateSubnet1b
+      RouteTableId: !Ref OnPremPrivateRouteTable
+
+  # =========================================================================
+  # SECURITY GROUPS - CLOUD VPC
+  # =========================================================================
+
+  # EFS Security Group - allows NFS from OnPrem VPC and Cloud VPC
+  CloudEfsSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-cloud-efs-sg
+      GroupDescription: Allow NFS access to EFS from both VPCs
+      VpcId: !Ref CloudVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref CloudVpcCidr
+          Description: NFS from Cloud VPC
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS from OnPrem VPC (via peering)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-efs-sg
+
+  # FSx Security Group - allows SMB/NFS from OnPrem VPC and Cloud VPC
+  CloudFsxSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-cloud-fsx-sg
+      GroupDescription: Allow SMB/NFS access to FSx from both VPCs
+      VpcId: !Ref CloudVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref CloudVpcCidr
+          Description: SMB from Cloud VPC
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB from OnPrem VPC (via peering)
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref CloudVpcCidr
+          Description: NFS from Cloud VPC
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS from OnPrem VPC (via peering)
+        - IpProtocol: tcp
+          FromPort: 5985
+          ToPort: 5985
+          CidrIp: !Ref CloudVpcCidr
+          Description: WinRM HTTP from Cloud VPC (FSx management)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-fsx-sg
+
+  # VPC Endpoints Security Group (SSM, S3, EC2Messages)
+  CloudVpcEndpointSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-cloud-vpce-sg
+      GroupDescription: Allow HTTPS from Cloud VPC for VPC Endpoints
+      VpcId: !Ref CloudVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref CloudVpcCidr
+          Description: HTTPS from Cloud VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-vpce-sg
+
+  # =========================================================================
+  # SECURITY GROUPS - ONPREM VPC
+  # =========================================================================
+
+  # NFS Server SG
+  OnPremNfsServerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-nfs-server-sg
+      GroupDescription: NFS server - allow NFS from OnPrem VPC (gateway + agent) and Cloud VPC
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS TCP from OnPrem VPC (SGW appliance + DataSync agent)
+        - IpProtocol: udp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS UDP from OnPrem VPC
+        - IpProtocol: tcp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper TCP from OnPrem VPC
+        - IpProtocol: udp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper UDP from OnPrem VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound (SSM, S3 endpoints)
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-nfs-server-sg
+
+  # SMB Server SG
+  OnPremSmbServerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-smb-server-sg
+      GroupDescription: SMB server (Samba) - allow SMB from OnPrem VPC (gateway + agent)
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB from OnPrem VPC (SGW appliance + DataSync agent)
+        - IpProtocol: tcp
+          FromPort: 139
+          ToPort: 139
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NetBIOS session from OnPrem VPC
+        - IpProtocol: udp
+          FromPort: 137
+          ToPort: 138
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NetBIOS name/datagram from OnPrem VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-smb-server-sg
+
+  # Storage Gateway Appliance SG
+  OnPremSGWApplianceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-sgw-appliance-sg
+      GroupDescription: Storage Gateway appliance - NFS/SMB/iSCSI inbound from OnPrem VPC, HTTPS to AWS
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        # NFS clients
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS TCP from OnPrem VPC clients
+        - IpProtocol: udp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS UDP from OnPrem VPC clients
+        # SMB clients
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB from OnPrem VPC clients
+        # iSCSI clients
+        - IpProtocol: tcp
+          FromPort: 3260
+          ToPort: 3260
+          CidrIp: !Ref OnPremVpcCidr
+          Description: iSCSI from OnPrem VPC clients (Volume Gateway)
+        # SGW activation / console management
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTP for gateway activation from console/CLI
+        # NFS portmapper
+        - IpProtocol: tcp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper TCP
+        - IpProtocol: udp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper UDP
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS Storage Gateway service endpoints
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTPS within OnPrem VPC
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS outbound to NFS server
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB outbound to SMB server
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-sgw-appliance-sg
+
+  # DataSync Agent SG
+  OnPremDataSyncAgentSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-datasync-agent-sg
+      GroupDescription: DataSync agent - outbound to NFS/SMB servers and AWS DataSync endpoints
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        # DataSync console activation (port 80 from management network)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTP for agent activation
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS DataSync service endpoints
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS to NFS server
+        - IpProtocol: udp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS UDP to NFS server
+        - IpProtocol: tcp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper to NFS server
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB to SMB server
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref CloudVpcCidr
+          Description: SMB to FSx in Cloud VPC (via peering)
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref CloudVpcCidr
+          Description: NFS to EFS in Cloud VPC (via peering)
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-datasync-agent-sg
+
+  # Windows iSCSI Client SG
+  OnPremISCSIClientSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-iscsi-client-sg
+      GroupDescription: Windows iSCSI client - outbound iSCSI to SGW appliance, SSM access
+      VpcId: !Ref OnPremVPC
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 3260
+          ToPort: 3260
+          CidrIp: !Ref OnPremVpcCidr
+          Description: iSCSI to Storage Gateway appliance
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS for SSM and Windows activation
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP for Windows Update
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-iscsi-client-sg
+
+  # OnPrem VPC Endpoints SG (SSM for Linux instances)
+  OnPremVpcEndpointSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-vpce-sg
+      GroupDescription: Allow HTTPS from OnPrem VPC for VPC Endpoints
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTPS from OnPrem VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-vpce-sg
+
+  # =========================================================================
+  # NACLs - CLOUD VPC PUBLIC SUBNETS
+  # =========================================================================
+  CloudPublicNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref CloudVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-public-nacl
+
+  # Inbound rules
+  CloudPublicNACLInHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPublicNACL
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 443, To: 443 }
+
+  CloudPublicNACLInNFS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPublicNACL
+      RuleNumber: 110
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 2049, To: 2049 }
+
+  CloudPublicNACLInSMB:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPublicNACL
+      RuleNumber: 120
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 445, To: 445 }
+
+  CloudPublicNACLInEphemeral:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPublicNACL
+      RuleNumber: 200
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 1024, To: 65535 }
+
+  # Outbound rules
+  CloudPublicNACLOutAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPublicNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+
+  CloudPublicSubnet1aNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref CloudPublicSubnet1a
+      NetworkAclId: !Ref CloudPublicNACL
+
+  CloudPublicSubnet1bNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref CloudPublicSubnet1b
+      NetworkAclId: !Ref CloudPublicNACL
+
+  # =========================================================================
+  # NACLs - CLOUD VPC PRIVATE SUBNETS
+  # =========================================================================
+  CloudPrivateNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref CloudVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-private-nacl
+
+  CloudPrivateNACLInOnPrem:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPrivateNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+
+  CloudPrivateNACLInCloud:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPrivateNACL
+      RuleNumber: 110
+      Protocol: -1
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref CloudVpcCidr
+
+  CloudPrivateNACLOutAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref CloudPrivateNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+
+  CloudPrivateSubnet1aNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref CloudPrivateSubnet1a
+      NetworkAclId: !Ref CloudPrivateNACL
+
+  CloudPrivateSubnet1bNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref CloudPrivateSubnet1b
+      NetworkAclId: !Ref CloudPrivateNACL
+
+  # =========================================================================
+  # NACLs - ONPREM VPC PUBLIC SUBNETS
+  # =========================================================================
+  OnPremPublicNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref OnPremVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-public-nacl
+
+  # Inbound rules
+  OnPremPublicNACLInHTTPS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 443, To: 443 }
+
+  OnPremPublicNACLInHTTP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 105
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 80, To: 80 }
+
+  OnPremPublicNACLInNFS:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 110
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 2049, To: 2049 }
+
+  OnPremPublicNACLInNFSUDP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 111
+      Protocol: 17
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 2049, To: 2049 }
+
+  OnPremPublicNACLInSMB:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 120
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 445, To: 445 }
+
+  OnPremPublicNACLInISCSI:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 130
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 3260, To: 3260 }
+
+  OnPremPublicNACLInPortmapper:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 140
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+      PortRange: { From: 111, To: 111 }
+
+  OnPremPublicNACLInEphemeral:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 200
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 1024, To: 65535 }
+
+  OnPremPublicNACLInEphemeralUDP:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 201
+      Protocol: 17
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: { From: 1024, To: 65535 }
+
+  # Outbound rules
+  OnPremPublicNACLOutAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPublicNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+
+  OnPremPublicSubnet1aNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref OnPremPublicSubnet1a
+      NetworkAclId: !Ref OnPremPublicNACL
+
+  OnPremPublicSubnet1bNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref OnPremPublicSubnet1b
+      NetworkAclId: !Ref OnPremPublicNACL
+
+  # =========================================================================
+  # NACLs - ONPREM VPC PRIVATE SUBNETS
+  # =========================================================================
+  OnPremPrivateNACL:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref OnPremVPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-private-nacl
+
+  OnPremPrivateNACLInAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPrivateNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: false
+      CidrBlock: !Ref OnPremVpcCidr
+
+  OnPremPrivateNACLOutAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref OnPremPrivateNACL
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+
+  OnPremPrivateSubnet1aNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref OnPremPrivateSubnet1a
+      NetworkAclId: !Ref OnPremPrivateNACL
+
+  OnPremPrivateSubnet1bNACLAssoc:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref OnPremPrivateSubnet1b
+      NetworkAclId: !Ref OnPremPrivateNACL
+
+  # =========================================================================
+  # VPC ENDPOINTS - ONPREM VPC (SSM Session Manager for Linux instances)
+  # Allows SSM without NAT Gateway since instances are in public subnets
+  # with IGW, but adding endpoints ensures traffic stays on AWS network
+  # and works even if public IP is not assigned.
+  # =========================================================================
+  OnPremSSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref OnPremVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref OnPremPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref OnPremVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  OnPremSSMMessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref OnPremVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref OnPremPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref OnPremVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  OnPremEC2MessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref OnPremVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref OnPremPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref OnPremVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  # S3 Gateway Endpoint for OnPrem VPC (free - no data transfer cost via endpoint)
+  OnPremS3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref OnPremVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref OnPremPublicRouteTable
+        - !Ref OnPremPrivateRouteTable
+
+  # =========================================================================
+  # VPC ENDPOINTS - CLOUD VPC (SSM for any future cloud instances)
+  # =========================================================================
+  CloudSSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CloudVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref CloudPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref CloudVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  CloudSSMMessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CloudVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref CloudPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref CloudVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  CloudEC2MessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CloudVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref CloudPublicSubnet1a
+      SecurityGroupIds:
+        - !Ref CloudVpcEndpointSG
+      PrivateDnsEnabled: true
+
+  # S3 Gateway Endpoint for Cloud VPC
+  CloudS3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref CloudVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref CloudPublicRouteTable
+        - !Ref CloudPrivateRouteTable
+
+  # =========================================================================
+  # AMAZON EFS
+  # =========================================================================
+  DemoEFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-efs
+
+  # EFS Mount Target in Cloud Public Subnet 1a (DataSync agent connects via peering)
+  DemoEFSMountTarget1a:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref DemoEFS
+      SubnetId: !Ref CloudPublicSubnet1a
+      SecurityGroups:
+        - !Ref CloudEfsSG
+
+  # EFS Mount Target in Cloud Public Subnet 1b (redundancy)
+  DemoEFSMountTarget1b:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref DemoEFS
+      SubnetId: !Ref CloudPublicSubnet1b
+      SecurityGroups:
+        - !Ref CloudEfsSG
+
+  # =========================================================================
+  # AMAZON S3 BUCKET
+  # =========================================================================
+  DemoS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${DemoPrefix}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-bucket
+        - Key: Demo
+          Value: !Ref DemoPrefix
+
+  # =========================================================================
+  # CLOUDWATCH DASHBOARD
+  # =========================================================================
+  DemoCloudWatchDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${DemoPrefix}-dashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": {
+                "markdown": "# SGW vs DataSync Demo Dashboard\nRegion: ${AWS::Region} | Stack: ${AWS::StackName}\n**Left panel:** Storage Gateway metrics | **Right panel:** DataSync metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "Storage Gateway - Cache Hit %",
+                "metrics": [
+                  [ "StorageGateway", "CacheHitPercent", { "stat": "Average", "period": 300 } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "yAxis": { "left": { "min": 0, "max": 100 } },
+                "annotations": {
+                  "horizontal": [ { "label": "Alert threshold", "value": 50, "color": "#ff6961" } ]
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "DataSync - Files Transferred per Execution",
+                "metrics": [
+                  [ "AWS/DataSync", "FilesTransferred", { "stat": "Sum", "period": 300 } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "Storage Gateway - Cloud Bytes Uploaded/Downloaded",
+                "metrics": [
+                  [ "StorageGateway", "CloudBytesUploaded", { "stat": "Sum", "period": 300, "label": "Uploaded" } ],
+                  [ "StorageGateway", "CloudBytesDownloaded", { "stat": "Sum", "period": 300, "label": "Downloaded" } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "DataSync - Bytes Transferred",
+                "metrics": [
+                  [ "AWS/DataSync", "BytesTransferred", { "stat": "Sum", "period": 300 } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "Storage Gateway - Cache Used (bytes)",
+                "metrics": [
+                  [ "StorageGateway", "CacheUsed", { "stat": "Maximum", "period": 300 } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "DataSync - Files Verified",
+                "metrics": [
+                  [ "AWS/DataSync", "FilesVerified", { "stat": "Sum", "period": 300 } ]
+                ],
+                "view": "timeSeries",
+                "region": "${AWS::Region}"
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarm - SGW Cache Hit % drops below 50%
+  SGWCacheHitAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DemoPrefix}-sgw-low-cache-hit
+      AlarmDescription: Storage Gateway cache hit rate below 50% - cache may be undersized or data is too cold
+      Namespace: StorageGateway
+      MetricName: CacheHitPercent
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 50
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm - DataSync task error
+  DataSyncErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${DemoPrefix}-datasync-transfer-error
+      AlarmDescription: DataSync task reported file transfer errors
+      Namespace: AWS/DataSync
+      MetricName: FilesTransferredFailed
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  # =========================================================================
+  # OUTPUTS
+  # =========================================================================
+Outputs:
+  CloudVPCId:
+    Description: Cloud VPC ID
+    Value: !Ref CloudVPC
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-vpc-id
+
+  OnPremVPCId:
+    Description: OnPrem VPC ID
+    Value: !Ref OnPremVPC
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-vpc-id
+
+  VpcPeeringId:
+    Description: VPC Peering Connection ID
+    Value: !Ref VpcPeeringConnection
+    Export:
+      Name: !Sub ${DemoPrefix}-peering-id
+
+  OnPremPublicSubnet1aId:
+    Description: OnPrem Public Subnet 1a (primary subnet for all demo instances)
+    Value: !Ref OnPremPublicSubnet1a
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-public-1a-id
+
+  OnPremPublicSubnet1bId:
+    Description: OnPrem Public Subnet 1b
+    Value: !Ref OnPremPublicSubnet1b
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-public-1b-id
+
+  CloudPublicSubnet1aId:
+    Description: Cloud Public Subnet 1a
+    Value: !Ref CloudPublicSubnet1a
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-public-1a-id
+
+  CloudPublicSubnet1bId:
+    Description: Cloud Public Subnet 1b
+    Value: !Ref CloudPublicSubnet1b
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-public-1b-id
+
+  OnPremNfsServerSGId:
+    Description: Security Group ID for NFS Server
+    Value: !Ref OnPremNfsServerSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-nfs-sg-id
+
+  OnPremSmbServerSGId:
+    Description: Security Group ID for SMB Server
+    Value: !Ref OnPremSmbServerSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-smb-sg-id
+
+  OnPremSGWApplianceSGId:
+    Description: Security Group ID for Storage Gateway Appliance
+    Value: !Ref OnPremSGWApplianceSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-sgw-sg-id
+
+  OnPremDataSyncAgentSGId:
+    Description: Security Group ID for DataSync Agent
+    Value: !Ref OnPremDataSyncAgentSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-datasync-sg-id
+
+  OnPremISCSIClientSGId:
+    Description: Security Group ID for Windows iSCSI Client
+    Value: !Ref OnPremISCSIClientSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-iscsi-sg-id
+
+  CloudEfsSGId:
+    Description: Security Group ID for EFS
+    Value: !Ref CloudEfsSG
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-efs-sg-id
+
+  CloudFsxSGId:
+    Description: Security Group ID for FSx
+    Value: !Ref CloudFsxSG
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-fsx-sg-id
+
+  EFSFileSystemId:
+    Description: EFS File System ID (use as DataSync destination)
+    Value: !Ref DemoEFS
+    Export:
+      Name: !Sub ${DemoPrefix}-efs-id
+
+  EFSMountTarget1aDNS:
+    Description: EFS Mount Target DNS in AZ 1a
+    Value: !Sub ${DemoEFS}.efs.${AWS::Region}.amazonaws.com
+
+  S3BucketName:
+    Description: Demo S3 Bucket Name
+    Value: !Ref DemoS3Bucket
+    Export:
+      Name: !Sub ${DemoPrefix}-s3-bucket
+
+  CloudWatchDashboardURL:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${DemoPrefix}-dashboard
+
+  StackDeployNote:
+    Description: Next steps after stack deployment
+    Value: "Deploy complete. Create EC2 instances manually: op-nfs-server (t4g.micro, OnPrem Public 1a), op-smb-server (t4g.micro, OnPrem Public 1a), op-iscsi-client (t3.medium Win2022, OnPrem Public 1a), op-sgw-appliance (m6i.xlarge SGW AMI, OnPrem Public 1a), op-datasync-agent (m6a.2xlarge DataSync AMI, OnPrem Public 1a). Attach IAM role: ec2-instance-role to all instances."
