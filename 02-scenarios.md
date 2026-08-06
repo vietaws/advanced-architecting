@@ -24,6 +24,173 @@
 
 ## Part 1: AWS Storage Gateway Scenarios
 
+### DS-01 — DataSync: NFS → Amazon S3 (One-Time Task) *(Easy)*
+
+**What it shows:** The most basic DataSync use case. Define a task to copy data from the on-prem NFS server to S3. Run it once. This is the DataSync equivalent entry point to SGW-01.
+
+**Protocol:** NFS v3/v4 (source), S3 API (destination)  
+**Source:** `op-nfs-server` `/data/nfs-share` (NFS export)  
+**Agent:** `op-datasync-agent` (m6a.2xlarge, DataSync Agent AMI)  
+**Target:** Amazon S3 bucket `demo-sgw-datasync-<accountid>`/datasync-nfs/  
+
+**Demo steps:**
+1. In DataSync console: the agent should already be activated — show its status as **Online**
+2. Create a **source location**: NFS — enter agent ARN, NFS server IP (`op-nfs-server`), export path `/data/nfs-share`
+3. Create a **destination location**: S3 — select bucket and prefix `datasync-nfs/`, select IAM role
+4. Create a **task**: select source + destination, leave all options default
+5. Start the task manually — **Execute task**
+6. Watch the task **progress in real time**: files transferred, bytes transferred, throughput (MB/s)
+7. When complete: show files in S3 under `datasync-nfs/` prefix
+8. Show **task report** in CloudWatch Logs: per-file transfer status, checksum verification results
+
+**Key talking points:**
+- DataSync requires an **explicit action** to move data — nothing moves until you run the task
+- The **agent** in the on-prem VPC connects to the NFS server locally (high-speed LAN), then transfers to S3 over the network
+- DataSync performs **end-to-end integrity checksums** automatically — every file is verified at source and destination
+- Throughput is automatically optimized with parallel streams — no tuning required
+
+**Differentiator vs SGW-01:** SGW-01 data moved because someone wrote to the NFS mount. DS-01 data moves because an operator triggered a task. Same files in S3 at the end — completely different operational model.
+
+---
+
+### DS-02 — DataSync: SMB → FSx for Windows (One-Time Task) *(Easy)*
+
+**What it shows:** DataSync migrating SMB file share data to FSx for Windows — a common migration scenario from on-prem Windows file servers to cloud-native Windows file storage.
+
+**Protocol:** SMB v2/v3 (source), FSx API (destination)  
+**Source:** `op-smb-server` Samba share `//10.1.1.x/demo`  
+**Agent:** `op-datasync-agent`  
+**Target:** Amazon FSx for Windows File Server (`demo-fsx`)  
+
+**Demo steps:**
+1. Create a **source location**: SMB — enter agent ARN, SMB server IP, share name `demo`, credentials
+2. Create a **destination location**: FSx for Windows — select the FSx file system, subdirectory `/datasync-smb`
+3. Create and run the task
+4. Show transfer progress in DataSync console
+5. Verify files in FSx console or by mounting FSx from a cloud EC2
+
+**Key talking points:**
+- Use case: **Windows file server migration** to FSx — one of the most common enterprise migration scenarios
+- DataSync preserves **NTFS ACLs, timestamps, and file attributes** when transferring to FSx
+- This is a migration tool — after migration, users switch to accessing FSx directly; the on-prem share can be decommissioned
+- Contrast with SGW-04: SGW-04 keeps the on-prem share alive permanently (ongoing tiering); DS-02 moves data and ends (migration/cutover)
+
+---
+
+### DS-03 — DataSync: NFS → Amazon EFS (Scheduled Task) *(Intermediate)*
+
+**What it shows:** DataSync with a **schedule** — automatically sync on-prem NFS data to EFS on a recurring basis. Also shows EFS as a target (NFS-compatible cloud file system).
+
+**Protocol:** NFS v3/v4 (source + destination)  
+**Source:** `op-nfs-server` `/data/nfs-share`  
+**Agent:** `op-datasync-agent`  
+**Target:** Amazon EFS `demo-efs` (mounted in Cloud VPC)  
+
+**Demo steps:**
+1. Create a **source location**: NFS (same as DS-01)
+2. Create a **destination location**: EFS — select the EFS file system, subdirectory `/datasync-efs`
+3. Create a task with a **schedule**: every 1 hour (for demo, use every 15 minutes via cron: `0/15 * * * ? *`)
+4. Show the schedule configuration in the task settings
+5. Add a new file to the NFS server: `echo "scheduled sync test" > /data/nfs-share/scheduled-test.txt`
+6. Wait for the next scheduled run (or trigger manually) — show the file appearing in EFS
+7. Show **task execution history** — multiple runs with timestamps and file counts
+
+**Key talking points:**
+- EFS is a **serverless NFS file system** — no servers to manage, scales automatically, accessible from any EC2 in the VPC via NFS
+- Schedule = DataSync becomes a **continuous replication** tool when run frequently
+- Use case: on-prem NFS data needs to be available in the cloud for analytics, ML training, or disaster recovery
+- EFS supports NFSv4 natively — data transferred from on-prem NFS lands in a cloud NFS system with no protocol translation
+- Preserves POSIX permissions, ownership, timestamps
+
+---
+
+### DS-04 — DataSync: Filtering, Bandwidth Throttling & Transfer Options *(Intermediate)*
+
+**What it shows:** DataSync's advanced task configuration — filtering files, throttling bandwidth, and controlling what gets transferred. This is where DataSync shows its operational sophistication.
+
+**Protocol:** NFS v3/v4 (source), S3 (destination)  
+**Source:** `op-nfs-server` `/data/nfs-share`  
+**Agent:** `op-datasync-agent`  
+**Target:** Amazon S3 bucket, prefix `datasync-filtered/`  
+
+**Demo steps:**
+
+**Part A — Filtering:**
+1. Create a new task (or modify DS-01) with **include/exclude filters**
+2. Add an include filter: `*.txt` — only transfer text files
+3. Add an exclude filter: `*/tmp/*` — skip any `tmp` subdirectory
+4. Populate the NFS share with mixed files:
+   ```bash
+   echo "include me" > /data/nfs-share/report.txt
+   dd if=/dev/urandom bs=1M count=10 of=/data/nfs-share/binary.bin
+   mkdir -p /data/nfs-share/tmp && echo "skip me" > /data/nfs-share/tmp/temp.txt
+   ```
+5. Run the task — show only `report.txt` transferred, `binary.bin` and `tmp/` skipped
+6. Show the **skipped files** count in the task execution report
+
+**Part B — Bandwidth Throttling:**
+1. Edit the task: set **Bandwidth limit** to 10 MB/s
+2. Run a transfer with a large file — show throughput capped in CloudWatch metrics
+3. Remove the limit — show throughput jump to maximum available
+4. Use case: transfer during business hours without impacting production network
+
+**Part C — Transfer mode options:**
+1. Show **"Transfer only data that has changed"** (default) vs **"Transfer all data"**
+2. Run the task twice — second run should show 0 files transferred (no changes)
+3. Modify one file on NFS — run again — show only that file transferred
+
+**Key talking points:**
+- Storage Gateway has **no filtering** — it mirrors everything written to the share mount
+- DataSync gives you precise control over what moves, when, and at what speed
+- The **changed-data-only** mode makes DataSync efficient for large datasets with small daily deltas
+- Bandwidth throttling is critical for production environments — protect application traffic
+
+---
+
+### DS-05 — DataSync: Integrity Verification + CloudWatch Monitoring *(Advanced)*
+
+**What it shows:** DataSync's built-in integrity verification and how to monitor both DataSync and Storage Gateway using CloudWatch — the comparison capstone scenario.
+
+**Protocol:** NFS v3/v4 (source), S3 (destination)  
+**Source:** `op-nfs-server`  
+**Agent:** `op-datasync-agent`  
+**Monitoring:** Amazon CloudWatch (dashboards + alarms)  
+
+**Demo steps:**
+
+**Part A — Integrity verification:**
+1. Run a DataSync task with **Verify data** setting = `ONLY_FILES_TRANSFERRED` (default) vs `ALL_FILES_IN_DESTINATION`
+2. Explain the three verification modes:
+   - `NONE`: no checksum verification (fastest, use for non-critical data)
+   - `ONLY_FILES_TRANSFERRED`: verify only files moved in this task execution (default, balanced)
+   - `ALL_FILES_IN_DESTINATION`: verify entire destination matches source (slowest, use for compliance)
+3. Show in CloudWatch Logs: per-file `TRANSFERRED` status with checksum result
+4. **Simulate a corruption:** manually modify a file in S3 after transfer, re-run with `ALL_FILES_IN_DESTINATION` — show the file flagged as different in logs
+
+**Part B — CloudWatch Dashboard comparison:**
+1. Open the CloudWatch dashboard (deployed with CFN stack)
+2. **DataSync metrics panel:**
+   - `FilesTransferred` — files successfully moved per task execution
+   - `BytesTransferred` — throughput over time
+   - `FilesVerified` — integrity check count
+   - `TaskExecutionStatus` — SUCCESS / ERROR / RUNNING
+3. **Storage Gateway metrics panel:**
+   - `CacheHitPercent` — % of reads served from local cache vs fetched from S3
+   - `CacheUsed` — local cache utilization
+   - `CloudBytesUploaded` / `CloudBytesDownloaded` — data flow to/from S3
+   - `ReadBytes` / `WriteBytes` — throughput at the NFS/SMB mount
+4. Show an **alarm**: alert when `CacheHitPercent` drops below 50% (indicates cache is too small or data is too cold)
+
+**Key talking points:**
+- DataSync gives you **per-file audit trail** in CloudWatch Logs — you know exactly which files moved and whether they are bit-perfect
+- Storage Gateway gives you **operational metrics** — is the cache sized correctly? Is data being written/read at expected rates?
+- These metrics serve different purposes: DataSync metrics answer "did my migration complete correctly?"; SGW metrics answer "is my hybrid storage healthy?"
+- For compliance/regulatory workloads, DataSync's checksum verification provides an auditable proof of data integrity
+
+---
+
+## Part 2: AWS DataSync Scenarios
+
 ### SGW-01 — File Gateway: NFS Share → Amazon S3 *(Easy)*
 
 **What it shows:** The most fundamental Storage Gateway use case. An on-prem Linux server mounts an NFS share from the gateway; files written to that share silently land in S3.
@@ -210,173 +377,6 @@
 - Disaster recovery use case: on-prem server fails → restore from latest EBS snapshot in minutes
 
 ---
-
----
-
-## Part 2: AWS DataSync Scenarios
-
-### DS-01 — DataSync: NFS → Amazon S3 (One-Time Task) *(Easy)*
-
-**What it shows:** The most basic DataSync use case. Define a task to copy data from the on-prem NFS server to S3. Run it once. This is the DataSync equivalent entry point to SGW-01.
-
-**Protocol:** NFS v3/v4 (source), S3 API (destination)  
-**Source:** `op-nfs-server` `/data/nfs-share` (NFS export)  
-**Agent:** `op-datasync-agent` (m6a.2xlarge, DataSync Agent AMI)  
-**Target:** Amazon S3 bucket `demo-sgw-datasync-<accountid>`/datasync-nfs/  
-
-**Demo steps:**
-1. In DataSync console: the agent should already be activated — show its status as **Online**
-2. Create a **source location**: NFS — enter agent ARN, NFS server IP (`op-nfs-server`), export path `/data/nfs-share`
-3. Create a **destination location**: S3 — select bucket and prefix `datasync-nfs/`, select IAM role
-4. Create a **task**: select source + destination, leave all options default
-5. Start the task manually — **Execute task**
-6. Watch the task **progress in real time**: files transferred, bytes transferred, throughput (MB/s)
-7. When complete: show files in S3 under `datasync-nfs/` prefix
-8. Show **task report** in CloudWatch Logs: per-file transfer status, checksum verification results
-
-**Key talking points:**
-- DataSync requires an **explicit action** to move data — nothing moves until you run the task
-- The **agent** in the on-prem VPC connects to the NFS server locally (high-speed LAN), then transfers to S3 over the network
-- DataSync performs **end-to-end integrity checksums** automatically — every file is verified at source and destination
-- Throughput is automatically optimized with parallel streams — no tuning required
-
-**Differentiator vs SGW-01:** SGW-01 data moved because someone wrote to the NFS mount. DS-01 data moves because an operator triggered a task. Same files in S3 at the end — completely different operational model.
-
----
-
-### DS-02 — DataSync: SMB → FSx for Windows (One-Time Task) *(Easy)*
-
-**What it shows:** DataSync migrating SMB file share data to FSx for Windows — a common migration scenario from on-prem Windows file servers to cloud-native Windows file storage.
-
-**Protocol:** SMB v2/v3 (source), FSx API (destination)  
-**Source:** `op-smb-server` Samba share `//10.1.1.x/demo`  
-**Agent:** `op-datasync-agent`  
-**Target:** Amazon FSx for Windows File Server (`demo-fsx`)  
-
-**Demo steps:**
-1. Create a **source location**: SMB — enter agent ARN, SMB server IP, share name `demo`, credentials
-2. Create a **destination location**: FSx for Windows — select the FSx file system, subdirectory `/datasync-smb`
-3. Create and run the task
-4. Show transfer progress in DataSync console
-5. Verify files in FSx console or by mounting FSx from a cloud EC2
-
-**Key talking points:**
-- Use case: **Windows file server migration** to FSx — one of the most common enterprise migration scenarios
-- DataSync preserves **NTFS ACLs, timestamps, and file attributes** when transferring to FSx
-- This is a migration tool — after migration, users switch to accessing FSx directly; the on-prem share can be decommissioned
-- Contrast with SGW-04: SGW-04 keeps the on-prem share alive permanently (ongoing tiering); DS-02 moves data and ends (migration/cutover)
-
----
-
-### DS-03 — DataSync: NFS → Amazon EFS (Scheduled Task) *(Intermediate)*
-
-**What it shows:** DataSync with a **schedule** — automatically sync on-prem NFS data to EFS on a recurring basis. Also shows EFS as a target (NFS-compatible cloud file system).
-
-**Protocol:** NFS v3/v4 (source + destination)  
-**Source:** `op-nfs-server` `/data/nfs-share`  
-**Agent:** `op-datasync-agent`  
-**Target:** Amazon EFS `demo-efs` (mounted in Cloud VPC)  
-
-**Demo steps:**
-1. Create a **source location**: NFS (same as DS-01)
-2. Create a **destination location**: EFS — select the EFS file system, subdirectory `/datasync-efs`
-3. Create a task with a **schedule**: every 1 hour (for demo, use every 15 minutes via cron: `0/15 * * * ? *`)
-4. Show the schedule configuration in the task settings
-5. Add a new file to the NFS server: `echo "scheduled sync test" > /data/nfs-share/scheduled-test.txt`
-6. Wait for the next scheduled run (or trigger manually) — show the file appearing in EFS
-7. Show **task execution history** — multiple runs with timestamps and file counts
-
-**Key talking points:**
-- EFS is a **serverless NFS file system** — no servers to manage, scales automatically, accessible from any EC2 in the VPC via NFS
-- Schedule = DataSync becomes a **continuous replication** tool when run frequently
-- Use case: on-prem NFS data needs to be available in the cloud for analytics, ML training, or disaster recovery
-- EFS supports NFSv4 natively — data transferred from on-prem NFS lands in a cloud NFS system with no protocol translation
-- Preserves POSIX permissions, ownership, timestamps
-
----
-
-### DS-04 — DataSync: Filtering, Bandwidth Throttling & Transfer Options *(Intermediate)*
-
-**What it shows:** DataSync's advanced task configuration — filtering files, throttling bandwidth, and controlling what gets transferred. This is where DataSync shows its operational sophistication.
-
-**Protocol:** NFS v3/v4 (source), S3 (destination)  
-**Source:** `op-nfs-server` `/data/nfs-share`  
-**Agent:** `op-datasync-agent`  
-**Target:** Amazon S3 bucket, prefix `datasync-filtered/`  
-
-**Demo steps:**
-
-**Part A — Filtering:**
-1. Create a new task (or modify DS-01) with **include/exclude filters**
-2. Add an include filter: `*.txt` — only transfer text files
-3. Add an exclude filter: `*/tmp/*` — skip any `tmp` subdirectory
-4. Populate the NFS share with mixed files:
-   ```bash
-   echo "include me" > /data/nfs-share/report.txt
-   dd if=/dev/urandom bs=1M count=10 of=/data/nfs-share/binary.bin
-   mkdir -p /data/nfs-share/tmp && echo "skip me" > /data/nfs-share/tmp/temp.txt
-   ```
-5. Run the task — show only `report.txt` transferred, `binary.bin` and `tmp/` skipped
-6. Show the **skipped files** count in the task execution report
-
-**Part B — Bandwidth Throttling:**
-1. Edit the task: set **Bandwidth limit** to 10 MB/s
-2. Run a transfer with a large file — show throughput capped in CloudWatch metrics
-3. Remove the limit — show throughput jump to maximum available
-4. Use case: transfer during business hours without impacting production network
-
-**Part C — Transfer mode options:**
-1. Show **"Transfer only data that has changed"** (default) vs **"Transfer all data"**
-2. Run the task twice — second run should show 0 files transferred (no changes)
-3. Modify one file on NFS — run again — show only that file transferred
-
-**Key talking points:**
-- Storage Gateway has **no filtering** — it mirrors everything written to the share mount
-- DataSync gives you precise control over what moves, when, and at what speed
-- The **changed-data-only** mode makes DataSync efficient for large datasets with small daily deltas
-- Bandwidth throttling is critical for production environments — protect application traffic
-
----
-
-### DS-05 — DataSync: Integrity Verification + CloudWatch Monitoring *(Advanced)*
-
-**What it shows:** DataSync's built-in integrity verification and how to monitor both DataSync and Storage Gateway using CloudWatch — the comparison capstone scenario.
-
-**Protocol:** NFS v3/v4 (source), S3 (destination)  
-**Source:** `op-nfs-server`  
-**Agent:** `op-datasync-agent`  
-**Monitoring:** Amazon CloudWatch (dashboards + alarms)  
-
-**Demo steps:**
-
-**Part A — Integrity verification:**
-1. Run a DataSync task with **Verify data** setting = `ONLY_FILES_TRANSFERRED` (default) vs `ALL_FILES_IN_DESTINATION`
-2. Explain the three verification modes:
-   - `NONE`: no checksum verification (fastest, use for non-critical data)
-   - `ONLY_FILES_TRANSFERRED`: verify only files moved in this task execution (default, balanced)
-   - `ALL_FILES_IN_DESTINATION`: verify entire destination matches source (slowest, use for compliance)
-3. Show in CloudWatch Logs: per-file `TRANSFERRED` status with checksum result
-4. **Simulate a corruption:** manually modify a file in S3 after transfer, re-run with `ALL_FILES_IN_DESTINATION` — show the file flagged as different in logs
-
-**Part B — CloudWatch Dashboard comparison:**
-1. Open the CloudWatch dashboard (deployed with CFN stack)
-2. **DataSync metrics panel:**
-   - `FilesTransferred` — files successfully moved per task execution
-   - `BytesTransferred` — throughput over time
-   - `FilesVerified` — integrity check count
-   - `TaskExecutionStatus` — SUCCESS / ERROR / RUNNING
-3. **Storage Gateway metrics panel:**
-   - `CacheHitPercent` — % of reads served from local cache vs fetched from S3
-   - `CacheUsed` — local cache utilization
-   - `CloudBytesUploaded` / `CloudBytesDownloaded` — data flow to/from S3
-   - `ReadBytes` / `WriteBytes` — throughput at the NFS/SMB mount
-4. Show an **alarm**: alert when `CacheHitPercent` drops below 50% (indicates cache is too small or data is too cold)
-
-**Key talking points:**
-- DataSync gives you **per-file audit trail** in CloudWatch Logs — you know exactly which files moved and whether they are bit-perfect
-- Storage Gateway gives you **operational metrics** — is the cache sized correctly? Is data being written/read at expected rates?
-- These metrics serve different purposes: DataSync metrics answer "did my migration complete correctly?"; SGW metrics answer "is my hybrid storage healthy?"
-- For compliance/regulatory workloads, DataSync's checksum verification provides an auditable proof of data integrity
 
 ---
 

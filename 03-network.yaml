@@ -2,8 +2,9 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Storage Gateway vs DataSync Demo - Network Foundation
   Creates: Cloud VPC + OnPrem VPC, Subnets (public+private, 2 AZs each),
-  VPC Peering, Route Tables, Security Groups, NACLs, VPC Endpoints (SSM),
+  VPC Peering, Route Tables, Security Groups, NACLs, S3 Gateway Endpoints,
   EFS File System, CloudWatch Dashboard.
+  All instances in public subnets with IGW - SSM accesses via internet path.
   Instances are created manually after this stack deploys.
 
 Metadata:
@@ -81,7 +82,7 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub ${DemoPrefix}-cloud-vpc
+          Value: Cloud-VPC
         - Key: Demo
           Value: !Ref DemoPrefix
 
@@ -154,7 +155,7 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: !Sub ${DemoPrefix}-onprem-vpc
+          Value: OP-VPC
         - Key: Demo
           Value: !Ref DemoPrefix
 
@@ -429,27 +430,6 @@ Resources:
         - Key: Name
           Value: !Sub ${DemoPrefix}-cloud-fsx-sg
 
-  # VPC Endpoints Security Group (SSM, S3, EC2Messages)
-  CloudVpcEndpointSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub ${DemoPrefix}-cloud-vpce-sg
-      GroupDescription: Allow HTTPS from Cloud VPC for VPC Endpoints
-      VpcId: !Ref CloudVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Ref CloudVpcCidr
-          Description: HTTPS from Cloud VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound
-      Tags:
-        - Key: Name
-          Value: !Sub ${DemoPrefix}-cloud-vpce-sg
-
   # =========================================================================
   # SECURITY GROUPS - ONPREM VPC
   # =========================================================================
@@ -674,27 +654,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${DemoPrefix}-onprem-iscsi-client-sg
-
-  # OnPrem VPC Endpoints SG (SSM for Linux instances)
-  OnPremVpcEndpointSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub ${DemoPrefix}-onprem-vpce-sg
-      GroupDescription: Allow HTTPS from OnPrem VPC for VPC Endpoints
-      VpcId: !Ref OnPremVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !Ref OnPremVpcCidr
-          Description: HTTPS from OnPrem VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound
-      Tags:
-        - Key: Name
-          Value: !Sub ${DemoPrefix}-onprem-vpce-sg
 
   # =========================================================================
   # NACLs - CLOUD VPC PUBLIC SUBNETS
@@ -1006,48 +965,11 @@ Resources:
       NetworkAclId: !Ref OnPremPrivateNACL
 
   # =========================================================================
-  # VPC ENDPOINTS - ONPREM VPC (SSM Session Manager for Linux instances)
-  # Allows SSM without NAT Gateway since instances are in public subnets
-  # with IGW, but adding endpoints ensures traffic stays on AWS network
-  # and works even if public IP is not assigned.
+  # VPC ENDPOINTS - S3 GATEWAY ENDPOINTS (free, routes S3 traffic on AWS
+  # backbone instead of internet, no data transfer cost via endpoint)
   # =========================================================================
-  OnPremSSMEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref OnPremVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref OnPremPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref OnPremVpcEndpointSG
-      PrivateDnsEnabled: true
 
-  OnPremSSMMessagesEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref OnPremVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref OnPremPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref OnPremVpcEndpointSG
-      PrivateDnsEnabled: true
-
-  OnPremEC2MessagesEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref OnPremVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref OnPremPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref OnPremVpcEndpointSG
-      PrivateDnsEnabled: true
-
-  # S3 Gateway Endpoint for OnPrem VPC (free - no data transfer cost via endpoint)
+  # S3 Gateway Endpoint for OnPrem VPC
   OnPremS3GatewayEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
@@ -1057,45 +979,6 @@ Resources:
       RouteTableIds:
         - !Ref OnPremPublicRouteTable
         - !Ref OnPremPrivateRouteTable
-
-  # =========================================================================
-  # VPC ENDPOINTS - CLOUD VPC (SSM for any future cloud instances)
-  # =========================================================================
-  CloudSSMEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref CloudVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref CloudPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref CloudVpcEndpointSG
-      PrivateDnsEnabled: true
-
-  CloudSSMMessagesEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref CloudVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref CloudPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref CloudVpcEndpointSG
-      PrivateDnsEnabled: true
-
-  CloudEC2MessagesEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      VpcId: !Ref CloudVPC
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
-      VpcEndpointType: Interface
-      SubnetIds:
-        - !Ref CloudPublicSubnet1a
-      SecurityGroupIds:
-        - !Ref CloudVpcEndpointSG
-      PrivateDnsEnabled: true
 
   # S3 Gateway Endpoint for Cloud VPC
   CloudS3GatewayEndpoint:

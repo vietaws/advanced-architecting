@@ -131,6 +131,7 @@ VPC Peering is the simplest and cheapest connectivity option for this demo. It a
 - No bastion host required (saves one EC2 instance)
 - No SSH key pair management
 - Works on both Linux (Amazon Linux 2023) and Windows Server 2022
+- All instances are in **public subnets with public IPs** — SSM Agent reaches the SSM service endpoints via the IGW directly. No VPC interface endpoints required.
 - Requires IAM role `ec2-instance-role` attached to all instances (pre-created outside the demo stack)
 
 ---
@@ -173,22 +174,22 @@ Phase 1: Environment Setup (CFN + Manual provisioning)
   └─ Provision instances manually (5 EC2 + S3 + EFS + FSx)
   └─ Configure NFS server, SMB server, activate gateway + agent
 
-Phase 2: Storage Gateway Scenarios (File Gateway)
-  └─ SGW-01: File Gateway NFS → S3 (basic)
-  └─ SGW-02: File Gateway SMB → S3 (basic)
-  └─ SGW-03: File Gateway NFS → S3 (cache behavior, refresh)
-  └─ SGW-04: File Gateway SMB → FSx for Windows
-
-Phase 3: Storage Gateway Scenarios (Volume Gateway)
-  └─ SGW-05: Volume Gateway Cached Mode → EBS (Windows iSCSI)
-  └─ SGW-06: Volume Gateway Stored Mode → EBS snapshot (Windows iSCSI)
-
-Phase 4: DataSync Scenarios
+Phase 2: DataSync Scenarios
   └─ DS-01: DataSync NFS → S3 (basic one-time task)
   └─ DS-02: DataSync SMB → FSx (basic one-time task)
   └─ DS-03: DataSync NFS → EFS (with scheduling)
   └─ DS-04: DataSync with filtering, bandwidth throttling
   └─ DS-05: DataSync NFS → S3 with integrity verification + CloudWatch
+
+Phase 3: Storage Gateway Scenarios (File Gateway)
+  └─ SGW-01: File Gateway NFS → S3 (basic)
+  └─ SGW-02: File Gateway SMB → S3 (basic)
+  └─ SGW-03: File Gateway NFS → S3 (cache behavior, refresh)
+  └─ SGW-04: File Gateway SMB → FSx for Windows
+
+Phase 4: Storage Gateway Scenarios (Volume Gateway)
+  └─ SGW-05: Volume Gateway Cached Mode → EBS (Windows iSCSI)
+  └─ SGW-06: Volume Gateway Stored Mode → EBS snapshot (Windows iSCSI)
 
 Phase 5: Comparison & Wrap-up
   └─ Side-by-side: same data, same NFS source, different service behavior

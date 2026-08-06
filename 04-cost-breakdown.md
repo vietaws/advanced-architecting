@@ -10,8 +10,8 @@
 
 | Pricing Model | EC2 Cost | Managed Services | Total (10 hrs) |
 |---------------|----------|-----------------|----------------|
-| **All On-Demand** | $5.22 | $2.71 | **~$7.93** |
-| **SGW + DataSync agents on Spot** | $2.72 | $2.71 | **~$5.43** |
+| **All On-Demand** | $5.22 | $2.11 | **~$7.33** |
+| **SGW + DataSync agents on Spot** | $2.72 | $2.11 | **~$4.83** |
 
 > Spot saves ~31% ($2.50) by running the two largest instances (SGW appliance + DataSync agent) as Spot. Servers and the Windows iSCSI client remain On-Demand for stability.
 
@@ -128,17 +128,14 @@ DataSync charges **per GB of data copied** through the service.
 
 > DataSync agent EC2 cost ($3.46 on-demand or $1.60 spot) is separate from the per-GB service fee.
 
-### 2.6 VPC Interface Endpoints (SSM)
+### 2.6 VPC Endpoints
 
-The CFN template creates 3 interface endpoints per VPC = 6 total.
+Only S3 Gateway Endpoints are deployed (free — no hourly charge, no data processing fee). SSM traffic routes via the internet through the IGW since all instances are in public subnets with public IPs.
 
-| Resource | Rate | Hours | Cost |
-|----------|------|-------|------|
-| 6 × SSM/SSMMessages/EC2Messages endpoints | $0.01/endpoint-hour | 10 hrs | $0.60 |
-| VPC endpoint data processing | $0.01/GB | ~0.1 GB SSM traffic | $0.001 |
-| **VPCE Subtotal** | | | **~$0.60** |
-
-> VPC endpoints are the **second largest cost item** in the managed services section. To save $0.60, you can delete the VPC endpoints after confirming all instances are SSM-reachable (SSM will fall back to internet path via IGW since instances are in public subnets with public IPs). The endpoints are included for reliability and to avoid public internet egress for SSM traffic.
+| Resource | Rate | Cost |
+|----------|------|------|
+| 2 × S3 Gateway Endpoints (OnPrem + Cloud) | Free | $0.00 |
+| **VPCE Subtotal** | | **$0.00** |
 
 ### 2.7 CloudWatch
 
@@ -169,9 +166,9 @@ The CFN template creates 3 interface endpoints per VPC = 6 total.
 | FSx | 32 GB + 8 MBps provisioned | $0.30 |
 | Storage Gateway | Gateway hours + data fees | $0.17 |
 | DataSync | Per-GB transfer fees | $0.25 |
-| VPC Endpoints | 6 interface endpoints × 10hr | $0.60 |
+| VPC Endpoints | 2 × S3 Gateway (free) | $0.00 |
 | CloudWatch | Dashboard + logs + alarms | $0.01 |
-| **TOTAL (On-Demand)** | | **$7.39** |
+| **TOTAL (On-Demand)** | | **$6.79** |
 
 ### 3.2 Optimized with Spot (SGW Appliance + DataSync Agent)
 
@@ -188,9 +185,9 @@ The CFN template creates 3 interface endpoints per VPC = 6 total.
 | FSx | 32 GB + 8 MBps provisioned | $0.30 |
 | Storage Gateway | Gateway hours + data fees | $0.17 |
 | DataSync | Per-GB transfer fees | $0.25 |
-| VPC Endpoints | 6 interface endpoints × 10hr | $0.60 |
+| VPC Endpoints | 2 × S3 Gateway (free) | $0.00 |
 | CloudWatch | Dashboard + logs + alarms | $0.01 |
-| **TOTAL (Spot optimized)** | | **$4.73** |
+| **TOTAL (Spot optimized)** | | **$4.13** |
 
 ---
 
@@ -202,7 +199,6 @@ If cost needs to go lower, these are the levers in order of impact:
 |--------|-------|-----------|
 | Run SGW + DataSync on Spot | $2.66 | Risk of interruption mid-demo (low probability, ~5-10% in us-east-1a during business hours) |
 | Skip FSx — use EFS for all DataSync targets | $0.30 | Document FSx support verbally; less realistic for SMB→FSx scenario |
-| Remove VPC Endpoints (SSM via IGW) | $0.60 | SSM still works via internet path; slightly higher latency |
 | Use t3.small instead of t3.medium for Windows | $0.21 | Windows on t3.small is usable but may be sluggish with iSCSI Initiator UI |
 | Reduce DataSync agent to m5.xlarge | $1.73 | Not officially supported for production but works for lab; minimum recommended is m5.2xlarge |
 
