@@ -105,7 +105,7 @@ Resources:
 
           # Write systemd service
           python3 -c "
-          open('/etc/systemd/system/cloud-app.service','w').write(
+          open('/etc/systemd/system/demo-app.service','w').write(
           '[Unit]\n'
           'Description=Hybrid DNS Demo Cloud App Server\n'
           'After=network.target\n'
@@ -162,8 +162,8 @@ Resources:
           chmod +x /usr/local/bin/db-test
 
           systemctl daemon-reload
-          systemctl enable cloud-app
-          systemctl start cloud-app
+          systemctl enable demo-app
+          systemctl start demo-app
 
           echo "[$(date)] EC2-Cloud setup complete."
       Tags:

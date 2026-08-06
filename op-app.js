@@ -57,6 +57,20 @@ const BASE_STYLE = `
   .header h1 { color: #333; font-size: 1.75rem; margin-bottom: 8px; }
   .header p  { color: #888; font-size: 0.9rem; }
 
+  /* On-premises badge in header */
+  .env-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
   .body { padding: 30px; }
 
   /* ── Table ── */
@@ -262,6 +276,7 @@ function layout(title, body) {
 <body>
   <div class="container">
     <div class="header">
+      <div class="env-badge">🏢 On-Premises</div>
       <h1>${title}</h1>
       <p>app.op.viet.vn &nbsp;·&nbsp; 10.2.1.20 &nbsp;·&nbsp; VPC OP (on-premises)</p>
     </div>
