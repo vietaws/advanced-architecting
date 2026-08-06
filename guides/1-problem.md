@@ -18,7 +18,7 @@ DNS    : BIND at 10.2.1.10             DNS    : Route 53 Private Hosted Zone
 
 Hosts:                                 Hosts:
   dns.op.viet.vn  → 10.2.1.10           app.cloud.viet.vn → 10.1.0.40
-  app.op.viet.vn  → 10.2.1.20           web.cloud.viet.vn → 10.1.1.51
+  app.op.viet.vn  → 10.2.1.20           db.cloud.viet.vn → 10.1.0.50
   db.op.viet.vn   → 10.2.1.30
 ```
 

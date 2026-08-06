@@ -1,16 +1,30 @@
 import http from 'http';
+import dns from 'dns/promises';
+import fs from 'fs';
 import pg from 'pg';
 
 const { Client } = pg;
 
 const DB_CONFIG = {
-  host: 'db.op.viet.vn',
+  host: 'db.cloud.viet.vn',
   port: 5432,
   database: 'demo',
   user: 'dbadmin',
   password: 'DemoPassword',
   connectionTimeoutMillis: 3000,
 };
+
+// ── DNS resolver helper ────────────────────────────────────────────────────────
+
+function getDnsResolver() {
+  try {
+    const resolv = fs.readFileSync('/etc/resolv.conf', 'utf8');
+    const match = resolv.match(/^nameserver\s+(\S+)/m);
+    return match ? match[1] : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 // ── DB helper ──────────────────────────────────────────────────────────────────
 
@@ -147,6 +161,26 @@ const BASE_STYLE = `
   .action-link.delete { color: #e74c3c; }
   .actions .divider   { color: #d0e4f0; font-size: 0.8rem; }
 
+  /* ── DB Status bar ── */
+  .db-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f0f8ff;
+    border: 1px solid #daeeff;
+    border-radius: 8px;
+    padding: 9px 14px;
+    margin-bottom: 20px;
+    font-size: 0.82rem;
+    color: #5a7a8a;
+  }
+  .db-status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #2ecc71; flex-shrink: 0;
+  }
+  .db-status .dot.err { background: #e74c3c; }
+  .db-status strong { color: #1a2f3a; }
+
   /* ── Add button — cloud teal gradient ── */
   .add-btn {
     display: inline-block;
@@ -234,17 +268,19 @@ const BASE_STYLE = `
     gap: 8px;
   }
   .alert-error   { background: #fff0f0; color: #c0392b; border-left: 3px solid #e74c3c; }
-  .alert-success { background: #f0fff8; color: #1e7e5a; border-left: 3px solid #00b4d8; }
 
   /* ── Footer ── */
   .footer {
     background: #f0f8ff;
-    padding: 14px 30px;
-    text-align: center;
-    font-size: 0.78rem;
-    color: #8fb3cc;
+    padding: 10px 20px;
     border-top: 1px solid #daeeff;
-    letter-spacing: 0.03em;
+  }
+  .footer .db-status {
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+    justify-content: center;
+    padding: 4px 0;
   }
 
   @media (max-width: 600px) {
@@ -259,7 +295,7 @@ const BASE_STYLE = `
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 
-function layout(title, body) {
+function layout(title, body, dbStatus = '') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -271,25 +307,13 @@ function layout(title, body) {
 <body>
   <div class="container">
     <div class="header">
-      <div class="cloud-badge">☁ AWS Cloud</div>
+      <div class="cloud-badge">⛅️ AWS Cloud</div>
       <h1>${title}</h1>
       <p>app.cloud.viet.vn &nbsp;·&nbsp; 10.1.0.40 &nbsp;·&nbsp; VPC A (ap-southeast-1)</p>
     </div>
     <div class="body">${body}</div>
-    <div class="footer">
-      DB: db.op.viet.vn &nbsp;·&nbsp; demo &nbsp;·&nbsp; 10.2.1.30 &nbsp;·&nbsp; via hybrid DNS
-    </div>
+    <div class="footer">${dbStatus}</div>
   </div>
-  <script>
-    var alerts = document.querySelectorAll('.alert-success');
-    alerts.forEach(function(el) {
-      setTimeout(function() {
-        el.style.transition = 'opacity 0.5s';
-        el.style.opacity = '0';
-        setTimeout(function() { el.style.display = 'none'; }, 500);
-      }, 3000);
-    });
-  </script>
 </body>
 </html>`;
 }
@@ -297,26 +321,46 @@ function layout(title, body) {
 // ── Handlers ───────────────────────────────────────────────────────────────────
 
 async function listProducts(req, res) {
-  const msg = new URL(req.url, 'http://x').searchParams.get('msg');
-  const alerts = { created: 'Product added.', updated: 'Product updated.', deleted: 'Product deleted.' };
+  let rows = [], err = null, dbIp = null;
 
-  let rows = [], err = null;
-  try {
-    const r = await query('SELECT id, name, price, sku FROM products ORDER BY id');
-    rows = r.rows;
-  } catch (e) { err = e.message; }
+  // Resolve DB hostname and query in parallel
+  const [resolveResult, queryResult] = await Promise.allSettled([
+    dns.lookup(DB_CONFIG.host),
+    (async () => {
+      const r = await query('SELECT id, name, price, sku FROM products ORDER BY id');
+      return r.rows;
+    })()
+  ]);
+
+  if (resolveResult.status === 'fulfilled') dbIp = resolveResult.value.address;
+  if (queryResult.status === 'fulfilled') rows = queryResult.value;
+  else err = queryResult.reason.message;
+
+  const statusBar = `
+    <div class="db-status">
+      <span class="dot${err ? ' err' : ''}"></span>
+      <span>
+        <strong>${DB_CONFIG.host}</strong>
+        &nbsp;·&nbsp; ${dbIp || 'unresolved'}
+        &nbsp;·&nbsp; resolver: ${getDnsResolver()}
+      </span>
+    </div>`;
 
   const alert = err
     ? `<div class="alert alert-error"><strong>DB error:</strong> ${err}</div>`
-    : msg && alerts[msg]
-      ? `<div class="alert alert-success">${alerts[msg]}</div>`
-      : '';
+    : '';
 
   const table = err ? '' : `
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>#</th><th>Name</th><th>Price</th><th>SKU</th><th></th></tr>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Qty</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           ${rows.map(r => `
@@ -348,7 +392,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('Cloud Inventory', body));
+  res.end(layout('Cloud Inventory', body, statusBar));
 }
 
 function newForm(res, err = null) {
@@ -376,7 +420,7 @@ async function createProduct(body, res) {
       'INSERT INTO products (name, price, sku) VALUES ($1, $2, $3)',
       [p.get('name'), parseFloat(p.get('price')), p.get('sku')]
     );
-    res.writeHead(302, { Location: '/?msg=created' });
+    res.writeHead(302, { Location: '/' });
     res.end();
   } catch (e) { newForm(res, e.message); }
 }
@@ -402,7 +446,8 @@ async function editForm(id, res, err = null) {
             <input name="price" type="number" step="0.01" min="0"
                    value="${parseFloat(product.price).toFixed(2)}" required></label>
           <label><span>SKU</span>
-            <input name="sku" value="${product.sku}" required></label>
+            <input name="sku"
+                   value="${product.sku}" required></label>
           <button class="add-btn" type="submit">Update Product</button>
         </form>
       </div>
@@ -418,14 +463,14 @@ async function updateProduct(id, body, res) {
       'UPDATE products SET name=$1, price=$2, sku=$3 WHERE id=$4',
       [p.get('name'), parseFloat(p.get('price')), p.get('sku'), id]
     );
-    res.writeHead(302, { Location: '/?msg=updated' });
+    res.writeHead(302, { Location: '/' });
     res.end();
   } catch (e) { editForm(id, res, e.message); }
 }
 
 async function deleteProduct(id, res) {
   await query('DELETE FROM products WHERE id = $1', [id]).catch(() => {});
-  res.writeHead(302, { Location: '/?msg=deleted' });
+  res.writeHead(302, { Location: '/' });
   res.end();
 }
 
@@ -446,7 +491,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', host: 'app.cloud.viet.vn', ip: '10.1.0.40', env: 'cloud' }));
+      res.end(JSON.stringify({ status: 'ok', host: 'app.cloud.viet.vn', ip: '10.1.0.50' }));
       return;
     }
 
@@ -473,6 +518,6 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = 80;
 server.listen(PORT, () => {
-  console.log(`Cloud app server listening on port ${PORT}`);
-  console.log(`DB: ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database} (via hybrid DNS)`);
+  console.log(`App server listening on port ${PORT}`);
+  console.log(`DB: ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
 });

@@ -202,7 +202,7 @@ Resources:
           echo "[$(date)] DNS Server setup complete."
       Tags:
         - Key: Name
-          Value: "OP-DNS-Server"
+          Value: "OP-DNS"
 
   # -- App Server (10.2.1.20) --------------------------------------------------
   # Express.js app on port 80, responds with server info as JSON and HTML.
@@ -312,7 +312,7 @@ Resources:
           echo "[$(date)] App Server setup complete."
       Tags:
         - Key: Name
-          Value: "OP-App-Server"
+          Value: "OP-App"
 
   # -- DB Server (10.2.1.30) ---------------------------------------------------
 
@@ -410,7 +410,7 @@ Resources:
           echo "[$(date)] DB Server setup complete. DB: demo | User: dbadmin | Password: DemoPassword | Port: 5432"
       Tags:
         - Key: Name
-          Value: "OP-DB-Server"
+          Value: "OP-DB"
 
 # =============================================================================
 Outputs:

@@ -133,6 +133,7 @@ Resources:
           'echo \"\"\n'
           'echo \"-- Cloud records (via configured DNS) --\"\n'
           'dig +noall +answer app.cloud.viet.vn\n'
+          'dig +noall +answer db.cloud.viet.vn\n'
           'echo \"\"\n'
           'echo \"-- On-prem records (via configured DNS) --\"\n'
           'dig +noall +answer app.op.viet.vn\n'
@@ -152,8 +153,8 @@ Resources:
           python3 -c "
           open('/usr/local/bin/db-test','w').write(
           '#!/bin/bash\n'
-          'echo \"Testing PostgreSQL to db.op.viet.vn:5432 ...\"\n'
-          'PGPASSWORD=demoPassword psql -h db.op.viet.vn -U dbadmin -d demo \\\n'
+          'echo \"Testing PostgreSQL to db.cloud.viet.vn:5432 ...\"\n'
+          'PGPASSWORD=DemoPassword psql -h db.cloud.viet.vn -U dbadmin -d demo \\\n'
           '  -c \"SELECT * FROM products;\" \\\n'
           '  && echo \"SUCCESS\" \\\n'
           '  || echo \"FAILED - check DNS and security group\"\n'
@@ -168,7 +169,102 @@ Resources:
           echo "[$(date)] EC2-Cloud setup complete."
       Tags:
         - Key: Name
-          Value: "Cloud-App-Server"
+          Value: "Cloud-App"
+
+  # -- Cloud DB Server (10.1.0.50) ---------------------------------------------
+
+  SgCloudDb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${EnvironmentName}-sg-cloud-db"
+      GroupDescription: "Cloud DB Server - PostgreSQL from Cloud App only"
+      VpcId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-VpcA-Id"
+      SecurityGroupIngress:
+        - Description: "PostgreSQL from Cloud App Server"
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref SgCloudApp
+        - Description: "ICMP from internal"
+          IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: "10.0.0.0/8"
+      SecurityGroupEgress:
+        - Description: "All outbound"
+          IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-sg-cloud-db"
+
+  CloudDb:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.micro
+      ImageId: !Ref LatestAL2023AmiArm64
+      SubnetId:
+        Fn::ImportValue: !Sub "${EnvironmentName}-A-Public-1a-Id"
+      PrivateIpAddress: "10.1.0.50"
+      SecurityGroupIds:
+        - !Ref SgCloudDb
+      IamInstanceProfile: ec2-instance-role
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -e
+
+          DB_NAME="demo"
+          DB_USER="dbadmin"
+          DB_PASSWORD="DemoPassword"
+          TABLE_NAME="products"
+
+          dnf update -y
+          dnf install -y postgresql18-server bind-utils nc
+
+          hostnamectl set-hostname db.cloud.viet.vn
+
+          postgresql-setup --initdb
+          systemctl enable postgresql
+          systemctl start postgresql
+
+          sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
+          sudo -u postgres createdb -O ${DB_USER} ${DB_NAME}
+          sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};"
+
+          sudo -u postgres psql -d ${DB_NAME} -c "
+          CREATE TABLE ${TABLE_NAME} (
+            id       SERIAL PRIMARY KEY,
+            name     VARCHAR(255) NOT NULL,
+            price    DECIMAL(10, 2),
+            sku      VARCHAR(50)
+          );"
+
+          sudo -u postgres psql -d ${DB_NAME} -c "
+          INSERT INTO ${TABLE_NAME} (name, price, sku) VALUES
+            ('Mouse',    19.99,   'SKU001'),
+            ('Laptop',   2999.99, 'SKU002'),
+            ('Keyboard', 39.99,   'SKU003');"
+
+          sudo -u postgres psql -d ${DB_NAME} -c "
+            GRANT ALL ON SCHEMA public TO ${DB_USER};
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${DB_USER};
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO ${DB_USER};
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${DB_USER};
+            ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO ${DB_USER};
+          "
+
+          sed -i "s/^#*listen_addresses = 'localhost'/listen_addresses = '*'/g" /var/lib/pgsql/data/postgresql.conf
+          sed -i 's/local   all             all                                     peer/local   all             all                                     scram-sha-256/g' /var/lib/pgsql/data/pg_hba.conf
+          sed -i 's/host    all             all             127.0.0.1\/32            ident/host    all             all             127.0.0.1\/32            scram-sha-256/g' /var/lib/pgsql/data/pg_hba.conf
+          sed -i 's/host    all             all             ::1\/128                 ident/host    all             all             ::1\/128                 scram-sha-256/g' /var/lib/pgsql/data/pg_hba.conf
+          sed -i '$a host    demo    dbadmin    0.0.0.0/0    md5' /var/lib/pgsql/data/pg_hba.conf
+
+          systemctl restart postgresql
+      Tags:
+        - Key: Name
+          Value: "Cloud-DB"
 
 # =============================================================================
 Outputs:
@@ -192,3 +288,19 @@ Outputs:
     Value: !Ref SgCloudApp
     Export:
       Name: !Sub "${EnvironmentName}-SgCloudApp-Id"
+
+  CloudDbInstanceId:
+    Description: Cloud DB Instance ID
+    Value: !Ref CloudDb
+    Export:
+      Name: !Sub "${EnvironmentName}-CloudDb-Id"
+
+  CloudDbPrivateIp:
+    Description: Cloud DB Private IP (10.1.0.50)
+    Value: !GetAtt CloudDb.PrivateIp
+
+  SgCloudDbId:
+    Description: Cloud DB Security Group ID
+    Value: !Ref SgCloudDb
+    Export:
+      Name: !Sub "${EnvironmentName}-SgCloudDb-Id"

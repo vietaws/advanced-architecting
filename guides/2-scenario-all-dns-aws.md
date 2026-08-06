@@ -30,8 +30,6 @@ App Server queries app.op.viet.vn
 
 **No Outbound Resolver needed** — queries never need to travel from AWS back to BIND.
 
-**Prerequisite:** Foundation infrastructure from `3-scenario-split-dns.md` (Part 1) is deployed.
-
 ---
 
 ## Step 1 — Create Route 53 PHZ for cloud.viet.vn
@@ -66,17 +64,9 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "web.cloud.viet.vn",
+        "Name": "db.cloud.viet.vn",
         "Type": "A", "TTL": 300,
-        "ResourceRecords": [{"Value": "10.1.1.51"}]
-      }
-    },
-    {
-      "Action": "CREATE",
-      "ResourceRecordSet": {
-        "Name": "api.cloud.viet.vn",
-        "Type": "CNAME", "TTL": 300,
-        "ResourceRecords": [{"Value": "app.cloud.viet.vn"}]
+        "ResourceRecords": [{"Value": "10.1.0.50"}]
       }
     }
   ]
@@ -187,6 +177,11 @@ echo "Inbound Endpoint: $INBOUND_EP"
 watch -n 10 "aws route53resolver get-resolver-endpoint \
   --resolver-endpoint-id $INBOUND_EP \
   --region ap-southeast-1 \
+  --query 'ResolverEndpoint.Status' --output text"
+
+watch -n 10 "aws route53resolver get-resolver-endpoint \
+  --resolver-endpoint-id rslvr-in-df4cae222dec4ba6b \
+  --region us-east-1 \
   --query 'ResolverEndpoint.Status' --output text"
 ```
 

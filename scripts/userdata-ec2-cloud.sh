@@ -70,26 +70,24 @@ echo "============================================"
 echo " DNS Test — app.cloud.viet.vn (10.1.0.40)"
 echo "============================================"
 echo ""
-echo "-- Cloud records (Route 53 PHZ) --"
-dig +short app.cloud.viet.vn
-dig +short web.cloud.viet.vn
+echo "-- Current DNS server --"
+grep nameserver /etc/resolv.conf
 echo ""
-echo "-- On-prem records (via Resolver or BIND) --"
-dig +short app.op.viet.vn
-dig +short db.op.viet.vn
-dig +short dns.op.viet.vn
+echo "-- Cloud records (via configured DNS) --"
+dig +noall +answer app.cloud.viet.vn
+dig +noall +answer db.cloud.viet.vn
+echo ""
+echo "-- On-prem records (via configured DNS) --"
+dig +noall +answer app.op.viet.vn
+dig +noall +answer db.op.viet.vn
+dig +noall +answer dns.op.viet.vn
 echo ""
 echo "-- AWS service DNS --"
-echo -n "S3 endpoint: "
-dig +short s3.ap-southeast-1.amazonaws.com | head -2
+dig +noall +answer s3.ap-southeast-1.amazonaws.com
 echo ""
-echo "-- Connectivity tests --"
-echo -n "HTTP to app.op.viet.vn:    "
-curl -s --connect-timeout 3 -o /dev/null -w "%{http_code}" http://app.op.viet.vn || echo "FAIL"
-echo ""
-echo -n "PostgreSQL to db.op.viet.vn: "
-nc -zv -w 3 db.op.viet.vn 5432 2>&1 | grep -o "succeeded\|failed\|timed out" || echo "FAIL"
-echo ""
+echo "-- Connectivity to OP App Server (direct IP) --"
+curl -sf --connect-timeout 3 http://10.2.1.20/ || echo "Not reachable via IP"
+SCRIPT
 echo "-- S3 access via gateway endpoint --"
 aws s3 ls --region ap-southeast-1 2>&1 | head -5
 SCRIPT

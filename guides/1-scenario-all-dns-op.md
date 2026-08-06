@@ -132,7 +132,7 @@ $TTL 300
         2026080401 3600 1800 604800 300 )
 @       IN  NS  dns.op.viet.vn.
 app     IN  A   10.1.0.40
-web     IN  A   10.1.1.51
+db      IN  A   10.1.0.50
 api     IN  CNAME app.cloud.viet.vn.
 EOF
 
@@ -141,11 +141,28 @@ $TTL 300
 @   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
 @   IN  NS  dns.op.viet.vn.
-50  IN  PTR app.cloud.viet.vn.
-51  IN  PTR web.cloud.viet.vn.
+40  IN  PTR app.cloud.viet.vn.
+50  IN  PTR db.cloud.viet.vn.
 EOF
 
 sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.rev
+
+sudo tee /var/named/10.2.rev << 'EOF'
+$TTL 300
+@   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
+              2026080401 3600 1800 604800 300 )
+  
+@   IN  NS  dns.op.viet.vn.
+  
+; PTR records — format: <third-octet>.<fourth-octet>
+1.10  IN  PTR dns.op.viet.vn.
+1.20  IN  PTR app.op.viet.vn.
+1.30  IN  PTR db.op.viet.vn.
+EOF
+
+sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.rev
+sudo chown named:named /var/named/op.viet.vn.zone /var/named/10.2.rev
+
 
 # Validate and reload
 sudo named-checkconf /etc/named.conf

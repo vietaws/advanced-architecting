@@ -4,7 +4,7 @@
 
 | Environment | Domain | Authority | Example Records |
 |---|---|---|---|
-| AWS Cloud (VPC A) | `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn`, `web.cloud.viet.vn` |
+| AWS Cloud (VPC A) | `cloud.viet.vn` | Route 53 Private Hosted Zone | `app.cloud.viet.vn`, `db.cloud.viet.vn` |
 | On-Premises (VPC OP) | `op.viet.vn` | BIND on EC2 | `app.op.viet.vn`, `db.op.viet.vn`, `dns.op.viet.vn` |
 
 > `cloud.viet.vn` is treated as a **private** hosted zone throughout this demo — it resolves only inside the VPCs, not on the public internet. In a real environment this would be a domain you own, with a separate public hosted zone for external traffic.

@@ -1,30 +1,30 @@
 #!/bin/bash
 # =============================================================================
-# Hybrid DNS Demo — DNS Server (BIND)
+# Hybrid DNS Demo — DNS Server (BIND) — INTERNET FORWARDER VARIANT
 # VPC OP | IP: 10.2.1.10 | Hostname: dns.op.viet.vn
 #
-# This script is used as EC2 user-data. It installs BIND and configures it
-# as the authoritative DNS server for op.viet.vn (on-premises zone).
+# PERSONAL REFERENCE ONLY — NOT FOR PRODUCTION USE
+# This variant forwards unknown queries to public internet resolvers
+# (8.8.8.8 / 1.1.1.1) as a fallback after the VPC resolver.
+# Use this when the demo EC2s need to resolve public hostnames
+# (e.g. package repos, AWS APIs without a VPC endpoint) directly
+# from the BIND server during initial setup.
 #
-# The forwarder section is intentionally left pointing to 10.1.0.2 (VPC A
-# built-in resolver) as a safe default. Each demo scenario will SSH in and
-# swap /etc/named.conf for the scenario-specific config:
-#
-#   Scenario 1 (All AWS)  : BIND forwards everything to Inbound Endpoint
-#   Scenario 2 (All On-prem): BIND authoritative for both zones
-#   Scenario 3 (Split DNS): BIND authoritative for op.viet.vn only,
-#                            forwards cloud.viet.vn to Inbound Endpoint
+# Differences from the production script (userdata-dns-server.sh):
+#   forwarders : 10.2.0.2 → 8.8.8.8 → 1.1.1.1
+#   forward    : only → first   (falls back to internet if VPC resolver fails)
 #
 # After first boot, verify with:
 #   systemctl status named
 #   dig @10.2.1.10 app.op.viet.vn       # should return 10.2.1.20
 #   dig @10.2.1.10 db.op.viet.vn        # should return 10.2.1.30
+#   dig @10.2.1.10 google.com           # should resolve via internet
 # =============================================================================
 
 set -euo pipefail
 exec > >(tee /var/log/userdata-dns-server.log) 2>&1
 
-echo "[$(date)] Starting DNS Server setup..."
+echo "[$(date)] Starting DNS Server setup (internet-forwarder variant)..."
 
 # ── 1. System update & BIND install ──────────────────────────────────────────
 dnf update -y
@@ -46,11 +46,12 @@ options {
     dnssec-validation no;
     querylog yes;
 
-    # Default: forward unknown queries to VPC OP built-in resolver only
-    # (no internet fallback — keeps all DNS traffic within the private network)
-    # Replaced per-scenario during the demo
-    forwarders { 10.2.0.2; };
-    forward only;
+    # INTERNET FORWARDER VARIANT:
+    # Try VPC OP resolver first; fall back to Google / Cloudflare if it fails.
+    # Use "forward only" (+ remove 8.8.8.8/1.1.1.1) in production to prevent
+    # DNS traffic leaking to the internet.
+    forwarders { 10.2.0.2; 8.8.8.8; 1.1.1.1; };
+    forward first;
 };
 
 logging {
@@ -138,6 +139,7 @@ dnf install -y bind-utils
 # ── 9. Set hostname ──────────────────────────────────────────────────────────
 hostnamectl set-hostname dns.op.viet.vn
 
-echo "[$(date)] DNS Server setup complete."
+echo "[$(date)] DNS Server setup complete (internet-forwarder variant)."
 echo "Test: dig @10.2.1.10 app.op.viet.vn"
 echo "Test: dig @10.2.1.10 db.op.viet.vn"
+echo "Test: dig @10.2.1.10 google.com        # resolves via internet"

@@ -362,10 +362,10 @@ cat > /tmp/cloud-records.json << EOF
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "web.cloud.viet.vn",
+        "Name": "db.cloud.viet.vn",
         "Type": "A",
         "TTL": 300,
-        "ResourceRecords": [{"Value": "10.1.1.51"}]
+        "ResourceRecords": [{"Value": "10.1.0.50"}]
       }
     },
     {

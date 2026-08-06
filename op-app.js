@@ -1,4 +1,6 @@
 import http from 'http';
+import dns from 'dns/promises';
+import fs from 'fs';
 import pg from 'pg';
 
 const { Client } = pg;
@@ -11,6 +13,18 @@ const DB_CONFIG = {
   password: 'DemoPassword',
   connectionTimeoutMillis: 3000,
 };
+
+// ── DNS resolver helper ────────────────────────────────────────────────────────
+
+function getDnsResolver() {
+  try {
+    const resolv = fs.readFileSync('/etc/resolv.conf', 'utf8');
+    const match = resolv.match(/^nameserver\s+(\S+)/m);
+    return match ? match[1] : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 // ── DB helper ──────────────────────────────────────────────────────────────────
 
@@ -152,6 +166,26 @@ const BASE_STYLE = `
   .action-link.delete { color: #e74c3c; }
   .actions .divider { color: #e0e0e0; font-size: 0.8rem; }
 
+  /* ── DB Status bar ── */
+  .db-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8f9fa;
+    border: 1px solid #f0f0f0;
+    border-radius: 8px;
+    padding: 9px 14px;
+    margin-bottom: 20px;
+    font-size: 0.82rem;
+    color: #666;
+  }
+  .db-status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #2ecc71; flex-shrink: 0;
+  }
+  .db-status .dot.err { background: #e74c3c; }
+  .db-status strong { color: #333; }
+
   /* ── Add button ── */
   .add-btn {
     display: inline-block;
@@ -239,17 +273,19 @@ const BASE_STYLE = `
     gap: 8px;
   }
   .alert-error   { background: #fff0f0; color: #c0392b; border-left: 3px solid #e74c3c; }
-  .alert-success { background: #f0fff4; color: #1e7e34; border-left: 3px solid #2ecc71; }
 
   /* ── Footer ── */
   .footer {
     background: #f8f9fa;
-    padding: 14px 30px;
-    text-align: center;
-    font-size: 0.78rem;
-    color: #bbb;
+    padding: 10px 20px;
     border-top: 1px solid #e9ecef;
-    letter-spacing: 0.03em;
+  }
+  .footer .db-status {
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+    justify-content: center;
+    padding: 4px 0;
   }
 
   @media (max-width: 600px) {
@@ -264,7 +300,7 @@ const BASE_STYLE = `
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
 
-function layout(title, body) {
+function layout(title, body, dbStatus = '') {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -281,21 +317,8 @@ function layout(title, body) {
       <p>app.op.viet.vn &nbsp;·&nbsp; 10.2.1.20 &nbsp;·&nbsp; VPC OP (on-premises)</p>
     </div>
     <div class="body">${body}</div>
-    <div class="footer">
-      DB: db.op.viet.vn &nbsp;·&nbsp; demo &nbsp;·&nbsp; 10.2.1.30
-    </div>
+    <div class="footer">${dbStatus}</div>
   </div>
-  <script>
-    // Auto-dismiss success alerts after 3 seconds
-    var alerts = document.querySelectorAll('.alert-success');
-    alerts.forEach(function(el) {
-      setTimeout(function() {
-        el.style.transition = 'opacity 0.5s';
-        el.style.opacity = '0';
-        setTimeout(function() { el.style.display = 'none'; }, 500);
-      }, 3000);
-    });
-  </script>
 </body>
 </html>`;
 }
@@ -303,20 +326,34 @@ function layout(title, body) {
 // ── Handlers ───────────────────────────────────────────────────────────────────
 
 async function listProducts(req, res) {
-  const msg = new URL(req.url, 'http://x').searchParams.get('msg');
-  const alerts = { created: 'Product added.', updated: 'Product updated.', deleted: 'Product deleted.' };
+  let rows = [], err = null, dbIp = null;
 
-  let rows = [], err = null;
-  try {
-    const r = await query('SELECT id, name, price, sku FROM products ORDER BY id');
-    rows = r.rows;
-  } catch (e) { err = e.message; }
+  // Resolve DB hostname and query in parallel
+  const [resolveResult, queryResult] = await Promise.allSettled([
+    dns.lookup(DB_CONFIG.host),
+    (async () => {
+      const r = await query('SELECT id, name, price, sku FROM products ORDER BY id');
+      return r.rows;
+    })()
+  ]);
+
+  if (resolveResult.status === 'fulfilled') dbIp = resolveResult.value.address;
+  if (queryResult.status === 'fulfilled') rows = queryResult.value;
+  else err = queryResult.reason.message;
+
+  const statusBar = `
+    <div class="db-status">
+      <span class="dot${err ? ' err' : ''}"></span>
+      <span>
+        <strong>${DB_CONFIG.host}</strong>
+        &nbsp;·&nbsp; ${dbIp || 'unresolved'}
+        &nbsp;·&nbsp; resolver: ${getDnsResolver()}
+      </span>
+    </div>`;
 
   const alert = err
     ? `<div class="alert alert-error"><strong>DB error:</strong> ${err}</div>`
-    : msg && alerts[msg]
-      ? `<div class="alert alert-success">${alerts[msg]}</div>`
-      : '';
+    : '';
 
   const table = err ? '' : `
     <div class="table-wrap">
@@ -360,7 +397,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('OP Inventory', body));
+  res.end(layout('OP Inventory', body, statusBar));
 }
 
 function newForm(res, err = null) {
@@ -388,7 +425,7 @@ async function createProduct(body, res) {
       'INSERT INTO products (name, price, sku) VALUES ($1, $2, $3)',
       [p.get('name'), parseFloat(p.get('price')), p.get('sku')]
     );
-    res.writeHead(302, { Location: '/?msg=created' });
+    res.writeHead(302, { Location: '/' });
     res.end();
   } catch (e) { newForm(res, e.message); }
 }
@@ -431,14 +468,14 @@ async function updateProduct(id, body, res) {
       'UPDATE products SET name=$1, price=$2, sku=$3 WHERE id=$4',
       [p.get('name'), parseFloat(p.get('price')), p.get('sku'), id]
     );
-    res.writeHead(302, { Location: '/?msg=updated' });
+    res.writeHead(302, { Location: '/' });
     res.end();
   } catch (e) { editForm(id, res, e.message); }
 }
 
 async function deleteProduct(id, res) {
   await query('DELETE FROM products WHERE id = $1', [id]).catch(() => {});
-  res.writeHead(302, { Location: '/?msg=deleted' });
+  res.writeHead(302, { Location: '/' });
   res.end();
 }
 

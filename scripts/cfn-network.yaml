@@ -331,6 +331,66 @@ Resources:
       DestinationCidrBlock: !Ref VpcAcidr
       VpcPeeringConnectionId: !Ref VpcPeering
 
+  # ── Resolver Security Groups (VPC A) ──────────────────────────────────────
+  # Used in Advanced / Scenarios 2 & 3 when Resolver Endpoints are created.
+  # Both SGs live in VPC A where the endpoints are deployed.
+
+  # Inbound Resolver Endpoint — accepts DNS queries from on-premises (VPC OP)
+  SgResolverInbound:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Route 53 Inbound Resolver Endpoint - allow UDP/TCP 53 from VPC OP"
+      VpcId: !Ref VpcA
+      SecurityGroupIngress:
+        # DNS over UDP from VPC OP
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: !Ref VpcOPcidr
+          Description: "DNS UDP from VPC OP (on-premises)"
+        # DNS over TCP from VPC OP (zone transfers, large responses)
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: !Ref VpcOPcidr
+          Description: "DNS TCP from VPC OP (on-premises)"
+      SecurityGroupEgress:
+        # Allow responses back — required for stateful SG on resolver ENIs
+        - IpProtocol: "-1"
+          CidrIp: "0.0.0.0/0"
+          Description: "Allow all outbound (responses + Route 53 internal)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-SG-Resolver-Inbound"
+
+  # Outbound Resolver Endpoint — sends forwarded queries to BIND (VPC OP)
+  SgResolverOutbound:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Route 53 Outbound Resolver Endpoint - allow UDP/TCP 53 to VPC OP BIND"
+      VpcId: !Ref VpcA
+      SecurityGroupIngress:
+        # Route 53 internal traffic back to the outbound endpoint ENIs
+        - IpProtocol: "-1"
+          CidrIp: !Ref VpcAcidr
+          Description: "Allow all inbound from VPC A (Route 53 internal responses)"
+      SecurityGroupEgress:
+        # Forward DNS queries to BIND on VPC OP over UDP
+        - IpProtocol: udp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: !Ref VpcOPcidr
+          Description: "DNS UDP to VPC OP BIND server"
+        # Forward DNS queries to BIND on VPC OP over TCP
+        - IpProtocol: tcp
+          FromPort: 53
+          ToPort: 53
+          CidrIp: !Ref VpcOPcidr
+          Description: "DNS TCP to VPC OP BIND server"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-SG-Resolver-Outbound"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 Outputs:
 
@@ -407,3 +467,16 @@ Outputs:
     Value: !Ref SubnetOPPrivate1b
     Export:
       Name: !Sub "${EnvironmentName}-OP-Private-1b-Id"
+
+  # Resolver Security Groups
+  SgResolverInboundId:
+    Description: Security Group for Route 53 Inbound Resolver Endpoint (VPC A)
+    Value: !Ref SgResolverInbound
+    Export:
+      Name: !Sub "${EnvironmentName}-SG-Resolver-Inbound-Id"
+
+  SgResolverOutboundId:
+    Description: Security Group for Route 53 Outbound Resolver Endpoint (VPC A)
+    Value: !Ref SgResolverOutbound
+    Export:
+      Name: !Sub "${EnvironmentName}-SG-Resolver-Outbound-Id"
