@@ -138,22 +138,6 @@ echo "PHZ op.viet.vn: $PHZ_ONPREM"
 
 ---
 
-## Step 3 — Create Resolver Endpoint Security Group
-
-```bash
-SG_RESOLVER=$(aws ec2 create-security-group \
-  --group-name sg-resolver-inbound \
-  --description "Route 53 Inbound Resolver" \
-  --vpc-id $VPC_A_ID --region ap-southeast-1 \
-  --query 'GroupId' --output text)
-
-aws ec2 authorize-security-group-ingress --group-id $SG_RESOLVER \
-  --protocol udp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_RESOLVER \
-  --protocol tcp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-```
-
----
 
 ## Step 4 — Create Inbound Resolver Endpoint
 
@@ -163,7 +147,7 @@ Receives DNS queries forwarded from on-premises BIND.
 INBOUND_EP=$(aws route53resolver create-resolver-endpoint \
   --creator-request-id "inbound-$(date +%s)" \
   --name "Inbound-VPC-A" \
-  --security-group-ids $SG_RESOLVER \
+  --security-group-ids sg-resolver-xxx \
   --direction INBOUND \
   --ip-addresses \
     SubnetId=$SUBNET_A,Ip=10.1.1.10 \
@@ -324,19 +308,9 @@ dig app.op.viet.vn       # ✗ times out
 sudo systemctl start named
 ```
 
-**Talking point:** Route 53 is resilient and fully managed. But on-premises machines that depend on BIND as their DNS server lose resolution when BIND goes down. The solution is a secondary BIND or pointing VPC OP DHCP directly to the Inbound Endpoint IPs.
-
 ---
 
-## Cost (All DNS on AWS)
-
-| Component | IPs / Count | Monthly |
-|-----------|------------|---------|
-| Inbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
-| PHZ `cloud.viet.vn` | 1 zone | $0.50 |
-| PHZ `op.viet.vn` | 1 zone | $0.50 |
-| DNS queries (est. 1M) | — | $0.40 |
-| **Total (Route 53)** | | **~$183.90/month** |
+**Notes:** Route 53 is resilient and fully managed. But on-premises machines that depend on BIND as their DNS server lose resolution when BIND goes down. The solution is a secondary BIND or pointing VPC OP DHCP directly to the Inbound Endpoint IPs.
 
 No Outbound Endpoint, no Resolver Rules — the lowest Route 53 Resolver cost of the three scenarios.
 

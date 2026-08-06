@@ -2,196 +2,12 @@
 
 ## Overview
 
-This guide covers two parts of the demo:
-
-- **Part 1:** Deploy the base infrastructure that all three scenarios share.
-- **Part 2:** Build Scenario 3 (Split DNS) — the recommended long-term hybrid pattern.
-
----
-
-# PART 1 — Foundation Setup
-
-Deploy this once. Every subsequent scenario modifies this base without rebuilding it.
-
-## Architecture
-
-```
-VPC A (10.1.0.0/16)                    VPC OP (10.2.0.0/16)
-───────────────────                    ────────────────────
-Subnet A   10.1.1.0/24                 Subnet OP  10.2.1.0/24
-Subnet A2  10.1.2.0/24 (HA)
-                                         DNS Server  10.2.1.10
-EC2-Cloud  10.1.0.40                     App Server  10.2.1.20
-S3 Gateway Endpoint
-                   ←──── VPC Peering ────→
-```
-
-## Step 1 — Create VPC A
+## BIND Config
 
 ```bash
-VPC_A_ID=$(aws ec2 create-vpc \
-  --cidr-block 10.1.0.0/16 \
-  --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=VPC-A-Cloud}]' \
-  --region ap-southeast-1 \
-  --query 'Vpc.VpcId' --output text)
 
-aws ec2 modify-vpc-attribute --vpc-id $VPC_A_ID --enable-dns-hostnames
-aws ec2 modify-vpc-attribute --vpc-id $VPC_A_ID --enable-dns-support
 
-echo "VPC A: $VPC_A_ID"
-```
-
-## Step 2 — Create Subnets in VPC A
-
-```bash
-# Primary subnet (AZ-a) — EC2 and Resolver IPs
-SUBNET_A=$(aws ec2 create-subnet \
-  --vpc-id $VPC_A_ID \
-  --cidr-block 10.1.1.0/24 \
-  --availability-zone ap-southeast-1a \
-  --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=VPC-A-Private-1a}]' \
-  --region ap-southeast-1 \
-  --query 'Subnet.SubnetId' --output text)
-
-# Secondary subnet (AZ-b) — Resolver HA only
-SUBNET_A2=$(aws ec2 create-subnet \
-  --vpc-id $VPC_A_ID \
-  --cidr-block 10.1.2.0/24 \
-  --availability-zone ap-southeast-1b \
-  --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=VPC-A-Private-1b}]' \
-  --region ap-southeast-1 \
-  --query 'Subnet.SubnetId' --output text)
-
-echo "Subnet A (1a): $SUBNET_A"
-echo "Subnet A2 (1b): $SUBNET_A2"
-```
-
-## Step 3 — Create VPC OP
-
-```bash
-VPC_OP_ID=$(aws ec2 create-vpc \
-  --cidr-block 10.2.0.0/16 \
-  --tag-specifications 'ResourceType=vpc,Tags=[{Key=Name,Value=VPC-OP-OnPrem}]' \
-  --region ap-southeast-1 \
-  --query 'Vpc.VpcId' --output text)
-
-aws ec2 modify-vpc-attribute --vpc-id $VPC_OP_ID --enable-dns-hostnames
-aws ec2 modify-vpc-attribute --vpc-id $VPC_OP_ID --enable-dns-support
-
-SUBNET_OP=$(aws ec2 create-subnet \
-  --vpc-id $VPC_OP_ID \
-  --cidr-block 10.2.1.0/24 \
-  --availability-zone ap-southeast-1a \
-  --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=VPC-OP-Private}]' \
-  --region ap-southeast-1 \
-  --query 'Subnet.SubnetId' --output text)
-
-echo "VPC OP: $VPC_OP_ID"
-echo "Subnet OP: $SUBNET_OP"
-```
-
-## Step 4 — VPC Peering
-
-```bash
-PEERING_ID=$(aws ec2 create-vpc-peering-connection \
-  --vpc-id $VPC_A_ID \
-  --peer-vpc-id $VPC_OP_ID \
-  --tag-specifications 'ResourceType=vpc-peering-connection,Tags=[{Key=Name,Value=VPC-A-to-VPC-OP}]' \
-  --region ap-southeast-1 \
-  --query 'VpcPeeringConnection.VpcPeeringConnectionId' --output text)
-
-aws ec2 accept-vpc-peering-connection \
-  --vpc-peering-connection-id $PEERING_ID \
-  --region ap-southeast-1
-
-# Get route table IDs
-RT_A=$(aws ec2 describe-route-tables \
-  --filters "Name=vpc-id,Values=$VPC_A_ID" \
-  --region ap-southeast-1 \
-  --query 'RouteTables[0].RouteTableId' --output text)
-
-RT_OP=$(aws ec2 describe-route-tables \
-  --filters "Name=vpc-id,Values=$VPC_OP_ID" \
-  --region ap-southeast-1 \
-  --query 'RouteTables[0].RouteTableId' --output text)
-
-# Add routes
-aws ec2 create-route --route-table-id $RT_A \
-  --destination-cidr-block 10.2.0.0/16 \
-  --vpc-peering-connection-id $PEERING_ID --region ap-southeast-1
-
-aws ec2 create-route --route-table-id $RT_OP \
-  --destination-cidr-block 10.1.0.0/16 \
-  --vpc-peering-connection-id $PEERING_ID --region ap-southeast-1
-
-echo "Peering: $PEERING_ID"
-```
-
-## Step 5 — Security Groups
-
-```bash
-# VPC A — EC2
-SG_A=$(aws ec2 create-security-group \
-  --group-name sg-vpc-a-ec2 \
-  --description "VPC A EC2" \
-  --vpc-id $VPC_A_ID --region ap-southeast-1 \
-  --query 'GroupId' --output text)
-
-aws ec2 authorize-security-group-ingress --group-id $SG_A \
-  --protocol tcp --port 22 --cidr 10.2.0.0/16 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_A \
-  --protocol icmp --port -1 --cidr 10.2.0.0/16 --region ap-southeast-1
-
-# VPC OP — DNS Server
-SG_DNS=$(aws ec2 create-security-group \
-  --group-name sg-dns-server \
-  --description "On-prem BIND DNS" \
-  --vpc-id $VPC_OP_ID --region ap-southeast-1 \
-  --query 'GroupId' --output text)
-
-aws ec2 authorize-security-group-ingress --group-id $SG_DNS \
-  --protocol udp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_DNS \
-  --protocol tcp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_DNS \
-  --protocol tcp --port 22 --cidr 10.2.0.0/16 --region ap-southeast-1
-
-# VPC OP — App Server
-SG_APP=$(aws ec2 create-security-group \
-  --group-name sg-app-server \
-  --description "On-prem App Server" \
-  --vpc-id $VPC_OP_ID --region ap-southeast-1 \
-  --query 'GroupId' --output text)
-
-aws ec2 authorize-security-group-ingress --group-id $SG_APP \
-  --protocol tcp --port 22 --cidr 10.0.0.0/8 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_APP \
-  --protocol icmp --port -1 --cidr 10.0.0.0/8 --region ap-southeast-1
-```
-
-## Step 6 — Launch EC2 Instances
-
-```bash
-# Replace with your key pair name and latest AL2023 AMI for ap-southeast-1
-KEY_PAIR="your-key-pair"
-AMI_ID="ami-0c802847a501da9d4"   # Amazon Linux 2023, ap-southeast-1 — verify before use
-
-# EC2-Cloud (VPC A)
-aws ec2 run-instances \
-  --image-id $AMI_ID --instance-type t3.micro \
-  --subnet-id $SUBNET_A \
-  --security-group-ids $SG_A \
-  --key-name $KEY_PAIR \
-  --private-ip-address 10.1.0.40 \
-  --no-associate-public-ip-address \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=EC2-Cloud}]' \
-  --region ap-southeast-1
-
-# DNS Server (VPC OP) — user-data installs BIND
-cat > /tmp/bind-userdata.sh << 'USERDATA'
-#!/bin/bash
-dnf install -y bind bind-utils
-systemctl enable named
+# DNS Server (VPC OP) Config
 
 cat > /etc/named.conf << 'EOF'
 options {
@@ -238,74 +54,11 @@ EOF
 
 chown named:named /var/named/op.viet.vn.zone /var/named/10.2.rev
 systemctl start named
-USERDATA
-
-aws ec2 run-instances \
-  --image-id $AMI_ID --instance-type t3.micro \
-  --subnet-id $SUBNET_OP \
-  --security-group-ids $SG_DNS \
-  --key-name $KEY_PAIR \
-  --private-ip-address 10.2.1.10 \
-  --no-associate-public-ip-address \
-  --user-data file:///tmp/bind-userdata.sh \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=DNS-Server}]' \
-  --region ap-southeast-1
-
-# App Server (VPC OP)
-aws ec2 run-instances \
-  --image-id $AMI_ID --instance-type t3.micro \
-  --subnet-id $SUBNET_OP \
-  --security-group-ids $SG_APP \
-  --key-name $KEY_PAIR \
-  --private-ip-address 10.2.1.20 \
-  --no-associate-public-ip-address \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=App-Server}]' \
-  --region ap-southeast-1
-```
-
-## Step 7 — S3 Bucket + Gateway Endpoint
-
-```bash
-BUCKET="hybrid-dns-demo-$(date +%s)"
-aws s3api create-bucket \
-  --bucket $BUCKET \
-  --region ap-southeast-1 \
-  --create-bucket-configuration LocationConstraint=ap-southeast-1
-
-aws ec2 create-vpc-endpoint \
-  --vpc-id $VPC_A_ID \
-  --service-name com.amazonaws.ap-southeast-1.s3 \
-  --route-table-ids $RT_A \
-  --region ap-southeast-1 \
-  --tag-specifications 'ResourceType=vpc-endpoint,Tags=[{Key=Name,Value=S3-GW-Endpoint}]'
-
-echo "S3 Bucket: $BUCKET"
-```
-
-## End-State Verification
-
-```bash
-# IP connectivity works both ways
-ping -c3 10.2.1.20   # from EC2-Cloud → App Server
-ping -c3 10.1.0.40   # from App Server → EC2-Cloud
-
-# DNS is NOT yet cross-environment (expected at this stage)
-dig app.cloud.viet.vn   # NXDOMAIN — not configured yet
-dig app.op.viet.vn     # NXDOMAIN from EC2-Cloud — expected
-
-# BIND is running on DNS Server
-dig @10.2.1.10 app.op.viet.vn   # should return 10.2.1.20
-dig @10.2.1.10 db.op.viet.vn    # should return 10.2.1.30
-
-# S3 reachable from EC2-Cloud
-aws s3 ls s3://$BUCKET --region ap-southeast-1
 ```
 
 ---
 
-# PART 2 — Scenario 3: Split DNS (Recommended Long-Term Pattern)
-
-## Concept
+## Split DNS (Long Term pattern)
 
 Each environment is authoritative for its own domain. Cross-domain queries are forwarded via Route 53 Resolver endpoints.
 
@@ -332,8 +85,6 @@ App Server queries app.op.viet.vn
   → Authoritative zone op.viet.vn
   → Returns 10.2.1.20  ✓ (never leaves VPC OP)
 ```
-
-**Prerequisite:** Complete Part 1 and have the Route 53 Inbound Endpoint already deployed (IPs `10.1.1.10` and `10.1.2.10`). If running this scenario standalone, create the inbound endpoint first — see `2-scenario-all-dns-aws.md` Step 1.
 
 ## Step 1 — Route 53 Private Hosted Zone for cloud.viet.vn
 
@@ -388,23 +139,8 @@ aws route53 change-resource-record-sets \
 echo "PHZ cloud.viet.vn: $PHZ_CLOUD"
 ```
 
-## Step 2 — Create Resolver Endpoints Security Group
 
-```bash
-SG_RESOLVER=$(aws ec2 create-security-group \
-  --group-name sg-resolver-endpoints \
-  --description "Route 53 Resolver Endpoints" \
-  --vpc-id $VPC_A_ID --region ap-southeast-1 \
-  --query 'GroupId' --output text)
-
-# Allow DNS from both VPCs
-aws ec2 authorize-security-group-ingress --group-id $SG_RESOLVER \
-  --protocol udp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-aws ec2 authorize-security-group-ingress --group-id $SG_RESOLVER \
-  --protocol tcp --port 53 --cidr 10.0.0.0/8 --region ap-southeast-1
-```
-
-## Step 3 — Create Inbound Resolver Endpoint
+## Step 2 — Create Inbound Resolver Endpoint
 
 Receives DNS queries from on-premises (BIND forwards to these IPs).
 
@@ -412,7 +148,7 @@ Receives DNS queries from on-premises (BIND forwards to these IPs).
 INBOUND_EP=$(aws route53resolver create-resolver-endpoint \
   --creator-request-id "inbound-$(date +%s)" \
   --name "Inbound-VPC-A" \
-  --security-group-ids $SG_RESOLVER \
+  --security-group-ids sg-resolver-xxx \
   --direction INBOUND \
   --ip-addresses \
     SubnetId=$SUBNET_A,Ip=10.1.1.10 \
@@ -428,7 +164,7 @@ aws route53resolver get-resolver-endpoint \
   --query 'ResolverEndpoint.Status'
 ```
 
-## Step 4 — Create Outbound Resolver Endpoint
+## Step 3 — Create Outbound Resolver Endpoint
 
 Sends DNS queries from VPC A to on-premises BIND.
 
@@ -436,7 +172,7 @@ Sends DNS queries from VPC A to on-premises BIND.
 OUTBOUND_EP=$(aws route53resolver create-resolver-endpoint \
   --creator-request-id "outbound-$(date +%s)" \
   --name "Outbound-VPC-A" \
-  --security-group-ids $SG_RESOLVER \
+  --security-group-ids sg-resolver-yyy \
   --direction OUTBOUND \
   --ip-addresses \
     SubnetId=$SUBNET_A,Ip=10.1.1.11 \
@@ -451,7 +187,7 @@ aws route53resolver get-resolver-endpoint \
   --query 'ResolverEndpoint.Status'
 ```
 
-## Step 5 — Create Resolver Rule for op.viet.vn
+## Step 4 — Create Resolver Rule for op.viet.vn
 
 Tells VPC A: "for `op.viet.vn`, send queries to BIND via the Outbound Endpoint."
 
@@ -475,7 +211,7 @@ aws route53resolver associate-resolver-rule \
 echo "Resolver Rule: $RULE_ID"
 ```
 
-## Step 6 — Configure BIND to Forward cloud.viet.vn to Inbound Endpoint
+## Step 5 — Configure BIND to Forward cloud.viet.vn to Inbound Endpoint
 
 SSH to the DNS Server (`10.2.1.10`) and update `/etc/named.conf`:
 
@@ -551,37 +287,7 @@ dig @10.2.1.10 app.cloud.viet.vn
 # Expected: 10.1.0.40
 ```
 
-## Blast Radius Test (Key Demo Moment)
 
-```bash
-# 1. Stop BIND on DNS Server
-sudo systemctl stop named
+**Notes:** In Split DNS, an on-prem DNS failure only affects `op.viet.vn` resolution. Cloud resources keep working. Compare to Scenario 2 (All On-Prem) where BIND failure takes down both environments.
 
-# 2. From EC2-Cloud: cloud DNS still works
-dig app.cloud.viet.vn   # still returns 10.1.0.40 ✓
-
-# 3. From EC2-Cloud: on-prem DNS fails (expected)
-dig app.op.viet.vn     # times out ✗
-
-# 4. From App Server: on-prem DNS also fails
-dig app.op.viet.vn     # times out ✗
-
-# 5. Restart BIND → automatic recovery
-sudo systemctl start named
-dig app.op.viet.vn     # returns 10.2.1.20 ✓
-```
-
-**Talking point:** In Split DNS, an on-prem DNS failure only affects `op.viet.vn` resolution. Cloud resources keep working. Compare to Scenario 2 (All On-Prem) where BIND failure takes down both environments.
-
-## Cost (Split DNS)
-
-| Component | IPs / Count | Monthly |
-|-----------|------------|---------|
-| Inbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
-| Outbound Resolver Endpoint | 2 IPs (HA) | $182.50 |
-| Resolver Rule (`op.viet.vn`) | 1 rule | $73.00 |
-| PHZ `cloud.viet.vn` | 1 zone | $0.50 |
-| DNS queries (est. 1M) | — | $0.40 |
-| **Total (Route 53)** | | **~$438/month** |
-
-> The endpoints are the dominant cost. For dev/test, drop to 1 IP per endpoint (single AZ) to cut $182.50/month.
+The endpoints are the dominant cost. For dev/test, drop to 1 IP per endpoint (single AZ) to cut $182.50/month.

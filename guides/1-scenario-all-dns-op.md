@@ -28,8 +28,6 @@ App Server queries app.cloud.viet.vn
 
 **No Route 53 Resolver Endpoints needed.** The only Route 53 component used is the Private Hosted Zone, and even that is optional in this scenario.
 
-**Prerequisite:** Foundation infrastructure from `3-scenario-split-dns.md` (Part 1) is deployed and BIND is running at `10.2.1.10`.
-
 ---
 
 ## Step 1 — Expand BIND Configuration
@@ -272,60 +270,4 @@ sudo tail -f /var/log/named/query.log
 
 ---
 
-## Blast Radius Test (Key Demo Moment)
-
-```bash
-# 1. Stop BIND
-sudo systemctl stop named    # on DNS Server
-
-# 2. From EC2-Cloud
-dig app.cloud.viet.vn         # ✗ times out
-dig app.op.viet.vn           # ✗ times out
-aws s3 ls                    # ✗ fails (S3 DNS broken too)
-
-# 3. From App Server
-dig app.cloud.viet.vn         # ✗ times out
-dig app.op.viet.vn           # ✗ times out
-
-# 4. Restart BIND → full recovery
-sudo systemctl start named
-dig app.cloud.viet.vn         # ✓ 10.1.0.40
-```
-
-**Talking point:** BIND is a single point of failure for both environments. In production this requires HA (primary + secondary BIND) or adding `10.2.1.11` as a secondary DNS server and listing both IPs in the DHCP options. Compare this to Split DNS (Scenario 3) where a BIND failure only affects `op.viet.vn`.
-
----
-
-## Cleanup: Restore Default DHCP Before Next Scenario
-
-When transitioning to Scenario 1 (All DNS on AWS), restore VPC A to use `AmazonProvidedDNS`:
-
-```bash
-# Get the default DHCP options ID for the region
-DEFAULT_DHCP="default"
-
-aws ec2 associate-dhcp-options \
-  --dhcp-options-id $DEFAULT_DHCP \
-  --vpc-id $VPC_A_ID \
-  --region ap-southeast-1
-
-# Renew DHCP on EC2-Cloud
-# sudo dhclient -r && sudo dhclient
-```
-
----
-
-## Cost (All DNS on On-Premises)
-
-| Component | Details | Monthly |
-|-----------|---------|---------|
-| EC2 t3.micro (DNS Server) | Already deployed in foundation | $7.59 |
-| PHZ `cloud.viet.vn` (optional) | Not required for this scenario | $0 |
-| Route 53 Resolver Endpoints | None needed | $0 |
-| Resolver Rules | None needed | $0 |
-| **Route 53 total** | | **$0** |
-| **Total incremental** | vs. base infra | **$0/month** |
-
-This is the cheapest scenario by far. The cost driver is the EC2 DNS server itself, which is already part of the base infrastructure.
-
-The hidden cost is operational: every IP change on EC2-Cloud requires a manual zone file update and `rndc reload` on BIND.
+**Notes:** Try to stop named service to see the impacts.

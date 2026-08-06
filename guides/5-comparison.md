@@ -10,7 +10,7 @@ This guide has four parts:
 
 ---
 
-# Part 1 — DNS Firewall (15 min)
+# Part 1 — DNS Firewall
 
 Route 53 Resolver DNS Firewall intercepts DNS queries leaving VPC A and blocks or allows them based on rule groups. It is the DNS-layer equivalent of a security group.
 
@@ -108,7 +108,7 @@ aws route53resolver list-firewall-managed-domain-lists \
 
 ---
 
-# Part 2 — CNAME and Alias Records in PHZ (10 min)
+# Part 2 — CNAME and Alias Records in PHZ
 
 ## CNAME Records
 
@@ -165,7 +165,7 @@ dig cloud.viet.vn
 
 ---
 
-# Part 3 — Resolver Rule Sharing via AWS RAM (10 min)
+# Part 3 — Resolver Rule Sharing via AWS RAM
 
 ## The Problem
 
@@ -223,7 +223,7 @@ aws route53resolver associate-resolver-rule \
 
 ---
 
-# Part 4 — Cost Comparison & Decision Framework (10 min)
+# Part 4 — Cost Comparison & Decision Framework
 
 ## Monthly Cost Comparison
 
@@ -237,7 +237,7 @@ aws route53resolver associate-resolver-rule \
 | DNS queries (1M est.) | $0.40 | — | $0.40 |
 | **Route 53 Total** | **~$184/mo** | **$0/mo** | **~$438/mo** |
 
-> On-premises BIND server cost (EC2 t3.micro) is part of base infrastructure in all scenarios: ~$7.59/month.
+> EC2 Instance cost (t4g.micro) is part of base infrastructure in all scenarios: ~$6.13/month.
 
 ## Performance Comparison
 
@@ -259,19 +259,20 @@ aws route53resolver associate-resolver-rule \
 
 ## Decision Framework
 
-### Choose Scenario 1 (All DNS on AWS) when:
+### Choose Scenario 1 (All DNS on On-Premises) when:
+- Early cloud adoption — most workloads still on-prem
+- On-prem DNS team wants to retain full control
+- Compliance or data sovereignty requires on-prem DNS authority
+- You want to minimise AWS costs during a pilot phase
+- Existing on-prem DNS infrastructure is already highly available
+
+### Choose Scenario 2 (All DNS on AWS) when:
 - Cloud workloads are dominant (>70% in AWS)
 - You want centralised visibility via CloudWatch Logs
 - On-prem DNS team is being decommissioned or is not available
 - You need AWS-native service discovery (ECS, EKS)
 - Compliance requires DNS audit logs in AWS
 
-### Choose Scenario 2 (All DNS on On-Premises) when:
-- Early cloud adoption — most workloads still on-prem
-- On-prem DNS team wants to retain full control
-- Compliance or data sovereignty requires on-prem DNS authority
-- You want to minimise AWS costs during a pilot phase
-- Existing on-prem DNS infrastructure is already highly available
 
 ### Choose Scenario 3 (Split DNS) when:
 - Long-term hybrid strategy — no plans to fully move either way
@@ -283,7 +284,7 @@ aws route53resolver associate-resolver-rule \
 ## Migration Roadmap
 
 ```
-Year 0-1: Scenario 2 (All On-Prem)
+Year 0-1: Scenario 1 (All On-Prem)
   └── Minimal change, leverage existing BIND
   └── Add Route 53 PHZ as a read-only mirror (optional)
 
@@ -292,32 +293,12 @@ Year 1-2: Scenario 3 (Split DNS)
   └── Route 53 owns cloud.viet.vn, BIND owns op.viet.vn
   └── Implement DNS Firewall for cloud egress control
 
-Year 3+: Scenario 1 (All AWS) or stay at Scenario 3
+Year 3+: Scenario 2 (All AWS) or stay at Scenario 3
   └── Move to All-AWS only if on-prem is being decommissioned
   └── Split DNS remains the preferred pattern for mature hybrid
 ```
 
 ---
-
-# Wrap-up (15 min)
-
-## Feature Coverage Summary
-
-| Route 53 / Resolver Feature | Demonstrated In |
-|-----------------------------|-----------------|
-| Private Hosted Zone (PHZ) | Scenarios 1, 2, 3 |
-| PHZ — multi-VPC association | Scenario 1 |
-| PHZ — CNAME records | Scenarios 1, 3 |
-| PHZ — Alias records | Advanced Features |
-| Inbound Resolver Endpoint | Scenarios 1, 3 |
-| Outbound Resolver Endpoint | Scenario 3 |
-| Resolver Rules (FORWARD) | Scenario 3 |
-| Resolver Rule sharing (RAM) | Advanced Features |
-| Resolver Query Logging | Scenario 1 |
-| DNS Firewall | Advanced Features |
-| Custom DHCP Options | Scenario 2 |
-| Conditional forwarding in BIND | Scenarios 2, 3 |
-| S3 Gateway Endpoint DNS | Foundation |
 
 ## Key Takeaways
 
