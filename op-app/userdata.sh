@@ -21,7 +21,7 @@ SMB_SHARE="smb"
 NFS_MOUNT="/mnt/nfs"
 SMB_MOUNT="/mnt/smb"
 REGION="us-east-1"
-APP_DIR="/opt/op-app"
+APP_DIR="/opt/app"
 APP_USER="webapp"
 
 GITHUB_REPO="https://github.com/vietaws/architecting-pro.git"
