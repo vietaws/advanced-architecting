@@ -435,7 +435,7 @@
       renderGrid(
         'nfs-grid', data.items,
         item => `/api/nfs/images/${encodeURIComponent(item.filename)}`,
-        item => `deleteNFS(${JSON.stringify(item.filename)})`
+        item => `deleteNFS('${item.filename}')`
       );
       nfsLoaded = true;
     } catch (err) {
@@ -499,7 +499,7 @@
       renderGrid(
         'smb-grid', data.items,
         item => `/api/smb/images/${encodeURIComponent(item.filename)}`,
-        item => `deleteSMB(${JSON.stringify(item.filename)})`
+        item => `deleteSMB('${item.filename}')`
       );
       smbLoaded = true;
     } catch (err) {

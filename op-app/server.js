@@ -112,9 +112,12 @@ function mountRoutes(router, mountPath, label) {
 
   // Delete image
   router.delete('/images', (req, res) => {
+    console.log(`${label} DELETE req.body:`, JSON.stringify(req.body));
     const filename = path.basename(req.body.filename || '');
+    console.log(`${label} DELETE filename resolved:`, filename);
     if (!filename) return res.status(400).json({ error: 'filename is required' });
     const filepath = path.join(mountPath, filename);
+    console.log(`${label} DELETE filepath:`, filepath, 'exists:', fs.existsSync(filepath));
     if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Not found' });
     try {
       fs.unlinkSync(filepath);
