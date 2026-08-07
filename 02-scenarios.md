@@ -22,7 +22,7 @@
 
 ---
 
-## Part 1: AWS Storage Gateway Scenarios
+## Part 1: AWS DataSync Scenarios
 
 ### DS-01 — DataSync: NFS → Amazon S3 (One-Time Task) *(Easy)*
 
@@ -189,7 +189,7 @@
 
 ---
 
-## Part 2: AWS DataSync Scenarios
+## Part 2: AWS Storage Gateway Scenarios
 
 ### SGW-01 — File Gateway: NFS Share → Amazon S3 *(Easy)*
 
