@@ -15,12 +15,12 @@ exec > >(tee /var/log/cloud-app-setup.log | logger -t cloud-app-setup) 2>&1
 # ---------------------------------------------------------------------------
 # 0. Configuration
 # ---------------------------------------------------------------------------
-S3_BUCKET="sgw-datasync-demo-$(aws sts get-caller-identity --query Account --output text)"
-S3_PREFIX="/"
+S3_BUCKET="demo-cf-274595021951-us-east-1-an"                       # e.g. my-demo-bucket
+S3_PREFIX="images/"
 STORAGE_MODE="efs"                            # Change to "ebs" for Phase 2
-EFS_ID="<YOUR_EFS_FILE_SYSTEM_ID>"            # e.g. fs-0abc1234def56789
+EFS_ID="fs-09228f1437e0f3202"            # e.g. fs-0abc1234def56789
 LOCAL_MOUNT="/mnt/efs"                        # /mnt/efs for Phase 1, /mnt/ebs for Phase 2
-LOCAL_SUBDIR="images/products"
+LOCAL_SUBDIR="/"
 REGION="us-east-1"
 APP_DIR="/opt/app"
 APP_USER="webapp"
@@ -35,14 +35,30 @@ echo "EFS_ID       : $EFS_ID"
 
 # ---------------------------------------------------------------------------
 # 1. System update and base packages
-#    ntfs-3g: installed upfront for Phase 2 EBS/NTFS mount (no mid-demo install)
 # ---------------------------------------------------------------------------
 dnf update -y
 dnf install -y \
   amazon-efs-utils \
   nfs-utils \
-  ntfs-3g \
   git
+
+# ---------------------------------------------------------------------------
+# 1a. Build ntfs-3g from source (not in AL2023 default repos for aarch64)
+#     Required for Phase 2: mounting NTFS-formatted EBS volume from Volume Gateway snapshot
+# ---------------------------------------------------------------------------
+dnf install -y gcc make fuse fuse-devel libgcrypt-devel
+
+NTFS3G_VERSION="2022.10.3"
+curl -fsSL "https://tuxera.com/opensource/ntfs-3g_ntfsprogs-${NTFS3G_VERSION}.tgz" \
+  -o /tmp/ntfs-3g.tgz
+tar -xzf /tmp/ntfs-3g.tgz -C /tmp
+cd "/tmp/ntfs-3g_ntfsprogs-${NTFS3G_VERSION}"
+./configure --prefix=/usr --disable-static 2>&1 | tail -5
+make -j"$(nproc)" 2>&1 | tail -5
+make install
+ldconfig
+cd / && rm -rf "/tmp/ntfs-3g_ntfsprogs-${NTFS3G_VERSION}" /tmp/ntfs-3g.tgz
+ntfs-3g --version && echo "ntfs-3g installed successfully"
 
 # ---------------------------------------------------------------------------
 # 2. Install Node.js 24 LTS
