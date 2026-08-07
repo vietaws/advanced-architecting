@@ -90,9 +90,15 @@ function mountRoutes(router, mountPath, label) {
   });
 
   // Upload image
-  router.post('/images', diskUploader(mountPath).single('image'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    res.json({ message: 'Uploaded', filename: req.file.filename });
+  router.post('/images', (req, res) => {
+    diskUploader(mountPath).single('image')(req, res, (err) => {
+      if (err) {
+        console.error(`${label} upload error:`, err);
+        return res.status(400).json({ error: err.message });
+      }
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      res.json({ message: 'Uploaded', filename: req.file.filename });
+    });
   });
 
   // Delete image
@@ -118,6 +124,14 @@ mountRoutes(smbRouter, SMB_MOUNT, 'SMB');
 
 app.use('/api/nfs', nfsRouter);
 app.use('/api/smb', smbRouter);
+
+// ---------------------------------------------------------------------------
+// Global error handler — ensures all errors return JSON, never HTML
+// ---------------------------------------------------------------------------
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
 
 // ---------------------------------------------------------------------------
 // Start

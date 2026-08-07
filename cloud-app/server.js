@@ -129,21 +129,27 @@ app.get('/api/s3/images', async (req, res) => {
 });
 
 // Upload image to S3
-app.post('/api/s3/images', uploadToMem.single('image'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const key = S3_PREFIX + req.file.originalname;
-  try {
-    await s3.send(new PutObjectCommand({
-      Bucket:      S3_BUCKET,
-      Key:         key,
-      Body:        req.file.buffer,
-      ContentType: req.file.mimetype,
-    }));
-    res.json({ message: 'Uploaded', key });
-  } catch (err) {
-    console.error('S3 upload error:', err);
-    res.status(500).json({ error: err.message });
-  }
+app.post('/api/s3/images', (req, res) => {
+  uploadToMem.single('image')(req, res, async (err) => {
+    if (err) {
+      console.error('S3 multer error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const key = S3_PREFIX + req.file.originalname;
+    try {
+      await s3.send(new PutObjectCommand({
+        Bucket:      S3_BUCKET,
+        Key:         key,
+        Body:        req.file.buffer,
+        ContentType: req.file.mimetype,
+      }));
+      res.json({ message: 'Uploaded', key });
+    } catch (err) {
+      console.error('S3 upload error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 });
 
 // Delete image from S3
@@ -198,9 +204,15 @@ app.get('/api/efs/images/:filename', (req, res) => {
 });
 
 // Upload image to EFS
-app.post('/api/efs/images', uploadToDisk.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  res.json({ message: 'Uploaded', filename: req.file.filename });
+app.post('/api/efs/images', (req, res) => {
+  uploadToDisk.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('EFS multer error:', err);
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    res.json({ message: 'Uploaded', filename: req.file.filename });
+  });
 });
 
 // Delete image from EFS
@@ -217,6 +229,14 @@ app.delete('/api/efs/images', (req, res) => {
     console.error('EFS delete error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Global error handler — ensures all errors return JSON, never HTML
+// ---------------------------------------------------------------------------
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
 });
 
 // ---------------------------------------------------------------------------

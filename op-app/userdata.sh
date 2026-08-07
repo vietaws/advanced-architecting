@@ -76,7 +76,7 @@ if ! grep -q "$SMB_SERVER_IP" /etc/fstab; then
 fi
 
 for i in $(seq 1 6); do
-  if mount -t cifs -o guest,vers=3.0,iocharset=utf8 "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
+  if mount -t cifs -o guest,uid=webapp,gid=webapp,vers=3.0,iocharset=utf8 "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
     echo "SMB mounted successfully"
     break
   fi
