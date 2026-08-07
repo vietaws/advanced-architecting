@@ -12,12 +12,15 @@ set -euo pipefail
 exec > >(tee /var/log/op-app-setup.log | logger -t op-app-setup) 2>&1
 
 # ---------------------------------------------------------------------------
-# 0. Configuration — edit NFS_SERVER_IP and SMB_SERVER_IP before launching
+# 0. Configuration — edit before launching
 # ---------------------------------------------------------------------------
 NFS_SERVER_IP="<NFS_SERVER_PRIVATE_IP>"    # e.g. 10.1.1.10
 NFS_EXPORT="/data/nfs"
-SMB_SERVER_IP="<SMB_SERVER_PRIVATE_IP>"    # e.g. 10.1.1.20
-SMB_SHARE="smb"
+SMB_SERVER_IP="<SMB_SERVER_PRIVATE_IP>"    # e.g. 10.1.1.20  OR SGW appliance private IP
+SMB_SHARE="smb"                            # share name on op-smb-server OR SGW console
+SMB_USER="guest"                           # guest for op-smb-server; guest for SGW too
+SMB_PASSWORD=""                            # empty = local guest (no password)
+                                           # set to e.g. "Passw0rd123" for SGW guest access
 NFS_MOUNT="/mnt/nfs"
 SMB_MOUNT="/mnt/smb"
 REGION="us-east-1"
@@ -78,20 +81,33 @@ done
 $NFS_MOUNTED || echo "WARNING: NFS mount failed — app will start but NFS tab will be empty"
 
 # ---------------------------------------------------------------------------
-# 5. Mount SMB share (guest access, no password)
-#    Use numeric uid/gid so CIFS kernel module resolves correctly
+# 5. Mount SMB share
+#    SMB_PASSWORD empty  → local guest (no password, op-smb-server)
+#    SMB_PASSWORD set    → guest with password (SGW File Gateway)
 # ---------------------------------------------------------------------------
 mkdir -p "$SMB_MOUNT"
 
+if [[ -z "$SMB_PASSWORD" ]]; then
+  SMB_OPTS="guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8"
+  echo "SMB mode: local guest (no password)"
+else
+  # Write credentials file — keeps password out of fstab and mount output
+  cat > /etc/smb-credentials << CREDS
+username=${SMB_USER}
+password=${SMB_PASSWORD}
+CREDS
+  chmod 600 /etc/smb-credentials
+  SMB_OPTS="credentials=/etc/smb-credentials,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8"
+  echo "SMB mode: authenticated (credentials file)"
+fi
+
 if ! grep -q "$SMB_SERVER_IP" /etc/fstab; then
-  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 0 0" >> /etc/fstab
+  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,${SMB_OPTS} 0 0" >> /etc/fstab
 fi
 
 SMB_MOUNTED=false
 for i in $(seq 1 6); do
-  if mount -t cifs \
-    -o "guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
-    "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
+  if mount -t cifs -o "${SMB_OPTS}" "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
     echo "SMB mounted successfully"
     SMB_MOUNTED=true
     break
@@ -166,3 +182,27 @@ systemctl is-active demo-app && \
 
 echo "=== Mounts ===" && df -h | grep -E "nfs|cifs|smb|Filesystem" || true
 echo "=== Setup complete. Access at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4) ==="
+
+# ---------------------------------------------------------------------------
+# HOW TO SWITCH SMB MOUNT DURING DEMO (run on op-app via SSM)
+#
+# Phase 1 — op-smb-server (local guest, no password):
+#   SMB_SERVER_IP=<op-smb-server-private-ip>
+#   SMB_SHARE=smb
+#   SMB_OPTS="guest,uid=$(id -u webapp),gid=$(id -g webapp),file_mode=0777,dir_mode=0777,vers=3.0"
+#
+# Phase 2 — SGW File Gateway (guest with password):
+#   SMB_SERVER_IP=<sgw-appliance-private-ip>
+#   SMB_SHARE=<share-name-from-sgw-console>
+#   cat > /etc/smb-credentials << EOF
+#   username=guest
+#   password=Passw0rd123
+#   EOF
+#   chmod 600 /etc/smb-credentials
+#   SMB_OPTS="credentials=/etc/smb-credentials,uid=$(id -u webapp),gid=$(id -g webapp),file_mode=0777,dir_mode=0777,vers=3.0"
+#
+# Switch command (same for both phases):
+#   umount /mnt/smb
+#   mount -t cifs -o "${SMB_OPTS}" "//${SMB_SERVER_IP}/${SMB_SHARE}" /mnt/smb
+#   df -h /mnt/smb && ls /mnt/smb
+# ---------------------------------------------------------------------------

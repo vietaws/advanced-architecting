@@ -574,6 +574,88 @@ Resources:
         - Key: Name
           Value: !Sub ${DemoPrefix}-onprem-sgw-appliance-sg
 
+  # Storage Gateway — S3 File Gateway SG
+  OnPremSGWFileS3SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-sgw-file-s3-sg
+      GroupDescription: SGW S3 File Gateway - NFS/SMB inbound from OnPrem VPC, HTTPS to AWS
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        # NFS clients
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS TCP from OnPrem VPC clients
+        - IpProtocol: udp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: !Ref OnPremVpcCidr
+          Description: NFS UDP from OnPrem VPC clients
+        # NFS portmapper
+        - IpProtocol: tcp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper TCP
+        - IpProtocol: udp
+          FromPort: 111
+          ToPort: 111
+          CidrIp: !Ref OnPremVpcCidr
+          Description: portmapper UDP
+        # SMB clients
+        - IpProtocol: tcp
+          FromPort: 445
+          ToPort: 445
+          CidrIp: !Ref OnPremVpcCidr
+          Description: SMB from OnPrem VPC clients
+        # Activation
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTP for gateway activation
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS Storage Gateway and S3 endpoints
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-sgw-file-s3-sg
+
+  # Storage Gateway — Volume Gateway (CACHED/STORED) SG
+  OnPremSGWVolumeSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-sgw-volume-sg
+      GroupDescription: SGW Volume Gateway - iSCSI inbound from OnPrem VPC, HTTPS to AWS
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        # iSCSI clients (Windows iSCSI initiator)
+        - IpProtocol: tcp
+          FromPort: 3260
+          ToPort: 3260
+          CidrIp: !Ref OnPremVpcCidr
+          Description: iSCSI from OnPrem VPC clients
+        # Activation
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref OnPremVpcCidr
+          Description: HTTP for gateway activation
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS Storage Gateway and S3 endpoints
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-sgw-volume-sg
+
   # DataSync Agent SG
   OnPremDataSyncAgentSG:
     Type: AWS::EC2::SecurityGroup
@@ -1275,10 +1357,22 @@ Outputs:
       Name: !Sub ${DemoPrefix}-onprem-smb-sg-id
 
   OnPremSGWApplianceSGId:
-    Description: Security Group ID for Storage Gateway Appliance
+    Description: Security Group ID for Storage Gateway Appliance (combined — legacy)
     Value: !Ref OnPremSGWApplianceSG
     Export:
       Name: !Sub ${DemoPrefix}-onprem-sgw-sg-id
+
+  OnPremSGWFileS3SGId:
+    Description: Security Group ID for SGW S3 File Gateway
+    Value: !Ref OnPremSGWFileS3SG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-sgw-file-s3-sg-id
+
+  OnPremSGWVolumeSGId:
+    Description: Security Group ID for SGW Volume Gateway (CACHED/STORED)
+    Value: !Ref OnPremSGWVolumeSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-sgw-volume-sg-id
 
   OnPremDataSyncAgentSGId:
     Description: Security Group ID for DataSync Agent

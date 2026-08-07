@@ -12,7 +12,7 @@ SHARE_NAME="smb"
 IMAGES_REPO="https://github.com/vietaws/images.git"
 IMAGES_BRANCH="main"
 DATASYNC_USER="datasync"
-DATASYNC_PASS="Datasync@123"
+DATASYNC_PASS="Passw0rd123"
 
 echo "=== Starting op-smb-server setup ==="
 

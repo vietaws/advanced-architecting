@@ -485,3 +485,72 @@ aws ec2 describe-snapshots \
   --query 'sort_by(Snapshots, &StartTime)[-3:].{SnapshotId:SnapshotId,State:State,StartTime:StartTime,Description:Description}' \
   --output table
 ```
+
+---
+
+## 9. Switch SMB Mount on op-app (op-smb-server ↔ SGW File Gateway)
+
+Use these steps during the demo to switch `op-app`'s SMB mount between the direct Samba server and the S3 File Gateway SMB share.
+
+**Connect to op-app via SSM first:**
+```bash
+aws ssm start-session --target <op-app-instance-id> --region us-east-1
+```
+
+---
+
+### Phase 1 → Phase 2: Switch to SGW File Gateway
+
+```bash
+SGW_IP="<sgw-appliance-private-ip>"     # private IP of op-sgw-appliance
+SGW_SHARE="<share-name-from-sgw-console>"  # SMB share name configured in SGW console
+WEBAPP_UID=$(id -u webapp)
+WEBAPP_GID=$(id -g webapp)
+
+# Write credentials file (guest with password)
+cat > /etc/smb-credentials << EOF
+username=guest
+password=Passw0rd123
+EOF
+chmod 600 /etc/smb-credentials
+
+# Unmount current SMB (op-smb-server)
+umount /mnt/smb
+
+# Mount SGW SMB share
+mount -t cifs \
+  -o "credentials=/etc/smb-credentials,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
+  "//${SGW_IP}/${SGW_SHARE}" /mnt/smb
+
+# Verify
+df -h /mnt/smb && ls /mnt/smb
+
+# Restart app to pick up new mount
+systemctl restart demo-app
+systemctl is-active demo-app
+```
+
+---
+
+### Phase 2 → Phase 1: Switch back to op-smb-server
+
+```bash
+SMB_IP="<op-smb-server-private-ip>"
+WEBAPP_UID=$(id -u webapp)
+WEBAPP_GID=$(id -g webapp)
+
+# Unmount SGW share
+umount /mnt/smb
+
+# Mount op-smb-server (local guest, no password)
+mount -t cifs \
+  -o "guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
+  "//${SMB_IP}/smb" /mnt/smb
+
+# Verify
+df -h /mnt/smb && ls /mnt/smb
+
+# Restart app
+systemctl restart demo-app
+systemctl is-active demo-app
+```
