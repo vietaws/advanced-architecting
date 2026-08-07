@@ -32,7 +32,7 @@ chmod -R 777 "$SMB_SHARE_DIR"
 git clone --depth 1 --branch "$IMAGES_BRANCH" "$IMAGES_REPO" /tmp/images-repo
 cp /tmp/images-repo/provider-1.jpg "${SMB_SHARE_DIR}/"
 rm -rf /tmp/images-repo
-chmod 644 "${SMB_SHARE_DIR}"/*.jpg
+chmod 666 "${SMB_SHARE_DIR}"/*.jpg
 
 echo "Images copied: $(ls ${SMB_SHARE_DIR}/*.jpg)"
 

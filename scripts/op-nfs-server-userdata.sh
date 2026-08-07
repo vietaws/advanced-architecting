@@ -32,16 +32,19 @@ chmod -R 777 "$NFS_EXPORT_DIR"
 git clone --depth 1 --branch "$IMAGES_BRANCH" "$IMAGES_REPO" /tmp/images-repo
 cp /tmp/images-repo/product-1.jpg "${NFS_EXPORT_DIR}/"
 rm -rf /tmp/images-repo
-chmod 644 "${NFS_EXPORT_DIR}"/*.jpg
+chmod 666 "${NFS_EXPORT_DIR}"/*.jpg
 
 echo "Images copied: $(ls ${NFS_EXPORT_DIR}/*.jpg)"
 
 # ---------------------------------------------------------------------------
 # 4. Configure NFS exports
 #    all_squash: map all client UIDs to anonuid/anongid (nobody:nobody)
-#    This ensures any client user can read/write regardless of UID mismatch
+#    anongid/anonuid 65534 = nobody — world-writable so webapp can delete
 # ---------------------------------------------------------------------------
-echo "${NFS_EXPORT_DIR} ${ALLOWED_CIDR}(rw,sync,all_squash,no_subtree_check)" > /etc/exports
+echo "${NFS_EXPORT_DIR} ${ALLOWED_CIDR}(rw,sync,all_squash,anonuid=65534,anongid=65534,no_subtree_check)" > /etc/exports
+
+# Ensure export dir and all files are world-writable
+chmod 777 "${NFS_EXPORT_DIR}"
 
 # ---------------------------------------------------------------------------
 # 5. Enable and start NFS server

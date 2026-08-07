@@ -5,6 +5,10 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 
+// Set umask to 0 so files written to NFS/SMB are world-writable (rw-rw-rw-)
+// This allows any user (nobody, webapp, etc.) to delete files regardless of who created them
+process.umask(0o000);
+
 // ---------------------------------------------------------------------------
 // Config from .env / environment variables
 // ---------------------------------------------------------------------------

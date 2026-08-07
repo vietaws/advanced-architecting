@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# op-app-userdata.sh
+# op-app userdata.sh
 # EC2 User Data — OP App Server (t4g.micro, Amazon Linux 2023, ARM64)
 # Mounts NFS + SMB shares, clones app from GitHub, runs on port 80
 #
@@ -49,7 +49,15 @@ node --version
 npm  --version
 
 # ---------------------------------------------------------------------------
-# 3. Mount NFS share
+# 3. Create app user FIRST — uid required for CIFS mount options below
+# ---------------------------------------------------------------------------
+id "$APP_USER" &>/dev/null || useradd -r -s /sbin/nologin "$APP_USER"
+WEBAPP_UID=$(id -u "$APP_USER")
+WEBAPP_GID=$(id -g "$APP_USER")
+echo "webapp uid=${WEBAPP_UID} gid=${WEBAPP_GID}"
+
+# ---------------------------------------------------------------------------
+# 4. Mount NFS share
 # ---------------------------------------------------------------------------
 mkdir -p "$NFS_MOUNT"
 
@@ -57,37 +65,41 @@ if ! grep -q "$NFS_SERVER_IP" /etc/fstab; then
   echo "${NFS_SERVER_IP}:${NFS_EXPORT} ${NFS_MOUNT} nfs _netdev,vers=4,hard,intr 0 0" >> /etc/fstab
 fi
 
+NFS_MOUNTED=false
 for i in $(seq 1 6); do
   if mount -t nfs -o vers=4,hard,intr "${NFS_SERVER_IP}:${NFS_EXPORT}" "$NFS_MOUNT"; then
     echo "NFS mounted successfully"
+    NFS_MOUNTED=true
     break
   fi
   echo "NFS mount attempt $i failed, retrying in 5s..."
   sleep 5
 done
+$NFS_MOUNTED || echo "WARNING: NFS mount failed — app will start but NFS tab will be empty"
 
 # ---------------------------------------------------------------------------
-# 4. Mount SMB share (guest access, no password)
+# 5. Mount SMB share (guest access, no password)
+#    Use numeric uid/gid so CIFS kernel module resolves correctly
 # ---------------------------------------------------------------------------
 mkdir -p "$SMB_MOUNT"
 
 if ! grep -q "$SMB_SERVER_IP" /etc/fstab; then
-  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,guest,uid=webapp,gid=webapp,file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 0 0" >> /etc/fstab
+  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 0 0" >> /etc/fstab
 fi
 
+SMB_MOUNTED=false
 for i in $(seq 1 6); do
-  if mount -t cifs -o guest,uid=webapp,gid=webapp,file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
+  if mount -t cifs \
+    -o "guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
+    "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
     echo "SMB mounted successfully"
+    SMB_MOUNTED=true
     break
   fi
   echo "SMB mount attempt $i failed, retrying in 5s..."
   sleep 5
 done
-
-# ---------------------------------------------------------------------------
-# 5. Create app user (no login shell)
-# ---------------------------------------------------------------------------
-id "$APP_USER" &>/dev/null || useradd -r -s /sbin/nologin "$APP_USER"
+$SMB_MOUNTED || echo "WARNING: SMB mount failed — app will start but SMB tab will be empty"
 
 # ---------------------------------------------------------------------------
 # 6. Clone app from GitHub and install dependencies
@@ -152,4 +164,5 @@ systemctl is-active demo-app && \
   echo "=== demo-app is RUNNING ===" || \
   echo "=== ERROR: demo-app failed — check: journalctl -u demo-app ==="
 
+echo "=== Mounts ===" && df -h | grep -E "nfs|cifs|smb|Filesystem" || true
 echo "=== Setup complete. Access at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4) ==="
