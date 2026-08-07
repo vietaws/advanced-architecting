@@ -51,6 +51,7 @@
     /* ── Tabs ── */
     .tabs {
       display: flex;
+      justify-content: center;
       gap: 4px;
       padding: 16px 24px 0;
       border-bottom: 1px solid var(--border);
@@ -390,7 +391,20 @@
     if (e.target === e.currentTarget) closeModal();
   });
 
-  // ── S3 ─────────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function timestampedName(filename) {
+    const ext  = filename.lastIndexOf('.') !== -1 ? filename.slice(filename.lastIndexOf('.')) : '';
+    const base = filename.slice(0, filename.length - ext.length);
+    const now  = new Date();
+    const pad  = n => String(n).padStart(2, '0');
+    const ts   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-` +
+                 `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `${base}-${ts}${ext}`;
+  }
+
+  function renamedFile(original) {
+    return new File([original], timestampedName(original.name), { type: original.type });
+  }
   async function loadS3() {
     const el = document.getElementById('s3-grid');
     el.innerHTML = spinner();
@@ -436,7 +450,7 @@
 
   async function uploadS3() {
     const input = document.getElementById('s3-file-input');
-    const file  = input.files[0];
+    const file  = renamedFile(input.files[0]);
     if (!file) return;
     const btn = document.getElementById('s3-upload-btn');
     btn.disabled = true;
@@ -505,7 +519,7 @@
 
   async function uploadEFS() {
     const input = document.getElementById('efs-file-input');
-    const file  = input.files[0];
+    const file  = renamedFile(input.files[0]);
     if (!file) return;
     const btn = document.getElementById('efs-upload-btn');
     btn.disabled = true;
