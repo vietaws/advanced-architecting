@@ -11,7 +11,7 @@
       "Resource": "arn:aws:s3:::sgw-datasync-demo-<ACCOUNT_ID>",
       "Condition": {
         "StringLike": {
-          "s3:prefix": "images/products/*"
+          "s3:prefix": "images/*"
         }
       }
     },
@@ -23,7 +23,7 @@
         "s3:PutObject",
         "s3:DeleteObject"
       ],
-      "Resource": "arn:aws:s3:::sgw-datasync-demo-<ACCOUNT_ID>/images/products/*"
+      "Resource": "arn:aws:s3:::sgw-datasync-demo-<ACCOUNT_ID>/images/*"
     }
   ]
 }

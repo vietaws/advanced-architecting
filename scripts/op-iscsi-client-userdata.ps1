@@ -33,19 +33,40 @@ New-Item -ItemType Directory -Force -Path "C:\demo-iscsi" | Out-Null
 Log "C:\demo-iscsi folder created"
 
 # ---------------------------------------------------------------------------
-# 4. Set High Performance power plan (avoids latency spikes during demo)
+# 4. Download demo images from GitHub (vietaws/images:main)
+#    These images will be copied to the iSCSI volume after mounting
+#    and synced to AWS via Volume Gateway snapshot
+# ---------------------------------------------------------------------------
+$images = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
+$baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
+
+foreach ($img in $images) {
+  $dest = "C:\demo-iscsi\$img"
+  try {
+    Invoke-WebRequest -Uri "$baseUrl/$img" -OutFile $dest -UseBasicParsing
+    Log "Downloaded: $img"
+  } catch {
+    Log "WARNING: Failed to download $img — $($_.Exception.Message)"
+  }
+}
+
+Log "Images ready at C:\demo-iscsi\"
+
+# ---------------------------------------------------------------------------
+# 5. Set High Performance power plan (avoids latency spikes during demo)
 # ---------------------------------------------------------------------------
 powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null
 Log "Power plan set to High Performance"
 
 # ---------------------------------------------------------------------------
-# 5. Completion log with next-step instructions
+# 6. Completion log with next-step instructions
 # ---------------------------------------------------------------------------
 Log "=== op-iscsi-client setup complete ==="
 Log "Next steps for Volume Gateway demo:"
 Log "  1. Open iSCSI Initiator: Control Panel > Administrative Tools > iSCSI Initiator"
 Log "  2. Discovery tab > Discover Target Portal > enter Storage Gateway appliance private IP"
 Log "  3. Targets tab > Connect to volume (port 3260)"
-Log "  4. Open Disk Management > Initialize disk > New Simple Volume > Format NTFS > assign drive letter"
-Log "  5. Write files to new drive — data snapshots to EBS in AWS automatically"
+Log "  4. Open Disk Management > Initialize disk > New Simple Volume > Format NTFS > assign drive letter (e.g. Z:)"
+Log "  5. Copy demo images to the new drive: Copy-Item C:\demo-iscsi\*.jpg Z:\"
+Log "  6. Images on Z:\ will be snapshotted to EBS in AWS via Volume Gateway automatically"
 </powershell>

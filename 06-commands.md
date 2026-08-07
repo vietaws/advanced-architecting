@@ -282,3 +282,206 @@ sudo umount /mnt/efs
 | op-datasync-agent | | |
 | op-app | | |
 | cloud-app | | |
+
+---
+
+## 7. Phase Transition: DataSync (S3 + EFS) → Storage Gateway (S3 + EBS)
+
+Run these steps after completing the DataSync demo and before starting the Storage Gateway Volume Gateway demo.
+
+**Pre-requisite:** Volume Gateway iSCSI demo (SGW-05/SGW-06) must have run and created at least one EBS snapshot.
+
+### Step 1 — Find the Volume Gateway snapshot
+
+```bash
+# List snapshots from Volume Gateway (filter by description)
+aws ec2 describe-snapshots \
+  --region us-east-1 \
+  --filters "Name=status,Values=completed" \
+  --query 'sort_by(Snapshots, &StartTime)[-1].{SnapshotId:SnapshotId,StartTime:StartTime,Description:Description}' \
+  --output table
+```
+
+### Step 2 — Create EBS volume from snapshot
+
+```bash
+# Must be in same AZ as cloud-app EC2 (us-east-1a)
+aws ec2 create-volume \
+  --region us-east-1 \
+  --availability-zone us-east-1a \
+  --snapshot-id <SNAPSHOT_ID> \
+  --volume-type gp3 \
+  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=sgw-demo-ebs-restore}]'
+
+# Note the VolumeId from output
+```
+
+### Step 3 — Attach EBS volume to cloud-app EC2
+
+```bash
+aws ec2 attach-volume \
+  --region us-east-1 \
+  --volume-id <VOLUME_ID> \
+  --instance-id <CLOUD_APP_INSTANCE_ID> \
+  --device /dev/xvdf
+
+# Wait for attachment to complete
+aws ec2 wait volume-in-use --region us-east-1 --volume-ids <VOLUME_ID>
+echo "Volume attached"
+```
+
+### Step 4 — Mount NTFS volume on cloud-app EC2 (via SSM)
+
+```bash
+# ntfs-3g is already installed by userdata — no install needed
+sudo mount -t ntfs-3g /dev/xvdf /mnt/ebs
+
+# Verify files are visible (files written from Windows Z:\ session)
+ls -lh /mnt/ebs/
+```
+
+### Step 5 — Switch app to EBS mode
+
+```bash
+# Update .env
+sudo sed -i 's/STORAGE_MODE=efs/STORAGE_MODE=ebs/' /opt/app/.env
+sudo sed -i 's|LOCAL_MOUNT=.*|LOCAL_MOUNT=/mnt/ebs|' /opt/app/.env
+
+# Verify
+cat /opt/app/.env
+
+# Restart app
+sudo systemctl restart demo-app
+sudo systemctl is-active demo-app
+```
+
+### Step 6 — Verify in browser
+
+- Refresh `http://<cloud-app-public-ip>`
+- Tab 2 label changes: **"Amazon EFS"** → **"Amazon EBS"**
+- Files written from Windows `Z:\` during Volume Gateway demo appear in the grid
+
+### Switch back to EFS (if needed)
+
+```bash
+sudo umount /mnt/ebs
+sudo sed -i 's/STORAGE_MODE=ebs/STORAGE_MODE=efs/' /opt/app/.env
+sudo sed -i 's|LOCAL_MOUNT=.*|LOCAL_MOUNT=/mnt/efs|' /opt/app/.env
+sudo systemctl restart demo-app
+```
+
+---
+
+## 8. Windows iSCSI Client Verification (op-iscsi-client)
+
+Connect via SSM Session Manager → select the Windows instance → Start session (PowerShell).
+
+### 8.1 Verify userdata ran successfully
+
+```powershell
+# Check setup log
+Get-Content C:\demo-setup.log
+
+# Expected output includes:
+#   iSCSI Initiator service started
+#   iSCSI firewall rules enabled
+#   C:\demo-iscsi folder created
+#   Downloaded: provider-1.jpg
+#   Downloaded: provider-2.jpg
+#   Downloaded: provider-3.jpg
+#   Power plan set to High Performance
+#   op-iscsi-client setup complete
+```
+
+### 8.2 Verify downloaded images
+
+```powershell
+# List demo images
+Get-ChildItem C:\demo-iscsi\
+
+# Check file sizes (should be non-zero)
+Get-ChildItem C:\demo-iscsi\ | Select-Object Name, Length
+
+# Quick check all 3 exist
+$expected = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
+foreach ($f in $expected) {
+  $path = "C:\demo-iscsi\$f"
+  if (Test-Path $path) {
+    Write-Host "OK: $f ($((Get-Item $path).Length) bytes)"
+  } else {
+    Write-Host "MISSING: $f"
+  }
+}
+```
+
+### 8.3 Verify iSCSI Initiator service
+
+```powershell
+# Check service is running
+Get-Service MSiSCSI | Select-Object Name, Status, StartType
+
+# Expected: Status=Running, StartType=Automatic
+```
+
+### 8.4 Re-download images if missing (run manually)
+
+```powershell
+$images  = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
+$baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
+New-Item -ItemType Directory -Force -Path "C:\demo-iscsi" | Out-Null
+foreach ($img in $images) {
+  Invoke-WebRequest -Uri "$baseUrl/$img" -OutFile "C:\demo-iscsi\$img" -UseBasicParsing
+  Write-Host "Downloaded: $img"
+}
+```
+
+### 8.5 Connect to Storage Gateway iSCSI volume (after SGW appliance is activated)
+
+```powershell
+# Add iSCSI target portal (replace with SGW appliance private IP)
+New-IscsiTargetPortal -TargetPortalAddress "<SGW_APPLIANCE_PRIVATE_IP>"
+
+# Discover available targets
+Get-IscsiTarget
+
+# Connect to the target (replace TargetNodeAddress from above output)
+Connect-IscsiTarget -NodeAddress "<TARGET_NODE_ADDRESS>" -IsPersistent $true
+
+# Verify connection
+Get-IscsiSession
+```
+
+### 8.6 Initialize and format the iSCSI disk (after connecting)
+
+```powershell
+# Find the new raw disk (Status = Offline or RAW)
+Get-Disk | Where-Object {$_.PartitionStyle -eq "RAW" -or $_.OperationalStatus -eq "Offline"}
+
+# Initialize, partition, format and assign drive letter Z:
+$disk = Get-Disk | Where-Object PartitionStyle -eq "RAW" | Select-Object -First 1
+Initialize-Disk -Number $disk.Number -PartitionStyle GPT
+$partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter Z
+Format-Volume -DriveLetter Z -FileSystem NTFS -NewFileSystemLabel "iSCSI-Demo" -Confirm:$false
+Write-Host "Drive Z: ready"
+```
+
+### 8.7 Copy demo images to iSCSI volume
+
+```powershell
+# Copy downloaded images to Z:\ (triggers Volume Gateway to sync to AWS)
+Copy-Item C:\demo-iscsi\*.jpg Z:\
+
+# Verify on Z:\
+Get-ChildItem Z:\ | Select-Object Name, Length, LastWriteTime
+```
+
+### 8.8 Verify Volume Gateway snapshot in AWS (after copying files)
+
+```bash
+# Run from your local machine or AWS CloudShell
+aws ec2 describe-snapshots \
+  --region us-east-1 \
+  --filters "Name=status,Values=pending,completed" \
+  --query 'sort_by(Snapshots, &StartTime)[-3:].{SnapshotId:SnapshotId,State:State,StartTime:StartTime,Description:Description}' \
+  --output table
+```

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Demo Image Viewer — S3 &amp; EFS</title>
+  <title>Demo Image Viewer — S3 &amp; Storage</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -17,7 +17,6 @@
       --accent-h:  #1d4ed8;
       --danger:    #dc2626;
       --danger-h:  #b91c1c;
-      --success:   #16a34a;
       --radius:    8px;
       --shadow:    0 1px 3px rgba(0,0,0,.1);
     }
@@ -29,7 +28,6 @@
       min-height: 100vh;
     }
 
-    /* ── Header ── */
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
@@ -48,7 +46,6 @@
       font-weight: 500;
     }
 
-    /* ── Tabs ── */
     .tabs {
       display: flex;
       justify-content: center;
@@ -73,13 +70,11 @@
     .tab-btn:hover { color: var(--accent); }
     .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-    /* ── Main ── */
     main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    /* ── Toolbar ── */
     .toolbar {
       display: flex;
       align-items: center;
@@ -88,9 +83,7 @@
       gap: 12px;
       margin-bottom: 20px;
     }
-    .toolbar-left { display: flex; align-items: center; gap: 10px; }
 
-    /* ── Buttons ── */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -111,7 +104,6 @@
     .btn-ghost    { background: transparent; color: var(--muted); border: 1px solid var(--border); }
     .btn-ghost:hover:not(:disabled)    { background: var(--bg); color: var(--text); }
 
-    /* ── Upload area ── */
     .upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .file-input-label {
       display: inline-flex;
@@ -128,7 +120,7 @@
     }
     .file-input-label:hover { border-color: var(--accent); color: var(--accent); }
     .file-input-label input { display: none; }
-    #s3-file-name, #efs-file-name {
+    #s3-file-name, #local-file-name {
       font-size: .8rem;
       color: var(--muted);
       max-width: 200px;
@@ -137,7 +129,6 @@
       white-space: nowrap;
     }
 
-    /* ── Status banner ── */
     .status {
       padding: 10px 14px;
       border-radius: var(--radius);
@@ -149,13 +140,11 @@
     .status.ok   { background: #dcfce7; color: #166534; }
     .status.err  { background: #fee2e2; color: #991b1b; }
 
-    /* ── Image grid ── */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 16px;
     }
-
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -167,62 +156,43 @@
       transition: box-shadow .15s;
     }
     .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.12); }
-
     .card-img-wrap {
       aspect-ratio: 1;
       overflow: hidden;
       background: var(--bg);
     }
     .card-img-wrap img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
       transition: transform .2s;
     }
     .card:hover .card-img-wrap img { transform: scale(1.03); }
-
     .card-body {
-      padding: 10px 12px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      padding: 10px 12px; flex: 1;
+      display: flex; flex-direction: column; gap: 4px;
     }
     .card-name {
-      font-size: .8rem;
-      font-weight: 500;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font-size: .8rem; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .card-size { font-size: .75rem; color: var(--muted); }
-
     .card-footer {
       padding: 8px 12px;
       border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: flex-end;
+      display: flex; justify-content: flex-end;
     }
     .btn-del {
-      padding: 4px 10px;
-      font-size: .75rem;
-      border-radius: 6px;
-      border: none;
-      background: #fee2e2;
-      color: var(--danger);
-      cursor: pointer;
-      font-weight: 500;
+      padding: 4px 10px; font-size: .75rem;
+      border-radius: 6px; border: none;
+      background: #fee2e2; color: var(--danger);
+      cursor: pointer; font-weight: 500;
       transition: background .15s;
     }
     .btn-del:hover { background: #fecaca; }
 
-    /* ── Empty / loading states ── */
     .empty {
-      text-align: center;
-      padding: 48px 16px;
-      color: var(--muted);
-      font-size: .9rem;
+      text-align: center; padding: 48px 16px;
+      color: var(--muted); font-size: .9rem;
     }
     .spinner {
       width: 28px; height: 28px;
@@ -234,29 +204,24 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Modal ── */
     .modal-backdrop {
       display: none;
       position: fixed; inset: 0;
       background: rgba(0,0,0,.4);
       z-index: 100;
-      align-items: center;
-      justify-content: center;
+      align-items: center; justify-content: center;
     }
     .modal-backdrop.open { display: flex; }
     .modal {
       background: var(--surface);
       border-radius: var(--radius);
-      padding: 24px;
-      max-width: 360px;
-      width: 90%;
+      padding: 24px; max-width: 360px; width: 90%;
       box-shadow: 0 8px 32px rgba(0,0,0,.2);
     }
     .modal h3 { font-size: 1rem; margin-bottom: 8px; }
     .modal p  { font-size: .875rem; color: var(--muted); margin-bottom: 20px; }
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
-    /* ── Responsive ── */
     @media (max-width: 600px) {
       main { padding: 16px; }
       .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
@@ -268,13 +233,13 @@
 <body>
 
 <header>
-  <h1>Demo Image Viewer</h1>
+  <h1>Cloud Demo Image Viewer</h1>
   <span>SGW &amp; DataSync Demo</span>
 </header>
 
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('s3')">☁️ Amazon S3</button>
-  <button class="tab-btn"        onclick="switchTab('efs')">📁 Amazon EFS</button>
+  <button class="tab-btn"        id="local-tab-btn">📁 Loading…</button>
 </div>
 
 <main>
@@ -296,21 +261,21 @@
     <div id="s3-grid"></div>
   </div>
 
-  <!-- ── EFS Tab ── -->
-  <div id="tab-efs" class="tab-panel">
+  <!-- ── Local Storage Tab (EFS or EBS — driven by STORAGE_MODE) ── -->
+  <div id="tab-local" class="tab-panel">
     <div class="toolbar">
       <div class="upload-row">
         <label class="file-input-label">
           ＋ Choose image
-          <input type="file" id="efs-file-input" accept=".jpg,.jpeg,.png,.gif" />
+          <input type="file" id="local-file-input" accept=".jpg,.jpeg,.png,.gif" />
         </label>
-        <span id="efs-file-name">No file chosen</span>
-        <button class="btn btn-primary" id="efs-upload-btn" onclick="uploadEFS()" disabled>Upload to EFS</button>
+        <span id="local-file-name">No file chosen</span>
+        <button class="btn btn-primary" id="local-upload-btn" onclick="uploadLocal()" disabled>Upload</button>
       </div>
-      <button class="btn btn-ghost" onclick="loadEFS()">↺ Refresh</button>
+      <button class="btn btn-ghost" onclick="loadLocal()">↺ Refresh</button>
     </div>
-    <div id="efs-status" class="status"></div>
-    <div id="efs-grid"></div>
+    <div id="local-status" class="status"></div>
+    <div id="local-grid"></div>
   </div>
 
 </main>
@@ -321,26 +286,43 @@
     <h3>Delete image?</h3>
     <p id="confirm-msg">This cannot be undone.</p>
     <div class="modal-actions">
-      <button class="btn btn-ghost"   onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger"  id="confirm-delete-btn">Delete</button>
+      <button class="btn btn-ghost"  onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
     </div>
   </div>
 </div>
 
 <script>
+  let s3Loaded    = false;
+  let localLoaded = false;
+  let tabLabel    = 'Storage';  // updated from /api/config on init
+
+  // ── Init — fetch config then set tab label ────────────────────────────────
+  async function init() {
+    try {
+      const res  = await fetch('/api/config');
+      const cfg  = await res.json();
+      tabLabel   = cfg.tabLabel || 'Storage';
+      const icon = cfg.storageMode === 'ebs' ? '💾' : '📁';
+      document.getElementById('local-tab-btn').textContent = `${icon} ${tabLabel}`;
+      document.getElementById('local-upload-btn').textContent = `Upload to ${tabLabel}`;
+    } catch (e) {
+      document.getElementById('local-tab-btn').textContent = '📁 Storage';
+    }
+    loadS3();
+  }
+
   // ── Tab switching ──────────────────────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b, i) =>
-      b.classList.toggle('active', ['s3','efs'][i] === name));
+      b.classList.toggle('active', ['s3', 'local'][i] === name));
     document.querySelectorAll('.tab-panel').forEach(p =>
       p.classList.toggle('active', p.id === 'tab-' + name));
-    if (name === 's3' && !s3Loaded) loadS3();
-    if (name === 'efs' && !efsLoaded) loadEFS();
+    if (name === 's3'    && !s3Loaded)    loadS3();
+    if (name === 'local' && !localLoaded) loadLocal();
   }
 
-  let s3Loaded = false, efsLoaded = false;
-
-  // ── Status helpers ─────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   function showStatus(id, msg, isErr) {
     const el = document.getElementById(id);
     el.textContent = msg;
@@ -348,50 +330,8 @@
     setTimeout(() => el.classList.remove('show'), 4000);
   }
 
-  // ── Render helpers ─────────────────────────────────────────────────────────
-  function spinner() {
-    return '<div class="spinner"></div>';
-  }
+  function spinner() { return '<div class="spinner"></div>'; }
 
-  function renderGrid(containerId, items, buildImgSrc, buildDeleteCall) {
-    const el = document.getElementById(containerId);
-    if (!items.length) {
-      el.innerHTML = '<div class="empty">No images found.</div>';
-      return;
-    }
-    el.innerHTML = '<div class="grid">' +
-      items.map(item => `
-        <div class="card">
-          <div class="card-img-wrap">
-            <img src="${buildImgSrc(item)}" alt="${item.filename}" loading="lazy" />
-          </div>
-          <div class="card-body">
-            <div class="card-name" title="${item.filename}">${item.filename}</div>
-            <div class="card-size">${item.size}</div>
-          </div>
-          <div class="card-footer">
-            <button class="btn-del" onclick="${buildDeleteCall(item)}">Delete</button>
-          </div>
-        </div>`).join('') +
-      '</div>';
-  }
-
-  // ── Modal ──────────────────────────────────────────────────────────────────
-  let pendingDelete = null;
-
-  function confirmDelete(msg, action) {
-    document.getElementById('confirm-msg').textContent = msg;
-    document.getElementById('confirm-delete-btn').onclick = () => { closeModal(); action(); };
-    document.getElementById('confirm-modal').classList.add('open');
-  }
-  function closeModal() {
-    document.getElementById('confirm-modal').classList.remove('open');
-  }
-  document.getElementById('confirm-modal').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeModal();
-  });
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
   function timestampedName(filename) {
     const ext  = filename.lastIndexOf('.') !== -1 ? filename.slice(filename.lastIndexOf('.')) : '';
     const base = filename.slice(0, filename.length - ext.length);
@@ -405,6 +345,38 @@
   function renamedFile(original) {
     return new File([original], timestampedName(original.name), { type: original.type });
   }
+
+  function renderGrid(containerId, items, buildImgSrc, buildDeleteCall) {
+    const el = document.getElementById(containerId);
+    if (!items.length) { el.innerHTML = '<div class="empty">No images found.</div>'; return; }
+    el.innerHTML = '<div class="grid">' +
+      items.map(item => `
+        <div class="card">
+          <div class="card-img-wrap">
+            <img src="${buildImgSrc(item)}" alt="${item.filename}" loading="lazy" />
+          </div>
+          <div class="card-body">
+            <div class="card-name" title="${item.filename}">${item.filename}</div>
+            <div class="card-size">${item.size}</div>
+          </div>
+          <div class="card-footer">
+            <button class="btn-del" onclick="${buildDeleteCall(item)}">Delete</button>
+          </div>
+        </div>`).join('') + '</div>';
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function confirmDelete(msg, action) {
+    document.getElementById('confirm-msg').textContent = msg;
+    document.getElementById('confirm-delete-btn').onclick = () => { closeModal(); action(); };
+    document.getElementById('confirm-modal').classList.add('open');
+  }
+  function closeModal() { document.getElementById('confirm-modal').classList.remove('open'); }
+  document.getElementById('confirm-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // ── S3 ─────────────────────────────────────────────────────────────────────
   async function loadS3() {
     const el = document.getElementById('s3-grid');
     el.innerHTML = spinner();
@@ -412,21 +384,20 @@
       const res  = await fetch('/api/s3/images');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      renderGrid(
-        's3-grid', data.items,
+      renderGrid('s3-grid', data.items,
         item => item.url,
-        item => `deleteS3(${JSON.stringify(item.key)}, ${JSON.stringify(item.filename)})`
+        item => `deleteS3('${item.key}', '${item.filename}')`
       );
       s3Loaded = true;
     } catch (err) {
-      el.innerHTML = `<div class="empty">Error loading images: ${err.message}</div>`;
+      el.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
     }
   }
 
   function deleteS3(key, filename) {
     confirmDelete(`Delete "${filename}" from S3?`, async () => {
       try {
-        const res = await fetch('/api/s3/images', {
+        const res  = await fetch('/api/s3/images', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key }),
@@ -435,26 +406,20 @@
         if (!res.ok) throw new Error(data.error);
         showStatus('s3-status', `"${filename}" deleted.`, false);
         loadS3();
-      } catch (err) {
-        showStatus('s3-status', `Delete failed: ${err.message}`, true);
-      }
+      } catch (err) { showStatus('s3-status', `Delete failed: ${err.message}`, true); }
     });
   }
 
-  // S3 file picker
   document.getElementById('s3-file-input').addEventListener('change', function () {
-    const name = this.files[0]?.name || 'No file chosen';
-    document.getElementById('s3-file-name').textContent = name;
+    document.getElementById('s3-file-name').textContent = this.files[0]?.name || 'No file chosen';
     document.getElementById('s3-upload-btn').disabled = !this.files[0];
   });
 
   async function uploadS3() {
     const input = document.getElementById('s3-file-input');
     const file  = renamedFile(input.files[0]);
-    if (!file) return;
-    const btn = document.getElementById('s3-upload-btn');
-    btn.disabled = true;
-    btn.textContent = 'Uploading…';
+    const btn   = document.getElementById('s3-upload-btn');
+    btn.disabled = true; btn.textContent = 'Uploading…';
     try {
       const form = new FormData();
       form.append('image', file);
@@ -465,85 +430,73 @@
       input.value = '';
       document.getElementById('s3-file-name').textContent = 'No file chosen';
       loadS3();
-    } catch (err) {
-      showStatus('s3-status', `Upload failed: ${err.message}`, true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Upload to S3';
-    }
+    } catch (err) { showStatus('s3-status', `Upload failed: ${err.message}`, true); }
+    finally { btn.disabled = false; btn.textContent = 'Upload to S3'; }
   }
 
-  // ── EFS ────────────────────────────────────────────────────────────────────
-  async function loadEFS() {
-    const el = document.getElementById('efs-grid');
+  // ── Local Storage (EFS or EBS) ─────────────────────────────────────────────
+  async function loadLocal() {
+    const el = document.getElementById('local-grid');
     el.innerHTML = spinner();
     try {
-      const res  = await fetch('/api/efs/images');
+      const res  = await fetch('/api/local/images');
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      renderGrid(
-        'efs-grid', data.items,
-        item => `/api/efs/images/${encodeURIComponent(item.filename)}`,
-        item => `deleteEFS(${JSON.stringify(item.filename)})`
+      renderGrid('local-grid', data.items,
+        item => `/api/local/images/${encodeURIComponent(item.filename)}`,
+        item => `deleteLocal('${item.filename}')`
       );
-      efsLoaded = true;
+      localLoaded = true;
     } catch (err) {
-      el.innerHTML = `<div class="empty">Error loading images: ${err.message}</div>`;
+      el.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
     }
   }
 
-  function deleteEFS(filename) {
-    confirmDelete(`Delete "${filename}" from EFS?`, async () => {
+  function deleteLocal(filename) {
+    confirmDelete(`Delete "${filename}" from ${tabLabel}?`, async () => {
       try {
-        const res = await fetch('/api/efs/images', {
+        const res  = await fetch('/api/local/images', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        showStatus('efs-status', `"${filename}" deleted.`, false);
-        loadEFS();
-      } catch (err) {
-        showStatus('efs-status', `Delete failed: ${err.message}`, true);
-      }
+        showStatus('local-status', `"${filename}" deleted.`, false);
+        loadLocal();
+      } catch (err) { showStatus('local-status', `Delete failed: ${err.message}`, true); }
     });
   }
 
-  // EFS file picker
-  document.getElementById('efs-file-input').addEventListener('change', function () {
-    const name = this.files[0]?.name || 'No file chosen';
-    document.getElementById('efs-file-name').textContent = name;
-    document.getElementById('efs-upload-btn').disabled = !this.files[0];
+  document.getElementById('local-file-input').addEventListener('change', function () {
+    document.getElementById('local-file-name').textContent = this.files[0]?.name || 'No file chosen';
+    document.getElementById('local-upload-btn').disabled = !this.files[0];
   });
 
-  async function uploadEFS() {
-    const input = document.getElementById('efs-file-input');
+  async function uploadLocal() {
+    const input = document.getElementById('local-file-input');
     const file  = renamedFile(input.files[0]);
-    if (!file) return;
-    const btn = document.getElementById('efs-upload-btn');
-    btn.disabled = true;
-    btn.textContent = 'Uploading…';
+    const btn   = document.getElementById('local-upload-btn');
+    btn.disabled = true; btn.textContent = 'Uploading…';
     try {
       const form = new FormData();
       form.append('image', file);
-      const res  = await fetch('/api/efs/images', { method: 'POST', body: form });
+      const res  = await fetch('/api/local/images', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      showStatus('efs-status', `"${file.name}" uploaded to EFS.`, false);
+      showStatus('local-status', `"${file.name}" uploaded to ${tabLabel}.`, false);
       input.value = '';
-      document.getElementById('efs-file-name').textContent = 'No file chosen';
-      loadEFS();
-    } catch (err) {
-      showStatus('efs-status', `Upload failed: ${err.message}`, true);
-    } finally {
+      document.getElementById('local-file-name').textContent = 'No file chosen';
+      loadLocal();
+    } catch (err) { showStatus('local-status', `Upload failed: ${err.message}`, true); }
+    finally {
       btn.disabled = false;
-      btn.textContent = 'Upload to EFS';
+      btn.textContent = `Upload to ${tabLabel}`;
     }
   }
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-  loadS3();
+  // ── Start ──────────────────────────────────────────────────────────────────
+  init();
 </script>
 </body>
 </html>
