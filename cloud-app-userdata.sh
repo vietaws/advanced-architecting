@@ -85,8 +85,20 @@ npm install --omit=dev --no-audit --no-fund
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
 # ---------------------------------------------------------------------------
-# 6. Create systemd service
+# 6. Write .env file and create systemd service
 # ---------------------------------------------------------------------------
+cat > "$APP_DIR/.env" << ENV
+PORT=80
+AWS_REGION=${REGION}
+S3_BUCKET=${S3_BUCKET}
+S3_PREFIX=${S3_PREFIX}
+EFS_MOUNT=${EFS_MOUNT}
+EFS_SUBDIR=${EFS_SUBDIR}
+ENV
+
+chmod 640 "$APP_DIR/.env"
+chown root:"$APP_USER" "$APP_DIR/.env"
+
 cat > /etc/systemd/system/demo-app.service << SYSTEMD
 [Unit]
 Description=Demo Image Viewer (S3 + EFS)
@@ -101,12 +113,7 @@ ExecStart=/usr/bin/node $APP_DIR/server.js
 Restart=on-failure
 RestartSec=5
 
-Environment=PORT=80
-Environment=AWS_REGION=${REGION}
-Environment=S3_BUCKET=${S3_BUCKET}
-Environment=S3_PREFIX=${S3_PREFIX}
-Environment=EFS_MOUNT=${EFS_MOUNT}
-Environment=EFS_SUBDIR=${EFS_SUBDIR}
+EnvironmentFile=$APP_DIR/.env
 
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
