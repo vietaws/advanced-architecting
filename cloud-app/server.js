@@ -200,7 +200,12 @@ app.get('/api/efs/images/:filename', (req, res) => {
   if (!isAllowedExt(filename)) return res.status(400).json({ error: 'File type not allowed' });
   const filepath = path.join(efsDir(), filename);
   if (!fs.existsSync(filepath)) return res.status(404).json({ error: 'Not found' });
-  res.sendFile(filepath);
+  res.sendFile(filepath, { root: '/' }, (err) => {
+    if (err) {
+      console.error('EFS serve error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 });
 
 // Upload image to EFS

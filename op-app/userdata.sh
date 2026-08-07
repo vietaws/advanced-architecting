@@ -72,11 +72,11 @@ done
 mkdir -p "$SMB_MOUNT"
 
 if ! grep -q "$SMB_SERVER_IP" /etc/fstab; then
-  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,guest,uid=webapp,gid=webapp,vers=3.0,iocharset=utf8 0 0" >> /etc/fstab
+  echo "//${SMB_SERVER_IP}/${SMB_SHARE} ${SMB_MOUNT} cifs _netdev,guest,uid=webapp,gid=webapp,file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 0 0" >> /etc/fstab
 fi
 
 for i in $(seq 1 6); do
-  if mount -t cifs -o guest,uid=webapp,gid=webapp,vers=3.0,iocharset=utf8 "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
+  if mount -t cifs -o guest,uid=webapp,gid=webapp,file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8 "//${SMB_SERVER_IP}/${SMB_SHARE}" "$SMB_MOUNT"; then
     echo "SMB mounted successfully"
     break
   fi
