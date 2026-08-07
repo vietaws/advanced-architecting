@@ -11,6 +11,8 @@ SMB_SHARE_DIR="/data/smb"
 SHARE_NAME="smb"
 IMAGES_REPO="https://github.com/vietaws/images.git"
 IMAGES_BRANCH="main"
+DATASYNC_USER="datasync"
+DATASYNC_PASS="Datasync@123"
 
 echo "=== Starting op-smb-server setup ==="
 
@@ -66,11 +68,20 @@ SMBCONF
 systemctl enable --now smb nmb
 
 # ---------------------------------------------------------------------------
-# 6. Verify
+# 6. Create DataSync Samba user for DataSync agent authentication
+# ---------------------------------------------------------------------------
+useradd -M -s /sbin/nologin "$DATASYNC_USER"
+printf '%s\n%s\n' "$DATASYNC_PASS" "$DATASYNC_PASS" | smbpasswd -a -s "$DATASYNC_USER"
+echo "DataSync Samba user created: $DATASYNC_USER"
+
+# ---------------------------------------------------------------------------
+# 7. Verify
 # ---------------------------------------------------------------------------
 testparm -s 2>/dev/null | grep -A8 "\[${SHARE_NAME}\]" || true
+pdbedit -L
 echo "=== op-smb-server setup complete ==="
-echo "Share : //<this-private-ip>/${SHARE_NAME}"
-echo "Path  : ${SMB_SHARE_DIR}"
-echo "Files : $(ls ${SMB_SHARE_DIR})"
-echo "Mount : mount -t cifs -o guest,vers=3.0 //<this-private-ip>/${SHARE_NAME} /mnt/smb"
+echo "Share        : //<this-private-ip>/${SHARE_NAME}"
+echo "Path         : ${SMB_SHARE_DIR}"
+echo "Files        : $(ls ${SMB_SHARE_DIR})"
+echo "Mount(guest) : mount -t cifs -o guest,vers=3.0 //<this-private-ip>/${SHARE_NAME} /mnt/smb"
+echo "Mount(auth)  : mount -t cifs -o username=${DATASYNC_USER},vers=3.0 //<this-private-ip>/${SHARE_NAME} /mnt/smb"

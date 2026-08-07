@@ -37,7 +37,7 @@ Log "C:\demo-iscsi folder created"
 #    These images will be copied to the iSCSI volume after mounting
 #    and synced to AWS via Volume Gateway snapshot
 # ---------------------------------------------------------------------------
-$images = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
+$images = @("flower-1.jpg", "flower-2.jpg", "flower-3.jpg")
 $baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
 
 foreach ($img in $images) {

@@ -16,7 +16,7 @@ exec > >(tee /var/log/cloud-app-setup.log | logger -t cloud-app-setup) 2>&1
 # 0. Configuration
 # ---------------------------------------------------------------------------
 S3_BUCKET="sgw-datasync-demo-$(aws sts get-caller-identity --query Account --output text)"
-S3_PREFIX="images/"
+S3_PREFIX="/"
 STORAGE_MODE="efs"                            # Change to "ebs" for Phase 2
 EFS_ID="<YOUR_EFS_FILE_SYSTEM_ID>"            # e.g. fs-0abc1234def56789
 LOCAL_MOUNT="/mnt/efs"                        # /mnt/efs for Phase 1, /mnt/ebs for Phase 2
