@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OP Demo Image Viewer — NFS &amp; SMB</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f5f5f5;
+      --surface:   #ffffff;
+      --border:    #e0e0e0;
+      --text:      #1a1a1a;
+      --muted:     #6b7280;
+      --accent:    #16a34a;
+      --accent-h:  #15803d;
+      --danger:    #dc2626;
+      --danger-h:  #b91c1c;
+      --radius:    8px;
+      --shadow:    0 1px 3px rgba(0,0,0,.1);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header .badge-op {
+      font-size: .75rem;
+      background: #dcfce7;
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 500;
+    }
+    header .badge-dest {
+      font-size: .75rem;
+      background: #fef9c3;
+      color: #854d0e;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-weight: 500;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      padding: 16px 24px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: .9rem;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+      border-radius: var(--radius) var(--radius) 0 0;
+      font-weight: 500;
+      transition: color .15s, border-color .15s;
+    }
+    .tab-btn:hover { color: var(--accent); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Main ── */
+    main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Destination banner ── */
+    .dest-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: #fef9c3;
+      border: 1px solid #fde68a;
+      margin-bottom: 16px;
+      font-size: .85rem;
+      color: #78350f;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .toolbar-left { display: flex; align-items: center; gap: 10px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 500;
+      transition: background .15s, opacity .15s;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+    .btn-danger  { background: var(--danger);  color: #fff; }
+    .btn-danger:hover:not(:disabled)  { background: var(--danger-h); }
+    .btn-ghost   { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled)   { background: var(--bg); color: var(--text); }
+
+    /* ── Upload area ── */
+    .upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .file-input-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+      cursor: pointer;
+      font-size: .875rem;
+      color: var(--muted);
+      background: var(--surface);
+      transition: border-color .15s, color .15s;
+    }
+    .file-input-label:hover { border-color: var(--accent); color: var(--accent); }
+    .file-input-label input { display: none; }
+    #nfs-file-name, #smb-file-name {
+      font-size: .8rem;
+      color: var(--muted);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Status banner ── */
+    .status {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.ok   { background: #dcfce7; color: #166534; }
+    .status.err  { background: #fee2e2; color: #991b1b; }
+
+    /* ── Image grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow .15s;
+    }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+    .card-img-wrap {
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .card-img-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform .2s;
+    }
+    .card:hover .card-img-wrap img { transform: scale(1.03); }
+    .card-body {
+      padding: 10px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .card-name {
+      font-size: .8rem;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .card-size { font-size: .75rem; color: var(--muted); }
+    .card-footer {
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .btn-del {
+      padding: 4px 10px;
+      font-size: .75rem;
+      border-radius: 6px;
+      border: none;
+      background: #fee2e2;
+      color: var(--danger);
+      cursor: pointer;
+      font-weight: 500;
+      transition: background .15s;
+    }
+    .btn-del:hover { background: #fecaca; }
+
+    /* ── Empty / loading ── */
+    .empty {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+      font-size: .9rem;
+    }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 48px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    }
+    .modal h3 { font-size: 1rem; margin-bottom: 8px; }
+    .modal p  { font-size: .875rem; color: var(--muted); margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+      header { padding: 12px 16px; }
+      .tabs { padding: 12px 16px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>OP Demo Image Viewer</h1>
+  <span class="badge-op">On-Premises</span>
+  <span class="badge-dest">→ S3 &amp; EFS via SGW / DataSync</span>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('nfs')">🗄️ NFS Share</button>
+  <button class="tab-btn"        onclick="switchTab('smb')">🪟 SMB Share</button>
+</div>
+
+<main>
+
+  <!-- ── NFS Tab ── -->
+  <div id="tab-nfs" class="tab-panel active">
+    <div class="dest-banner">
+      📦 <strong>NFS share</strong> — images here will be migrated / tiered to <strong>Amazon S3</strong> via Storage Gateway File Gateway or DataSync
+    </div>
+    <div class="toolbar">
+      <div class="upload-row">
+        <label class="file-input-label">
+          ＋ Choose image
+          <input type="file" id="nfs-file-input" accept=".jpg,.jpeg,.png,.gif" />
+        </label>
+        <span id="nfs-file-name">No file chosen</span>
+        <button class="btn btn-primary" id="nfs-upload-btn" onclick="uploadNFS()" disabled>Upload to NFS</button>
+      </div>
+      <button class="btn btn-ghost" onclick="loadNFS()">↺ Refresh</button>
+    </div>
+    <div id="nfs-status" class="status"></div>
+    <div id="nfs-grid"></div>
+  </div>
+
+  <!-- ── SMB Tab ── -->
+  <div id="tab-smb" class="tab-panel">
+    <div class="dest-banner">
+      📦 <strong>SMB share</strong> — images here will be migrated / tiered to <strong>Amazon EFS</strong> via Storage Gateway File Gateway or DataSync
+    </div>
+    <div class="toolbar">
+      <div class="upload-row">
+        <label class="file-input-label">
+          ＋ Choose image
+          <input type="file" id="smb-file-input" accept=".jpg,.jpeg,.png,.gif" />
+        </label>
+        <span id="smb-file-name">No file chosen</span>
+        <button class="btn btn-primary" id="smb-upload-btn" onclick="uploadSMB()" disabled>Upload to SMB</button>
+      </div>
+      <button class="btn btn-ghost" onclick="loadSMB()">↺ Refresh</button>
+    </div>
+    <div id="smb-status" class="status"></div>
+    <div id="smb-grid"></div>
+  </div>
+
+</main>
+
+<!-- Delete confirm modal -->
+<div class="modal-backdrop" id="confirm-modal">
+  <div class="modal">
+    <h3>Delete image?</h3>
+    <p id="confirm-msg">This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost"  onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) =>
+      b.classList.toggle('active', ['nfs', 'smb'][i] === name));
+    document.querySelectorAll('.tab-panel').forEach(p =>
+      p.classList.toggle('active', p.id === 'tab-' + name));
+    if (name === 'nfs' && !nfsLoaded) loadNFS();
+    if (name === 'smb' && !smbLoaded) loadSMB();
+  }
+
+  let nfsLoaded = false, smbLoaded = false;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function showStatus(id, msg, isErr) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status show ' + (isErr ? 'err' : 'ok');
+    setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  function spinner() { return '<div class="spinner"></div>'; }
+
+  function timestampedName(filename) {
+    const ext  = filename.lastIndexOf('.') !== -1 ? filename.slice(filename.lastIndexOf('.')) : '';
+    const base = filename.slice(0, filename.length - ext.length);
+    const now  = new Date();
+    const pad  = n => String(n).padStart(2, '0');
+    const ts   = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-` +
+                 `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `${base}-${ts}${ext}`;
+  }
+
+  function renamedFile(original) {
+    return new File([original], timestampedName(original.name), { type: original.type });
+  }
+
+  function renderGrid(containerId, items, buildImgSrc, buildDeleteCall) {
+    const el = document.getElementById(containerId);
+    if (!items.length) {
+      el.innerHTML = '<div class="empty">No images found.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="grid">' +
+      items.map(item => `
+        <div class="card">
+          <div class="card-img-wrap">
+            <img src="${buildImgSrc(item)}" alt="${item.filename}" loading="lazy" />
+          </div>
+          <div class="card-body">
+            <div class="card-name" title="${item.filename}">${item.filename}</div>
+            <div class="card-size">${item.size}</div>
+          </div>
+          <div class="card-footer">
+            <button class="btn-del" onclick="${buildDeleteCall(item)}">Delete</button>
+          </div>
+        </div>`).join('') +
+      '</div>';
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  function confirmDelete(msg, action) {
+    document.getElementById('confirm-msg').textContent = msg;
+    document.getElementById('confirm-delete-btn').onclick = () => { closeModal(); action(); };
+    document.getElementById('confirm-modal').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('confirm-modal').classList.remove('open');
+  }
+  document.getElementById('confirm-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // ── NFS ────────────────────────────────────────────────────────────────────
+  async function loadNFS() {
+    const el = document.getElementById('nfs-grid');
+    el.innerHTML = spinner();
+    try {
+      const res  = await fetch('/api/nfs/images');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      renderGrid(
+        'nfs-grid', data.items,
+        item => `/api/nfs/images/${encodeURIComponent(item.filename)}`,
+        item => `deleteNFS(${JSON.stringify(item.filename)})`
+      );
+      nfsLoaded = true;
+    } catch (err) {
+      el.innerHTML = `<div class="empty">Error loading images: ${err.message}</div>`;
+    }
+  }
+
+  function deleteNFS(filename) {
+    confirmDelete(`Delete "${filename}" from NFS share?`, async () => {
+      try {
+        const res = await fetch('/api/nfs/images', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showStatus('nfs-status', `"${filename}" deleted.`, false);
+        loadNFS();
+      } catch (err) {
+        showStatus('nfs-status', `Delete failed: ${err.message}`, true);
+      }
+    });
+  }
+
+  document.getElementById('nfs-file-input').addEventListener('change', function () {
+    document.getElementById('nfs-file-name').textContent = this.files[0]?.name || 'No file chosen';
+    document.getElementById('nfs-upload-btn').disabled = !this.files[0];
+  });
+
+  async function uploadNFS() {
+    const input = document.getElementById('nfs-file-input');
+    const file  = renamedFile(input.files[0]);
+    const btn   = document.getElementById('nfs-upload-btn');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      const res  = await fetch('/api/nfs/images', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showStatus('nfs-status', `"${file.name}" uploaded to NFS.`, false);
+      input.value = '';
+      document.getElementById('nfs-file-name').textContent = 'No file chosen';
+      loadNFS();
+    } catch (err) {
+      showStatus('nfs-status', `Upload failed: ${err.message}`, true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Upload to NFS';
+    }
+  }
+
+  // ── SMB ────────────────────────────────────────────────────────────────────
+  async function loadSMB() {
+    const el = document.getElementById('smb-grid');
+    el.innerHTML = spinner();
+    try {
+      const res  = await fetch('/api/smb/images');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      renderGrid(
+        'smb-grid', data.items,
+        item => `/api/smb/images/${encodeURIComponent(item.filename)}`,
+        item => `deleteSMB(${JSON.stringify(item.filename)})`
+      );
+      smbLoaded = true;
+    } catch (err) {
+      el.innerHTML = `<div class="empty">Error loading images: ${err.message}</div>`;
+    }
+  }
+
+  function deleteSMB(filename) {
+    confirmDelete(`Delete "${filename}" from SMB share?`, async () => {
+      try {
+        const res = await fetch('/api/smb/images', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showStatus('smb-status', `"${filename}" deleted.`, false);
+        loadSMB();
+      } catch (err) {
+        showStatus('smb-status', `Delete failed: ${err.message}`, true);
+      }
+    });
+  }
+
+  document.getElementById('smb-file-input').addEventListener('change', function () {
+    document.getElementById('smb-file-name').textContent = this.files[0]?.name || 'No file chosen';
+    document.getElementById('smb-upload-btn').disabled = !this.files[0];
+  });
+
+  async function uploadSMB() {
+    const input = document.getElementById('smb-file-input');
+    const file  = renamedFile(input.files[0]);
+    const btn   = document.getElementById('smb-upload-btn');
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      const res  = await fetch('/api/smb/images', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      showStatus('smb-status', `"${file.name}" uploaded to SMB.`, false);
+      input.value = '';
+      document.getElementById('smb-file-name').textContent = 'No file chosen';
+      loadSMB();
+    } catch (err) {
+      showStatus('smb-status', `Upload failed: ${err.message}`, true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Upload to SMB';
+    }
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadNFS();
+</script>
+</body>
+</html>

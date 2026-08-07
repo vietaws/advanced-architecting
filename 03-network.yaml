@@ -1171,6 +1171,29 @@ Resources:
       TreatMissingData: notBreaching
 
   # =========================================================================
+  # SECURITY GROUP - OP APP SERVER (EC2 image viewer web app in OnPrem VPC)
+  # =========================================================================
+  OnPremAppServerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-onprem-app-sg
+      GroupDescription: OP app server - allow HTTP port 80 inbound from anywhere, all outbound
+      VpcId: !Ref OnPremVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP from anywhere (demo web app)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound (NFS, SMB, SSM)
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-onprem-app-sg
+
+  # =========================================================================
   # SECURITY GROUP - CLOUD APP SERVER (EC2 image viewer web app)
   # =========================================================================
   CloudAppServerSG:
@@ -1300,6 +1323,12 @@ Outputs:
   CloudWatchDashboardURL:
     Description: CloudWatch Dashboard URL
     Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${DemoPrefix}-dashboard
+
+  OnPremAppServerSGId:
+    Description: Security Group ID for OnPrem App Server (web app EC2)
+    Value: !Ref OnPremAppServerSG
+    Export:
+      Name: !Sub ${DemoPrefix}-onprem-app-sg-id
 
   CloudAppServerSGId:
     Description: Security Group ID for Cloud App Server (web app EC2)

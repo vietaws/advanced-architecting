@@ -77,7 +77,7 @@ id "$APP_USER" &>/dev/null || useradd -r -s /sbin/nologin "$APP_USER"
 # 5. Clone app from GitHub and install dependencies
 # ---------------------------------------------------------------------------
 git clone --branch "$GITHUB_BRANCH" --depth 1 "$GITHUB_REPO" /tmp/repo
-cp -r /tmp/repo/app "$APP_DIR"
+cp -r /tmp/repo/cloud-app "$APP_DIR"
 rm -rf /tmp/repo
 
 cd "$APP_DIR"
