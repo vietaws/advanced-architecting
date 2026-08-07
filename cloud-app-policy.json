@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListDemoBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::sgw-datasync-demo-<ACCOUNT_ID>",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": "images/products/*"
+        }
+      }
+    },
+    {
+      "Sid": "ReadWriteDeleteDemoBucketPrefix",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::sgw-datasync-demo-<ACCOUNT_ID>/images/products/*"
+    }
+  ]
+}

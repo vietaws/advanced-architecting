@@ -1171,6 +1171,29 @@ Resources:
       TreatMissingData: notBreaching
 
   # =========================================================================
+  # SECURITY GROUP - CLOUD APP SERVER (EC2 image viewer web app)
+  # =========================================================================
+  CloudAppServerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${DemoPrefix}-cloud-app-sg
+      GroupDescription: Cloud app server - allow HTTP port 80 inbound from anywhere, all outbound
+      VpcId: !Ref CloudVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP from anywhere (demo web app)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound (S3 API, EFS, SSM)
+      Tags:
+        - Key: Name
+          Value: !Sub ${DemoPrefix}-cloud-app-sg
+
+  # =========================================================================
   # OUTPUTS
   # =========================================================================
 Outputs:
@@ -1277,6 +1300,12 @@ Outputs:
   CloudWatchDashboardURL:
     Description: CloudWatch Dashboard URL
     Value: !Sub https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${DemoPrefix}-dashboard
+
+  CloudAppServerSGId:
+    Description: Security Group ID for Cloud App Server (web app EC2)
+    Value: !Ref CloudAppServerSG
+    Export:
+      Name: !Sub ${DemoPrefix}-cloud-app-sg-id
 
   StackDeployNote:
     Description: Next steps after stack deployment
