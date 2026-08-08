@@ -46,8 +46,8 @@
 # GATEWAY SWITCHER — set GATEWAY_TYPE and VOLUME_MODE before running
 # =============================================================================
 
-GATEWAY_TYPE="FILE_S3"    # FILE_S3 | VOLUME
-VOLUME_MODE="CACHED"      # CACHED | STORED (only applies when GATEWAY_TYPE=VOLUME)
+GATEWAY_TYPE="VOLUME"    # FILE_S3 | VOLUME
+VOLUME_MODE="STORED"      # CACHED | STORED (only applies when GATEWAY_TYPE=VOLUME)
 
 # =============================================================================
 # INPUT VARIABLES — fill these in before running
@@ -94,9 +94,11 @@ case "$GATEWAY_TYPE" in
         exit 1
         ;;
     esac
-    SSM_AMI_PATH="/aws/service/storagegateway/ami/VOLUME/latest"
+    # Volume Gateway AMI is the same regardless of CACHED or STORED mode
+    # CACHED vs STORED is configured after activation in SGW console
+    SSM_AMI_PATH="/aws/service/storagegateway/ami/${VOLUME_MODE}/latest"
     SECURITY_GROUP_ID="$SG_VOLUME"
-    INSTANCE_NAME="op-sgw-volume-${VOLUME_MODE,,}"  # lowercase
+    INSTANCE_NAME="op-sgw-volume-${VOLUME_MODE}"
     GATEWAY_LABEL="Volume Gateway (${VOLUME_MODE})"
     ;;
   *)
@@ -110,6 +112,7 @@ echo "    Instance name : $INSTANCE_NAME"
 echo "    Instance type : $INSTANCE_TYPE"
 echo "    Subnet        : $SUBNET_ID"
 echo "    Security group: $SECURITY_GROUP_ID"
+echo "    AMI_PATH      : $SSM_AMI_PATH"
 
 # =============================================================================
 # STEP 2 — Resolve the latest Storage Gateway AMI via SSM
@@ -148,17 +151,21 @@ if [[ "$GATEWAY_TYPE" == "FILE_S3" ]]; then
   ]'
 else
   # VOLUME CACHED or STORED — two extra disks
+  # NOTE: SGW Volume Gateway requires disks attached BEFORE activation
+  # Use /dev/sdf and /dev/sdg — SGW AMI maps these correctly on EC2
+  # Inside the instance they appear as /dev/xvdf, /dev/xvdg or /dev/nvme1n1, /dev/nvme2n1
+  # SGW console shows them by disk ID — assign xvdf as cache, xvdg as upload buffer
   BLOCK_DEVICES='[
     {
       "DeviceName": "/dev/xvda",
       "Ebs": { "VolumeSize": 80, "VolumeType": "gp3", "DeleteOnTermination": true, "Encrypted": true }
     },
     {
-      "DeviceName": "/dev/xvdf",
+      "DeviceName": "/dev/sdf",
       "Ebs": { "VolumeSize": 20, "VolumeType": "gp3", "DeleteOnTermination": true, "Encrypted": true }
     },
     {
-      "DeviceName": "/dev/xvdg",
+      "DeviceName": "/dev/sdg",
       "Ebs": { "VolumeSize": 20, "VolumeType": "gp3", "DeleteOnTermination": true, "Encrypted": true }
     }
   ]'
@@ -208,3 +215,52 @@ echo ""
 echo "=== Next step: activate the gateway ==="
 echo "    Get the public IP above and open:"
 echo "    http://<PUBLIC_IP>/?activationRegion=${REGION}&gatewayType=${GATEWAY_TYPE}"
+
+# =============================================================================
+# STEP 6 — Assign disks after gateway activation
+# Run these commands AFTER activating the gateway in the console or via CLI
+#
+# DISK LAYOUT:
+#   /dev/sdf (nvme1n1) → cache / working storage
+#   /dev/sdg (nvme2n1) → upload buffer
+#
+# First get the disk IDs from the gateway:
+#   aws storagegateway list-local-disks \
+#     --region "$REGION" \
+#     --gateway-arn "<GATEWAY_ARN>" \
+#     --query 'Disks[*].{DiskId:DiskId,Path:DiskPath,Node:DiskNode,SizeGB:DiskSizeInBytes,Alloc:DiskAllocationType}' \
+#     --output table
+#
+# Then assign based on GATEWAY_TYPE:
+# =============================================================================
+
+# --- FILE_S3: assign sdf as cache ---
+# DISK_ID_SDF="<DiskId for sdf/nvme1n1>"
+# aws storagegateway add-cache \
+#   --region "$REGION" \
+#   --gateway-arn "<GATEWAY_ARN>" \
+#   --disk-ids "$DISK_ID_SDF"
+
+# --- VOLUME CACHED: assign sdf as cache, sdg as upload buffer ---
+# DISK_ID_SDF="<DiskId for sdf/nvme1n1>"
+# DISK_ID_SDG="<DiskId for sdg/nvme2n1>"
+# aws storagegateway add-cache \
+#   --region "$REGION" \
+#   --gateway-arn "<GATEWAY_ARN>" \
+#   --disk-ids "$DISK_ID_SDF"
+# aws storagegateway add-upload-buffer \
+#   --region "$REGION" \
+#   --gateway-arn "<GATEWAY_ARN>" \
+#   --disk-ids "$DISK_ID_SDG"
+
+# --- VOLUME STORED: assign sdf as working storage, sdg as upload buffer ---
+# DISK_ID_SDF="<DiskId for sdf/nvme1n1>"
+# DISK_ID_SDG="<DiskId for sdg/nvme2n1>"
+# aws storagegateway add-working-storage \
+#   --region "$REGION" \
+#   --gateway-arn "<GATEWAY_ARN>" \
+#   --disk-ids "$DISK_ID_SDF"
+# aws storagegateway add-upload-buffer \
+#   --region "$REGION" \
+#   --gateway-arn "<GATEWAY_ARN>" \
+#   --disk-ids "$DISK_ID_SDG"

@@ -15,10 +15,10 @@ exec > >(tee /var/log/cloud-app-setup.log | logger -t cloud-app-setup) 2>&1
 # ---------------------------------------------------------------------------
 # 0. Configuration
 # ---------------------------------------------------------------------------
-S3_BUCKET="demo-cf-274595021951-us-east-1-an"                       # e.g. my-demo-bucket
-S3_PREFIX="images/"
-STORAGE_MODE="efs"                            # Change to "ebs" for Phase 2
-EFS_ID="fs-09228f1437e0f3202"            # e.g. fs-0abc1234def56789
+S3_BUCKET="S3_BUCKET"                         # e.g. my-demo-bucket
+S3_PREFIX="products/"
+STORAGE_MODE="efs"                            # Values: "efs" (Phase 1) or "ebs" (Phase 2)
+EFS_ID="EFS_ID"                               # e.g. fs-0abc1234def56789
 LOCAL_MOUNT="/mnt/efs"                        # /mnt/efs for Phase 1, /mnt/ebs for Phase 2
 LOCAL_SUBDIR="/"
 REGION="us-east-1"

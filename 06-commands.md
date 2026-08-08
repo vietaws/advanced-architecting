@@ -1,484 +1,242 @@
-# 06 — Useful Commands: NFS & SMB Verification
-**Region:** us-east-1  
+# 06 — AWS Side Commands
+**Region:** us-east-1
 **OnPrem VPC:** 10.1.0.0/16 | **Cloud VPC:** 10.0.0.0/16
 
-Replace `<NFS_SERVER_IP>` and `<SMB_SERVER_IP>` with the actual private IPs of your EC2 instances.
+---
+
+## 1. Instance IP Reference
+
+| Instance | Role | Private IP | Public IP | Instance ID |
+|---|---|---|---|---|
+| op-nfs-server | NFS Server | | | |
+| op-smb-server | SMB Server | | | |
+| op-iscsi-client | Windows iSCSI Client | | | |
+| op-sgw-appliance | SGW Appliance | | | |
+| op-datasync-agent | DataSync Agent | | | |
+| op-app | OnPrem App | | | |
+| cloud-app | Cloud App | | | |
 
 ---
 
-## 1. NFS Verification
-
-### On `op-nfs-server` (the NFS server itself)
+## 2. CFN Stack — Get Outputs
 
 ```bash
-# Check NFS server is running
-# NOTE: "active (exited)" is the CORRECT status on Amazon Linux 2023.
-# The service unit exits after launching NFS daemons in the background.
-# "active (running)" is NOT expected for nfs-server.
-systemctl status nfs-server
-
-# Confirm NFS daemons and port 2049 are actually up
-rpcinfo -p localhost | grep nfs
-ss -tnlp | grep :2049
-
-# Check NFS Logs
-cat /var/log/op-nfs-setup.log
-
-# Show active exports
-exportfs -v
-
-# Show connected NFS clients
-ss -tnp | grep :2049
-
-# List exported files
-ls -lh /data/nfs/
-```
-
----
-
-### From `op-app` server (OnPrem VPC — same VPC as NFS server)
-
-```bash
-# Test NFS connectivity — list available exports from server
-showmount -e <NFS_SERVER_IP>
-
-# Mount the NFS share manually
-sudo mount -t nfs -o vers=4 <NFS_SERVER_IP>:/data/nfs /mnt/nfs
-
-# Verify mount
-mount | grep nfs
-df -h /mnt/nfs
-
-# List files
-ls -lh /mnt/nfs/
-
-# Test write access
-echo "test from op-app - $(date)" > /mnt/nfs/op-app-test.txt
-cat /mnt/nfs/op-app-test.txt
-
-# Unmount
-sudo umount /mnt/nfs
-```
-
----
-
-### From `op-sgw-appliance` (OnPrem VPC — Storage Gateway)
-
-```bash
-# Connect via SSM then test NFS reachability
-showmount -e <NFS_SERVER_IP>
-
-# Verify NFS port is reachable
-nc -zv <NFS_SERVER_IP> 2049
-nc -zv <NFS_SERVER_IP> 111
-```
-
----
-
-### From `op-datasync-agent` (OnPrem VPC — DataSync Agent)
-
-```bash
-# Connect via SSM then verify NFS server reachability
-showmount -e <NFS_SERVER_IP>
-
-# Port check (DataSync agent needs TCP 2049 + TCP 111)
-nc -zv <NFS_SERVER_IP> 2049
-nc -zv <NFS_SERVER_IP> 111
-```
-
----
-
-### From `cloud-app` server (Cloud VPC — via VPC Peering)
-
-```bash
-# Install NFS client if not present
-sudo dnf install -y nfs-utils
-
-# Test NFS export visibility across VPC peering
-showmount -e <NFS_SERVER_IP>
-
-# Mount across VPC peering
-sudo mkdir -p /mnt/op-nfs
-sudo mount -t nfs -o vers=4 <NFS_SERVER_IP>:/data/nfs /mnt/op-nfs
-
-# Verify
-ls -lh /mnt/op-nfs/
-
-# Unmount
-sudo umount /mnt/op-nfs
-```
-
----
-
-## 2. SMB Verification
-
-### On `op-smb-server` (the SMB/Samba server itself)
-
-```bash
-# Check Samba services are running
-systemctl status smb nmb
-
-# Validate smb.conf configuration
-testparm -s
-
-# Show active Samba shares
-smbclient -L localhost -N
-
-# Show connected SMB clients
-smbstatus
-
-# List shared files
-ls -lh /data/smb/
-```
-
----
-
-### From `op-app` server (OnPrem VPC — same VPC as SMB server)
-
-```bash
-# Install CIFS client if not present
-sudo dnf install -y cifs-utils
-
-# List available shares from SMB server
-smbclient -L //<SMB_SERVER_IP> -N
-
-# Mount the SMB share (guest access)
-sudo mount -t cifs -o guest,vers=3.0 //<SMB_SERVER_IP>/smb /mnt/smb
-
-# Verify mount
-mount | grep cifs
-df -h /mnt/smb
-
-# List files
-ls -lh /mnt/smb/
-
-# Test write access
-echo "test from op-app - $(date)" > /mnt/smb/op-app-test.txt
-cat /mnt/smb/op-app-test.txt
-
-# Unmount
-sudo umount /mnt/smb
-```
-
----
-
-### From `op-datasync-agent` (OnPrem VPC — DataSync Agent)
-
-```bash
-# Verify SMB port reachability
-nc -zv <SMB_SERVER_IP> 445
-nc -zv <SMB_SERVER_IP> 139
-
-# List shares (DataSync uses SMB credentials — guest for this demo)
-smbclient -L //<SMB_SERVER_IP> -N
-```
-
----
-
-### From `cloud-app` server (Cloud VPC — via VPC Peering)
-
-```bash
-# Install CIFS client if not present
-sudo dnf install -y cifs-utils
-
-# List available shares
-smbclient -L //<SMB_SERVER_IP> -N
-
-# Mount across VPC peering
-sudo mkdir -p /mnt/op-smb
-sudo mount -t cifs -o guest,vers=3.0 //<SMB_SERVER_IP>/smb /mnt/op-smb
-
-# Verify
-ls -lh /mnt/op-smb/
-
-# Unmount
-sudo umount /mnt/op-smb
-```
-
----
-
-## 3. Network Connectivity Quick Checks
-
-### Verify VPC Peering routes work (from Cloud VPC to OnPrem VPC)
-
-```bash
-# From cloud-app EC2 — ping OnPrem instances
-ping -c 3 <NFS_SERVER_IP>
-ping -c 3 <SMB_SERVER_IP>
-
-# From op-app EC2 — ping Cloud EFS mount target
-ping -c 3 <EFS_MOUNT_TARGET_IP>
-```
-
-### Port reachability matrix
-
-```bash
-# NFS ports
-nc -zv <NFS_SERVER_IP> 111    # portmapper
-nc -zv <NFS_SERVER_IP> 2049   # NFS
-
-# SMB ports
-nc -zv <SMB_SERVER_IP> 445    # SMB
-nc -zv <SMB_SERVER_IP> 139    # NetBIOS
-
-# Storage Gateway ports (from iSCSI client)
-nc -zv <SGW_APPLIANCE_IP> 3260  # iSCSI
-nc -zv <SGW_APPLIANCE_IP> 80    # activation
-nc -zv <SGW_APPLIANCE_IP> 2049  # NFS (File Gateway clients)
-nc -zv <SGW_APPLIANCE_IP> 445   # SMB (File Gateway clients)
-```
-
----
-
-## 4. Check Setup Logs (after EC2 launch via userdata)
-
-```bash
-# NFS server setup log
-sudo cat /var/log/op-nfs-setup.log
-
-# SMB server setup log
-sudo cat /var/log/op-smb-setup.log
-
-# cloud-app setup log
-sudo cat /var/log/cloud-app-setup.log
-
-# op-app setup log
-sudo cat /var/log/op-app-setup.log
-
-# App service status
-sudo systemctl status demo-app
-sudo journalctl -u demo-app -n 50 --no-pager
-```
-
----
-
-## 5. EFS Verification (from Cloud VPC)
-
-```bash
-# From cloud-app EC2
-# EFS_DNS format: <fs-id>.efs.us-east-1.amazonaws.com
-
-# Mount EFS
-sudo mount -t efs -o tls,iam <EFS_ID>:/ /mnt/efs
-
-# Verify
-df -h /mnt/efs
-ls -lh /mnt/efs/images/products/
-
-# Unmount
-sudo umount /mnt/efs
-```
-
----
-
-## 6. Instance IP Reference (fill in after launch)
-
-| Instance | Private IP | Public IP |
-|----------|-----------|-----------|
-| op-nfs-server | | |
-| op-smb-server | | |
-| op-iscsi-client | | |
-| op-sgw-appliance | | |
-| op-datasync-agent | | |
-| op-app | | |
-| cloud-app | | |
-
----
-
-## 7. Phase Transition: DataSync (S3 + EFS) → Storage Gateway (S3 + EBS)
-
-Run these steps after completing the DataSync demo and before starting the Storage Gateway Volume Gateway demo.
-
-**Pre-requisite:** Volume Gateway iSCSI demo (SGW-05/SGW-06) must have run and created at least one EBS snapshot.
-
-### Step 1 — Find the Volume Gateway snapshot
-
-```bash
-# List snapshots from Volume Gateway (filter by description)
-aws ec2 describe-snapshots \
+aws cloudformation describe-stacks \
+  --stack-name sgw-datasync-demo-network \
   --region us-east-1 \
-  --filters "Name=status,Values=completed" \
-  --query 'sort_by(Snapshots, &StartTime)[-1].{SnapshotId:SnapshotId,StartTime:StartTime,Description:Description}' \
+  --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}' \
   --output table
 ```
 
-### Step 2 — Create EBS volume from snapshot
+---
 
+## 3. DataSync
+
+### List agents
 ```bash
-# Must be in same AZ as cloud-app EC2 (us-east-1a)
-aws ec2 create-volume \
+aws datasync list-agents \
   --region us-east-1 \
-  --availability-zone us-east-1a \
-  --snapshot-id <SNAPSHOT_ID> \
-  --volume-type gp3 \
-  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=sgw-demo-ebs-restore}]'
-
-# Note the VolumeId from output
+  --query 'Agents[*].{Name:Name,ARN:AgentArn,Status:Status}' \
+  --output table
 ```
 
-### Step 3 — Attach EBS volume to cloud-app EC2
-
+### List locations
 ```bash
-aws ec2 attach-volume \
+aws datasync list-locations \
   --region us-east-1 \
-  --volume-id <VOLUME_ID> \
-  --instance-id <CLOUD_APP_INSTANCE_ID> \
-  --device /dev/xvdf
-
-# Wait for attachment to complete
-aws ec2 wait volume-in-use --region us-east-1 --volume-ids <VOLUME_ID>
-echo "Volume attached"
+  --query 'Locations[*].{ARN:LocationArn,URI:LocationUri}' \
+  --output table
 ```
 
-### Step 4 — Mount NTFS volume on cloud-app EC2 (via SSM)
-
+### List tasks
 ```bash
-# ntfs-3g is already installed by userdata — no install needed
-sudo mount -t ntfs-3g /dev/xvdf /mnt/ebs
-
-# Verify files are visible (files written from Windows Z:\ session)
-ls -lh /mnt/ebs/
+aws datasync list-tasks \
+  --region us-east-1 \
+  --query 'Tasks[*].{Name:Name,ARN:TaskArn,Status:Status}' \
+  --output table
 ```
 
-### Step 5 — Switch app to EBS mode
-
+### Start task execution
 ```bash
-# Update .env
-sudo sed -i 's/STORAGE_MODE=efs/STORAGE_MODE=ebs/' /opt/app/.env
-sudo sed -i 's|LOCAL_MOUNT=.*|LOCAL_MOUNT=/mnt/ebs|' /opt/app/.env
-
-# Verify
-cat /opt/app/.env
-
-# Restart app
-sudo systemctl restart demo-app
-sudo systemctl is-active demo-app
+aws datasync start-task-execution \
+  --region us-east-1 \
+  --task-arn "<TASK_ARN>"
 ```
 
-### Step 6 — Verify in browser
-
-- Refresh `http://<cloud-app-public-ip>`
-- Tab 2 label changes: **"Amazon EFS"** → **"Amazon EBS"**
-- Files written from Windows `Z:\` during Volume Gateway demo appear in the grid
-
-### Switch back to EFS (if needed)
-
+### Check task execution status
 ```bash
-sudo umount /mnt/ebs
-sudo sed -i 's/STORAGE_MODE=ebs/STORAGE_MODE=efs/' /opt/app/.env
-sudo sed -i 's|LOCAL_MOUNT=.*|LOCAL_MOUNT=/mnt/efs|' /opt/app/.env
-sudo systemctl restart demo-app
+aws datasync list-task-executions \
+  --region us-east-1 \
+  --task-arn "<TASK_ARN>" \
+  --query 'TaskExecutions[*].{ARN:TaskExecutionArn,Status:Status}' \
+  --output table
 ```
 
 ---
 
-## 8. Windows iSCSI Client Verification (op-iscsi-client)
+## 4. Storage Gateway — S3 File Gateway
 
-Connect via SSM Session Manager → select the Windows instance → Start session (PowerShell).
-
-### 8.1 Verify userdata ran successfully
-
-```powershell
-# Check setup log
-Get-Content C:\demo-setup.log
-
-# Expected output includes:
-#   iSCSI Initiator service started
-#   iSCSI firewall rules enabled
-#   C:\demo-iscsi folder created
-#   Downloaded: provider-1.jpg
-#   Downloaded: provider-2.jpg
-#   Downloaded: provider-3.jpg
-#   Power plan set to High Performance
-#   op-iscsi-client setup complete
-```
-
-### 8.2 Verify downloaded images
-
-```powershell
-# List demo images
-Get-ChildItem C:\demo-iscsi\
-
-# Check file sizes (should be non-zero)
-Get-ChildItem C:\demo-iscsi\ | Select-Object Name, Length
-
-# Quick check all 3 exist
-$expected = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
-foreach ($f in $expected) {
-  $path = "C:\demo-iscsi\$f"
-  if (Test-Path $path) {
-    Write-Host "OK: $f ($((Get-Item $path).Length) bytes)"
-  } else {
-    Write-Host "MISSING: $f"
-  }
-}
-```
-
-### 8.3 Verify iSCSI Initiator service
-
-```powershell
-# Check service is running
-Get-Service MSiSCSI | Select-Object Name, Status, StartType
-
-# Expected: Status=Running, StartType=Automatic
-```
-
-### 8.4 Re-download images if missing (run manually)
-
-```powershell
-$images  = @("provider-1.jpg", "provider-2.jpg", "provider-3.jpg")
-$baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
-New-Item -ItemType Directory -Force -Path "C:\demo-iscsi" | Out-Null
-foreach ($img in $images) {
-  Invoke-WebRequest -Uri "$baseUrl/$img" -OutFile "C:\demo-iscsi\$img" -UseBasicParsing
-  Write-Host "Downloaded: $img"
-}
-```
-
-### 8.5 Connect to Storage Gateway iSCSI volume (after SGW appliance is activated)
-
-```powershell
-# Add iSCSI target portal (replace with SGW appliance private IP)
-New-IscsiTargetPortal -TargetPortalAddress "<SGW_APPLIANCE_PRIVATE_IP>"
-
-# Discover available targets
-Get-IscsiTarget
-
-# Connect to the target (replace TargetNodeAddress from above output)
-Connect-IscsiTarget -NodeAddress "<TARGET_NODE_ADDRESS>" -IsPersistent $true
-
-# Verify connection
-Get-IscsiSession
-```
-
-### 8.6 Initialize and format the iSCSI disk (after connecting)
-
-```powershell
-# Find the new raw disk (Status = Offline or RAW)
-Get-Disk | Where-Object {$_.PartitionStyle -eq "RAW" -or $_.OperationalStatus -eq "Offline"}
-
-# Initialize, partition, format and assign drive letter Z:
-$disk = Get-Disk | Where-Object PartitionStyle -eq "RAW" | Select-Object -First 1
-Initialize-Disk -Number $disk.Number -PartitionStyle GPT
-$partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize -DriveLetter Z
-Format-Volume -DriveLetter Z -FileSystem NTFS -NewFileSystemLabel "iSCSI-Demo" -Confirm:$false
-Write-Host "Drive Z: ready"
-```
-
-### 8.7 Copy demo images to iSCSI volume
-
-```powershell
-# Copy downloaded images to Z:\ (triggers Volume Gateway to sync to AWS)
-Copy-Item C:\demo-iscsi\*.jpg Z:\
-
-# Verify on Z:\
-Get-ChildItem Z:\ | Select-Object Name, Length, LastWriteTime
-```
-
-### 8.8 Verify Volume Gateway snapshot in AWS (after copying files)
-
+### List gateways
 ```bash
-# Run from your local machine or AWS CloudShell
+aws storagegateway list-gateways \
+  --region us-east-1 \
+  --query 'Gateways[*].{Name:GatewayName,State:GatewayOperationalState,Type:GatewayType,ARN:GatewayARN}' \
+  --output table
+```
+
+### List file shares
+```bash
+aws storagegateway list-file-shares \
+  --region us-east-1 \
+  --query 'FileShareInfoList[*].{Type:FileShareType,Status:FileShareStatus,ARN:FileShareARN}' \
+  --output table
+```
+
+### Describe SMB file share
+```bash
+aws storagegateway describe-smb-file-shares \
+  --region us-east-1 \
+  --file-share-arn-list "<SMB_FILE_SHARE_ARN>"
+```
+
+### Describe NFS file share
+```bash
+aws storagegateway describe-nfs-file-shares \
+  --region us-east-1 \
+  --file-share-arn-list "<NFS_FILE_SHARE_ARN>"
+```
+
+### Refresh cache (after DataSync syncs data to S3)
+```bash
+# NFS file share
+aws storagegateway refresh-cache \
+  --region us-east-1 \
+  --file-share-arn "<NFS_FILE_SHARE_ARN>"
+
+# SMB file share
+aws storagegateway refresh-cache \
+  --region us-east-1 \
+  --file-share-arn "<SMB_FILE_SHARE_ARN>"
+```
+
+### Check SMB settings
+```bash
+aws storagegateway describe-smb-settings \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>"
+```
+
+### Set SMB guest password
+```bash
+aws storagegateway set-smb-guest-password \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --password "Passw0rd123"
+```
+
+### Update SMB security strategy
+```bash
+# Options: MandatoryEncryption | MandatorySigning | ClientSpecified
+aws storagegateway update-smb-security-strategy \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --smb-security-strategy ClientSpecified
+```
+
+---
+
+## 5. Storage Gateway — Volume Gateway
+
+### List volumes
+```bash
+aws storagegateway list-volumes \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --query 'VolumeInfos[*].{VolumeId:VolumeId,ARN:VolumeARN,Status:VolumeStatus,Type:VolumeType}' \
+  --output table
+```
+
+### Describe stored iSCSI volumes
+```bash
+aws storagegateway describe-stored-iscsi-volumes \
+  --region us-east-1 \
+  --volume-arns "<VOLUME_ARN>"
+```
+
+### List local disks
+```bash
+aws storagegateway list-local-disks \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --query 'Disks[*].{DiskId:DiskId,Path:DiskPath,Node:DiskNode,SizeGB:DiskSizeInBytes,Alloc:DiskAllocationType}' \
+  --output table
+```
+
+### Assign disks — FILE_S3
+```bash
+# Cache disk
+aws storagegateway add-cache \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --disk-ids "<DISK_ID_SDF>"
+```
+
+### Assign disks — VOLUME CACHED
+```bash
+aws storagegateway add-cache \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --disk-ids "<DISK_ID_SDF>"
+
+aws storagegateway add-upload-buffer \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --disk-ids "<DISK_ID_SDG>"
+```
+
+### Assign disks — VOLUME STORED
+```bash
+aws storagegateway add-working-storage \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --disk-ids "<DISK_ID_SDF>"
+
+aws storagegateway add-upload-buffer \
+  --region us-east-1 \
+  --gateway-arn "<GATEWAY_ARN>" \
+  --disk-ids "<DISK_ID_SDG>"
+```
+
+### Snapshot schedule
+```bash
+# Check schedule
+aws storagegateway describe-snapshot-schedule \
+  --region us-east-1 \
+  --volume-arn "<VOLUME_ARN>"
+
+# Update to every 1 hour
+aws storagegateway update-snapshot-schedule \
+  --region us-east-1 \
+  --volume-arn "<VOLUME_ARN>" \
+  --start-at 0 \
+  --recurrence-in-hours 1 \
+  --description "hourly-demo-snapshot"
+```
+
+### Create manual snapshot
+```bash
+aws storagegateway create-snapshot \
+  --region us-east-1 \
+  --volume-arn "<VOLUME_ARN>" \
+  --snapshot-description "demo-manual-snapshot"
+```
+
+---
+
+## 6. EBS — Snapshot to Volume
+
+### Check snapshot status
+```bash
 aws ec2 describe-snapshots \
   --region us-east-1 \
   --filters "Name=status,Values=pending,completed" \
@@ -486,71 +244,103 @@ aws ec2 describe-snapshots \
   --output table
 ```
 
----
-
-## 9. Switch SMB Mount on op-app (op-smb-server ↔ SGW File Gateway)
-
-Use these steps during the demo to switch `op-app`'s SMB mount between the direct Samba server and the S3 File Gateway SMB share.
-
-**Connect to op-app via SSM first:**
+### Create EBS volume from snapshot
 ```bash
-aws ssm start-session --target <op-app-instance-id> --region us-east-1
+aws ec2 create-volume \
+  --region us-east-1 \
+  --availability-zone us-east-1a \
+  --snapshot-id <SNAPSHOT_ID> \
+  --volume-type gp3 \
+  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=sgw-iscsi-restore}]'
+```
+
+### Attach EBS volume to cloud-app
+```bash
+aws ec2 attach-volume \
+  --region us-east-1 \
+  --volume-id <VOLUME_ID> \
+  --instance-id <CLOUD_APP_INSTANCE_ID> \
+  --device /dev/xvdf
+
+aws ec2 wait volume-in-use --region us-east-1 --volume-ids <VOLUME_ID>
+echo "Volume attached"
+```
+
+### Detach EBS volume
+```bash
+aws ec2 detach-volume \
+  --region us-east-1 \
+  --volume-id <VOLUME_ID>
 ```
 
 ---
 
-### Phase 1 → Phase 2: Switch to SGW File Gateway
+## 7. S3 — Verify Sync
 
 ```bash
-SGW_IP="<sgw-appliance-private-ip>"     # private IP of op-sgw-appliance
-SGW_SHARE="<share-name-from-sgw-console>"  # SMB share name configured in SGW console
-WEBAPP_UID=$(id -u webapp)
-WEBAPP_GID=$(id -g webapp)
+S3_BUCKET="demo-cf-274595021951-us-east-1-an"
 
-# Write credentials file (guest with password)
-cat > /etc/smb-credentials << EOF
-username=guest
-password=Passw0rd123
-EOF
-chmod 600 /etc/smb-credentials
+# List all objects
+aws s3 ls "s3://${S3_BUCKET}/" --recursive --region us-east-1
 
-# Unmount current SMB (op-smb-server)
-umount /mnt/smb
-
-# Mount SGW SMB share
-mount -t cifs \
-  -o "credentials=/etc/smb-credentials,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
-  "//${SGW_IP}/${SGW_SHARE}" /mnt/smb
-
-# Verify
-df -h /mnt/smb && ls /mnt/smb
-
-# Restart app to pick up new mount
-systemctl restart demo-app
-systemctl is-active demo-app
+# List by prefix
+aws s3 ls "s3://${S3_BUCKET}/providers/" --region us-east-1
+aws s3 ls "s3://${S3_BUCKET}/images/" --region us-east-1
 ```
 
 ---
 
-### Phase 2 → Phase 1: Switch back to op-smb-server
+## 8. Network — Port Reachability Matrix
 
 ```bash
-SMB_IP="<op-smb-server-private-ip>"
-WEBAPP_UID=$(id -u webapp)
-WEBAPP_GID=$(id -g webapp)
+# From op-app — test NFS ports
+bash -c 'echo >/dev/tcp/<NFS_SERVER_IP>/2049' && echo "2049 OPEN" || echo "2049 CLOSED"
+bash -c 'echo >/dev/tcp/<NFS_SERVER_IP>/111'  && echo "111 OPEN"  || echo "111 CLOSED"
 
-# Unmount SGW share
-umount /mnt/smb
+# From op-app — test SMB port
+bash -c 'echo >/dev/tcp/<SMB_SERVER_IP>/445'  && echo "445 OPEN"  || echo "445 CLOSED"
 
-# Mount op-smb-server (local guest, no password)
-mount -t cifs \
-  -o "guest,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8" \
-  "//${SMB_IP}/smb" /mnt/smb
+# From op-iscsi-client — test iSCSI port (PowerShell)
+Test-NetConnection -ComputerName <SGW_IP> -Port 3260
 
-# Verify
-df -h /mnt/smb && ls /mnt/smb
+# From cloud-app — test EFS port
+bash -c 'echo >/dev/tcp/<EFS_MOUNT_TARGET_IP>/2049' && echo "EFS 2049 OPEN" || echo "EFS 2049 CLOSED"
+```
 
-# Restart app
-systemctl restart demo-app
-systemctl is-active demo-app
+---
+
+## 9. Cleanup
+
+```bash
+REGION="us-east-1"
+DEMO_PREFIX="sgw-datasync-demo"
+
+# Step 1 — Terminate all demo EC2 instances
+INSTANCE_IDS=$(aws ec2 describe-instances \
+  --region "$REGION" \
+  --filters "Name=tag:Demo,Values=$DEMO_PREFIX" "Name=instance-state-name,Values=running,stopped" \
+  --query 'Reservations[*].Instances[*].InstanceId' \
+  --output text | tr '\n' ' ')
+echo "Terminating: $INSTANCE_IDS"
+aws ec2 terminate-instances --region "$REGION" --instance-ids $INSTANCE_IDS
+
+# Step 2 — Delete Storage Gateways
+aws storagegateway list-gateways --region "$REGION" \
+  --query 'Gateways[*].GatewayARN' --output text | tr '\t' '\n' | while read arn; do
+  echo "Deleting gateway: $arn"
+  aws storagegateway delete-gateway --region "$REGION" --gateway-arn "$arn"
+done
+
+# Step 3 — Empty S3 bucket
+S3_BUCKET="${DEMO_PREFIX}-$(aws sts get-caller-identity --query Account --output text)"
+aws s3 rm "s3://${S3_BUCKET}" --recursive --region "$REGION"
+
+# Step 4 — Delete CFN stack
+aws cloudformation delete-stack \
+  --region "$REGION" \
+  --stack-name sgw-datasync-demo-network
+
+aws cloudformation wait stack-delete-complete \
+  --region "$REGION" \
+  --stack-name sgw-datasync-demo-network && echo "Stack deleted successfully"
 ```

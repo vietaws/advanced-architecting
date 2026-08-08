@@ -1,32 +1,25 @@
 #!/bin/bash
-# =============================================================================
-# op-app userdata.sh
-# EC2 User Data — OP App Server (t4g.micro, Amazon Linux 2023, ARM64)
-# Mounts NFS + SMB shares, clones app from GitHub, runs on port 80
-#
-# FILL IN before launching the EC2 instance:
-#   NFS_SERVER_IP — private IP of op-nfs-server (e.g. 10.1.1.x)
-#   SMB_SERVER_IP — private IP of op-smb-server (e.g. 10.1.1.x)
-# =============================================================================
 set -euo pipefail
 exec > >(tee /var/log/op-app-setup.log | logger -t op-app-setup) 2>&1
 
 # ---------------------------------------------------------------------------
 # 0. Configuration — edit before launching
 # ---------------------------------------------------------------------------
-NFS_SERVER_IP="<NFS_SERVER_PRIVATE_IP>"    # e.g. 10.1.1.10
+# NFS & SMB server IPs must be reachable from this EC2 instance (op-app)
+NFS_SERVER_IP="NFS_SERVER_PRIVATE_IP"      # e.g. 10.1.1.10
 NFS_EXPORT="/data/nfs"
-SMB_SERVER_IP="<SMB_SERVER_PRIVATE_IP>"    # e.g. 10.1.1.20  OR SGW appliance private IP
+SMB_SERVER_IP="SMB_SERVER_PRIVATE_IP"      # e.g. 10.1.1.20  OR SGW appliance private IP
 SMB_SHARE="smb"                            # share name on op-smb-server OR SGW console
 SMB_USER="guest"                           # guest for op-smb-server; guest for SGW too
 SMB_PASSWORD=""                            # empty = local guest (no password)
                                            # set to e.g. "Passw0rd123" for SGW guest access
+
+# Local Settings for OP-APP - DONT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING
 NFS_MOUNT="/mnt/nfs"
 SMB_MOUNT="/mnt/smb"
 REGION="us-east-1"
 APP_DIR="/opt/app"
 APP_USER="webapp"
-
 GITHUB_REPO="https://github.com/vietaws/architecting-pro.git"
 GITHUB_BRANCH="sgw-vs-datasync"
 
@@ -92,13 +85,14 @@ if [[ -z "$SMB_PASSWORD" ]]; then
   echo "SMB mode: local guest (no password)"
 else
   # Write credentials file — keeps password out of fstab and mount output
+  # SGW guest access uses "smbguest" as the internal account name
   cat > /etc/smb-credentials << CREDS
-username=${SMB_USER}
+username=smbguest
 password=${SMB_PASSWORD}
 CREDS
   chmod 600 /etc/smb-credentials
-  SMB_OPTS="credentials=/etc/smb-credentials,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777,vers=3.0,iocharset=utf8"
-  echo "SMB mode: authenticated (credentials file)"
+  SMB_OPTS="credentials=/etc/smb-credentials,sec=ntlmsspi,uid=${WEBAPP_UID},gid=${WEBAPP_GID},file_mode=0777,dir_mode=0777"
+  echo "SMB mode: authenticated via SGW guest (smbguest)"
 fi
 
 if ! grep -q "$SMB_SERVER_IP" /etc/fstab; then
@@ -195,11 +189,11 @@ echo "=== Setup complete. Access at: http://$(curl -s http://169.254.169.254/lat
 #   SMB_SERVER_IP=<sgw-appliance-private-ip>
 #   SMB_SHARE=<share-name-from-sgw-console>
 #   cat > /etc/smb-credentials << EOF
-#   username=guest
+#   username=smbguest
 #   password=Passw0rd123
 #   EOF
 #   chmod 600 /etc/smb-credentials
-#   SMB_OPTS="credentials=/etc/smb-credentials,uid=$(id -u webapp),gid=$(id -g webapp),file_mode=0777,dir_mode=0777,vers=3.0"
+#   SMB_OPTS="credentials=/etc/smb-credentials,sec=ntlmsspi,uid=$(id -u webapp),gid=$(id -g webapp),file_mode=0777,dir_mode=0777"
 #
 # Switch command (same for both phases):
 #   umount /mnt/smb
