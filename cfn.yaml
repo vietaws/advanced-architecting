@@ -1,11 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Storage Gateway vs DataSync Demo - Network Foundation
-  Creates: Cloud VPC + OnPrem VPC, Subnets (public+private, 2 AZs each),
-  VPC Peering, Route Tables, Security Groups, NACLs, S3 Gateway Endpoints,
-  EFS File System, CloudWatch Dashboard.
-  All instances in public subnets with IGW - SSM accesses via internet path.
-  Instances are created manually after this stack deploys.
+  Storage Gateway vs DataSync Demo - AWS Architecting Pro
+  Author: Viet Tran
+  Email: hello@viet.vn
+  Course link: https://viet.vn/udemy/architecting-pro 
 
 Metadata:
   AWS::CloudFormation::Interface:

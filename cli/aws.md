@@ -1,36 +1,9 @@
 # 06 — AWS Side Commands
-**Region:** us-east-1
-**OnPrem VPC:** 10.1.0.0/16 | **Cloud VPC:** 10.0.0.0/16
+
 
 ---
 
-## 1. Instance IP Reference
-
-| Instance | Role | Private IP | Public IP | Instance ID |
-|---|---|---|---|---|
-| op-nfs-server | NFS Server | | | |
-| op-smb-server | SMB Server | | | |
-| op-iscsi-client | Windows iSCSI Client | | | |
-| op-sgw-appliance | SGW Appliance | | | |
-| op-datasync-agent | DataSync Agent | | | |
-| op-app | OnPrem App | | | |
-| cloud-app | Cloud App | | | |
-
----
-
-## 2. CFN Stack — Get Outputs
-
-```bash
-aws cloudformation describe-stacks \
-  --stack-name sgw-datasync-demo-network \
-  --region us-east-1 \
-  --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue}' \
-  --output table
-```
-
----
-
-## 3. DataSync
+## DataSync
 
 ### List agents
 ```bash
@@ -67,14 +40,14 @@ aws datasync start-task-execution \
 ```bash
 aws datasync list-task-executions \
   --region us-east-1 \
-  --task-arn "<TASK_ARN>" \
+  --task-arn "TASK_ARN" \
   --query 'TaskExecutions[*].{ARN:TaskExecutionArn,Status:Status}' \
   --output table
 ```
 
 ---
 
-## 4. Storage Gateway — S3 File Gateway
+## Storage Gateway — S3 File Gateway
 
 ### List gateways
 ```bash
@@ -123,14 +96,14 @@ aws storagegateway refresh-cache \
 ```bash
 aws storagegateway describe-smb-settings \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>"
+  --gateway-arn "GATEWAY_ARN"
 ```
 
 ### Set SMB guest password
 ```bash
 aws storagegateway set-smb-guest-password \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
+  --gateway-arn "GATEWAY_ARN" \
   --password "Passw0rd123"
 ```
 
@@ -139,19 +112,19 @@ aws storagegateway set-smb-guest-password \
 # Options: MandatoryEncryption | MandatorySigning | ClientSpecified
 aws storagegateway update-smb-security-strategy \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
+  --gateway-arn "GATEWAY_ARN" \
   --smb-security-strategy ClientSpecified
 ```
 
 ---
 
-## 5. Storage Gateway — Volume Gateway
+## Storage Gateway — Volume Gateway
 
 ### List volumes
 ```bash
 aws storagegateway list-volumes \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
+  --gateway-arn "GATEWAY_ARN" \
   --query 'VolumeInfos[*].{VolumeId:VolumeId,ARN:VolumeARN,Status:VolumeStatus,Type:VolumeType}' \
   --output table
 ```
@@ -160,14 +133,14 @@ aws storagegateway list-volumes \
 ```bash
 aws storagegateway describe-stored-iscsi-volumes \
   --region us-east-1 \
-  --volume-arns "<VOLUME_ARN>"
+  --volume-arns "VOLUME_ARN"
 ```
 
 ### List local disks
 ```bash
 aws storagegateway list-local-disks \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
+  --gateway-arn "GATEWAY_ARN" \
   --query 'Disks[*].{DiskId:DiskId,Path:DiskPath,Node:DiskNode,SizeGB:DiskSizeInBytes,Alloc:DiskAllocationType}' \
   --output table
 ```
@@ -177,34 +150,34 @@ aws storagegateway list-local-disks \
 # Cache disk
 aws storagegateway add-cache \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
-  --disk-ids "<DISK_ID_SDF>"
+  --gateway-arn "GATEWAY_ARN" \
+  --disk-ids "DISK_ID_SDF"
 ```
 
 ### Assign disks — VOLUME CACHED
 ```bash
 aws storagegateway add-cache \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
-  --disk-ids "<DISK_ID_SDF>"
+  --gateway-arn "GATEWAY_ARN" \
+  --disk-ids "DISK_ID_SDF"
 
 aws storagegateway add-upload-buffer \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
-  --disk-ids "<DISK_ID_SDG>"
+  --gateway-arn "GATEWAY_ARN" \
+  --disk-ids "DISK_ID_SDG"
 ```
 
 ### Assign disks — VOLUME STORED
 ```bash
 aws storagegateway add-working-storage \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
-  --disk-ids "<DISK_ID_SDF>"
+  --gateway-arn "GATEWAY_ARN" \
+  --disk-ids "DISK_ID_SDF"
 
 aws storagegateway add-upload-buffer \
   --region us-east-1 \
-  --gateway-arn "<GATEWAY_ARN>" \
-  --disk-ids "<DISK_ID_SDG>"
+  --gateway-arn "GATEWAY_ARN" \
+  --disk-ids "DISK_ID_SDG"
 ```
 
 ### Snapshot schedule
@@ -212,12 +185,12 @@ aws storagegateway add-upload-buffer \
 # Check schedule
 aws storagegateway describe-snapshot-schedule \
   --region us-east-1 \
-  --volume-arn "<VOLUME_ARN>"
+  --volume-arn "VOLUME_ARN"
 
 # Update to every 1 hour
 aws storagegateway update-snapshot-schedule \
   --region us-east-1 \
-  --volume-arn "<VOLUME_ARN>" \
+  --volume-arn "VOLUME_ARN" \
   --start-at 0 \
   --recurrence-in-hours 1 \
   --description "hourly-demo-snapshot"
@@ -227,45 +200,11 @@ aws storagegateway update-snapshot-schedule \
 ```bash
 aws storagegateway create-snapshot \
   --region us-east-1 \
-  --volume-arn "<VOLUME_ARN>" \
+  --volume-arn "VOLUME_ARN" \
   --snapshot-description "demo-manual-snapshot"
 ```
 
 ---
-
-## 6. EBS — Snapshot to Volume
-
-### Check snapshot status
-```bash
-aws ec2 describe-snapshots \
-  --region us-east-1 \
-  --filters "Name=status,Values=pending,completed" \
-  --query 'sort_by(Snapshots, &StartTime)[-3:].{SnapshotId:SnapshotId,State:State,StartTime:StartTime,Description:Description}' \
-  --output table
-```
-
-### Create EBS volume from snapshot
-```bash
-aws ec2 create-volume \
-  --region us-east-1 \
-  --availability-zone us-east-1a \
-  --snapshot-id <SNAPSHOT_ID> \
-  --volume-type gp3 \
-  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=sgw-iscsi-restore}]'
-```
-
-### Attach EBS volume to cloud-app
-```bash
-aws ec2 attach-volume \
-  --region us-east-1 \
-  --volume-id <VOLUME_ID> \
-  --instance-id <CLOUD_APP_INSTANCE_ID> \
-  --device /dev/xvdf
-
-aws ec2 wait volume-in-use --region us-east-1 --volume-ids <VOLUME_ID>
-echo "Volume attached"
-```
-
 ### Detach EBS volume
 ```bash
 aws ec2 detach-volume \
@@ -275,22 +214,7 @@ aws ec2 detach-volume \
 
 ---
 
-## 7. S3 — Verify Sync
-
-```bash
-S3_BUCKET="demo-cf-274595021951-us-east-1-an"
-
-# List all objects
-aws s3 ls "s3://${S3_BUCKET}/" --recursive --region us-east-1
-
-# List by prefix
-aws s3 ls "s3://${S3_BUCKET}/providers/" --region us-east-1
-aws s3 ls "s3://${S3_BUCKET}/images/" --region us-east-1
-```
-
----
-
-## 8. Network — Port Reachability Matrix
+## Network — Port Reachability Matrix
 
 ```bash
 # From op-app — test NFS ports
@@ -308,39 +232,3 @@ bash -c 'echo >/dev/tcp/<EFS_MOUNT_TARGET_IP>/2049' && echo "EFS 2049 OPEN" || e
 ```
 
 ---
-
-## 9. Cleanup
-
-```bash
-REGION="us-east-1"
-DEMO_PREFIX="sgw-datasync-demo"
-
-# Step 1 — Terminate all demo EC2 instances
-INSTANCE_IDS=$(aws ec2 describe-instances \
-  --region "$REGION" \
-  --filters "Name=tag:Demo,Values=$DEMO_PREFIX" "Name=instance-state-name,Values=running,stopped" \
-  --query 'Reservations[*].Instances[*].InstanceId' \
-  --output text | tr '\n' ' ')
-echo "Terminating: $INSTANCE_IDS"
-aws ec2 terminate-instances --region "$REGION" --instance-ids $INSTANCE_IDS
-
-# Step 2 — Delete Storage Gateways
-aws storagegateway list-gateways --region "$REGION" \
-  --query 'Gateways[*].GatewayARN' --output text | tr '\t' '\n' | while read arn; do
-  echo "Deleting gateway: $arn"
-  aws storagegateway delete-gateway --region "$REGION" --gateway-arn "$arn"
-done
-
-# Step 3 — Empty S3 bucket
-S3_BUCKET="${DEMO_PREFIX}-$(aws sts get-caller-identity --query Account --output text)"
-aws s3 rm "s3://${S3_BUCKET}" --recursive --region "$REGION"
-
-# Step 4 — Delete CFN stack
-aws cloudformation delete-stack \
-  --region "$REGION" \
-  --stack-name sgw-datasync-demo-network
-
-aws cloudformation wait stack-delete-complete \
-  --region "$REGION" \
-  --stack-name sgw-datasync-demo-network && echo "Stack deleted successfully"
-```

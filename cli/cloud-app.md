@@ -1,6 +1,4 @@
-# 08 — Cloud App Server (cloud-app) Commands
-**Region:** us-east-1
-**Cloud VPC:** 10.0.0.0/16
+# Cloud App Server (cloud-app) Commands
 
 ---
 

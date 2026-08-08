@@ -1,6 +1,4 @@
-# 07 — iSCSI + Volume Gateway Demo Commands
-**Region:** us-east-1
-**OnPrem VPC:** 10.1.0.0/16 | **Volume Gateway IP:** 10.1.0.126
+# iSCSI + Volume Gateway Demo Commands
 
 ---
 
@@ -32,7 +30,7 @@ Expected results:
 ```powershell
 New-Item -ItemType Directory -Force -Path "C:\demo-iscsi" | Out-Null
 
-$images = @("flower-1.jpg", "flower-2.jpg", "flower-3.jpg")
+$images = @("flower-1.jpg", "flower-2.jpg", "flower-3.jpg", "flower-4.jpg", "flower-5.jpg")
 $baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
 foreach ($img in $images) {
   Invoke-WebRequest -Uri "$baseUrl/$img" -OutFile "C:\demo-iscsi\$img" -UseBasicParsing

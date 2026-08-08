@@ -1,24 +1,5 @@
 # Demo Scenarios: AWS Storage Gateway vs AWS DataSync
-**Ordered:** Easy → Complex  
-**Emphasis:** Protocol differences, service behavior, when to use which
 
----
-
-## Quick Reference: Protocol Support Matrix
-
-| Protocol | Storage Gateway | DataSync |
-|----------|----------------|----------|
-| NFS v3/v4 | ✅ File Gateway (mount point) | ✅ Source + Destination |
-| SMB v2/v3 | ✅ File Gateway (mount point) | ✅ Source + Destination |
-| iSCSI | ✅ Volume Gateway + Tape Gateway | ❌ Not supported |
-| Amazon S3 API | ❌ | ✅ Source + Destination |
-| Amazon EFS | ❌ | ✅ Source + Destination |
-| Amazon FSx | ✅ File Gateway (FSx target) | ✅ Source + Destination |
-| HDFS | ❌ | ✅ Source only |
-| Object Storage (S3-compatible) | ❌ | ✅ Source only |
-| VTL (iSCSI tape) | ✅ Tape Gateway | ❌ |
-
-**Key insight:** Storage Gateway provides a **persistent mount point** — applications talk to it like a local file system or block device. DataSync is a **task runner** — you explicitly trigger transfers. Same data, different operational model.
 
 ---
 

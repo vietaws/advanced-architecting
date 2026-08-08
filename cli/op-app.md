@@ -1,6 +1,4 @@
-# 07 — OnPrem App Server (op-app) Commands
-**Region:** us-east-1
-**OnPrem VPC:** 10.1.0.0/16
+# OnPrem App Server (op-app) Commands
 
 Replace `<NFS_SERVER_IP>`, `<SMB_SERVER_IP>`, `<SGW_APPLIANCE_IP>` with actual private IPs.
 

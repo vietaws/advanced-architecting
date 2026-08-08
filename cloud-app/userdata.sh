@@ -1,27 +1,23 @@
 #!/bin/bash
-# =============================================================================
-# cloud-app userdata.sh
-# EC2 User Data — Cloud App Server (t4g.micro, Amazon Linux 2023, ARM64)
-# Phase 1 (DataSync): STORAGE_MODE=efs — mounts EFS
-# Phase 2 (SGW):      STORAGE_MODE=ebs — EBS attached + mounted manually later
-#
-# FILL IN before launching:
-#   EFS_ID       — EFS file system ID (e.g. fs-0abc1234)
-#   STORAGE_MODE — "efs" for Phase 1 (DataSync demo)
-# =============================================================================
 set -euo pipefail
 exec > >(tee /var/log/cloud-app-setup.log | logger -t cloud-app-setup) 2>&1
 
 # ---------------------------------------------------------------------------
+# Demo Scenario #1 - DataSync: Cloud App (S3 + EFS) — userdata.sh
+# Demo Scenario #2 - Storage Gateway: Cloud App (S3 + EBS) — userdata.sh
+# Demo Scenario #3 - Storage Gateway: Cloud App (SGW S3 + SGW SMB) — userdata.sh
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 # 0. Configuration
 # ---------------------------------------------------------------------------
+REGION="us-east-1"
 S3_BUCKET="S3_BUCKET"                         # e.g. my-demo-bucket
 S3_PREFIX="products/"
 STORAGE_MODE="efs"                            # Values: "efs" (Phase 1) or "ebs" (Phase 2)
 EFS_ID="EFS_ID"                               # e.g. fs-0abc1234def56789
 LOCAL_MOUNT="/mnt/efs"                        # /mnt/efs for Phase 1, /mnt/ebs for Phase 2
 LOCAL_SUBDIR="/"
-REGION="us-east-1"
 APP_DIR="/opt/app"
 APP_USER="webapp"
 

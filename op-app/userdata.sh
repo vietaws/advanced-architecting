@@ -3,11 +3,18 @@ set -euo pipefail
 exec > >(tee /var/log/op-app-setup.log | logger -t op-app-setup) 2>&1
 
 # ---------------------------------------------------------------------------
+# Demo Scenario #1 - DataSync: Op App (NFS + SMB) — userdata.sh
+# Demo Scenario #2 - Storage Gateway: Op App (NFS + SMB) — userdata.sh
+# Demo Scenario #3 - Storage Gateway: Op App (SGW NFS + SGW SMB) — userdata.sh
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
 # 0. Configuration — edit before launching
 # ---------------------------------------------------------------------------
-NFS_SERVER_IP="<NFS_SERVER_PRIVATE_IP>"    # e.g. 10.1.0.10
+NFS_SERVER_IP="NFS_SERVER_PRIVATE_IP"    # e.g. 10.1.0.10
 NFS_EXPORT="/data/nfs"
-SMB_SERVER_IP="<SMB_SERVER_PRIVATE_IP>"    # e.g. 10.1.0.20
+SMB_SERVER_IP="SMB_SERVER_PRIVATE_IP"    # e.g. 10.1.0.20
 SMB_SHARE="smb"                            # share name on op-smb-server
 
 # Fixed — do not change
