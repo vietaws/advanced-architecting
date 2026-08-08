@@ -1,5 +1,14 @@
 # AWS Storage Gateway vs AWS DataSync Hands-on AWS Architecting Pro
 
+**📚 Course**: AWS Architecting Pro
+
+**✅ Buy with Voucher**: https://viet.vn/udemy/architecting-pro 
+
+**💻 Builder**: Viet Tran
+
+**⛅️ Email**: hello@viet.vn
+
+
 ---
 
 ## 1. Overview & Purpose
