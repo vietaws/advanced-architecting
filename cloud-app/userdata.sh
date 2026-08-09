@@ -12,7 +12,7 @@ exec > >(tee /var/log/cloud-app-setup.log | logger -t cloud-app-setup) 2>&1
 # 0. Configuration
 # ---------------------------------------------------------------------------
 REGION="us-east-1"
-S3_BUCKET="S3_BUCKET"                         # e.g. my-demo-bucket
+S3_BUCKET="sgw-datasync-demo-ACCOUNT_ID"                         # e.g. my-demo-bucket
 S3_PREFIX="products/"
 STORAGE_MODE="efs"                            # Values: "efs" (Phase 1) or "ebs" (Phase 2)
 EFS_ID="EFS_ID"                               # e.g. fs-0abc1234def56789

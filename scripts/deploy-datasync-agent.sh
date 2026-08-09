@@ -22,7 +22,7 @@ export AMI_ID=""
 # FIXED CONFIG — no changes needed below this line
 # =============================================================================
 
-export INSTANCE_TYPE="m6a.2xlarge"
+export INSTANCE_TYPE="m6a.2xlarge" # or m5.2xlarge
 export IAM_INSTANCE_PROFILE="ec2-instance-role"
 export INSTANCE_NAME="op-datasync-agent"
 
