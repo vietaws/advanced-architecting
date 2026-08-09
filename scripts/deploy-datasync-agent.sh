@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Deploy DataSync Agent EC2 Instance
-# File: scripts/deploy-datasync-agent.sh
-# =============================================================================
-# DESCRIPTION:
-#   Launches a DataSync Agent EC2 instance in the OnPrem VPC.
-#   Activation is done separately via console or CLI after the instance is ready.
-#
-# PREREQUISITES:
-#   1. IAM instance profile "ec2-instance-role" exists with SSM permissions
-#   2. AWS CLI configured with sufficient EC2 permissions
-#   3. Fill in all variables in the INPUT VARIABLES section below
-#
-# HOW TO ACTIVATE AFTER LAUNCH:
-#   METHOD A — Console (recommended):
-#     1. Go to DataSync console → Agents → Create agent
-#     2. Hypervisor: Amazon EC2
-#     3. Enter the PUBLIC IP of the instance as the activation URL
-#     4. Name: op-datasync-agent → Activate
-#
-#   METHOD B — CLI:
-#     DATASYNC_KEY=$(curl -s "http://<PUBLIC_IP>/?activationRegion=${REGION}&no_redirect")
-#     aws datasync create-agent \
-#       --region "$REGION" \
-#       --activation-key "$DATASYNC_KEY" \
-#       --agent-name "op-datasync-agent" \
-#       --tags Key=Demo,Value="$DEMO_PREFIX"
-# =============================================================================
 
 # =============================================================================
 # INPUT VARIABLES — fill these in before running
@@ -36,9 +8,9 @@ export REGION="us-east-1"
 export DEMO_PREFIX="sgw-datasync-demo"
 
 # OnPrem VPC networking (from CFN stack outputs)
-export VPC_ID="vpc-0b5aa307d88df28d8"               # e.g. vpc-0abc1234567890abc
-export SUBNET_ID="subnet-033e49de64a701a27"          # e.g. subnet-0abc1234567890abc
-export SECURITY_GROUP_ID="sg-028c5abc1eca4bf8d"  # e.g. sg-0abc1234567890abc
+export VPC_ID="VPC_ID"               # e.g. vpc-0abc1234567890abc
+export SUBNET_ID="SUBNET_ID"          # e.g. subnet-0abc1234567890abc
+export SECURITY_GROUP_ID="SECURITY_GROUP_ID"  # e.g. sg-0abc1234567890abc
 
 # DataSync Agent AMI — leave empty to auto-resolve from SSM (recommended)
 # Or set explicitly to pin a specific version: e.g. ami-0f063e6b693a082c4
