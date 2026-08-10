@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Deploy Storage Gateway Appliance EC2 Instance
-# File: scripts/deploy-sgw-appliance.sh
-# =============================================================================
-# DESCRIPTION:
-#   Launches a Storage Gateway appliance EC2 instance in the OnPrem VPC.
-#   Supports S3 File Gateway and Volume Gateway (CACHED or STORED mode).
-#   Activation is done separately via console or CLI after the instance is ready.
-#
-# GATEWAY_TYPE options:
-#   FILE_S3  → S3 File Gateway (NFS/SMB share backed by S3)
-#   VOLUME   → Volume Gateway (iSCSI volumes, mode set by VOLUME_MODE)
-#
-# VOLUME_MODE options (only used when GATEWAY_TYPE=VOLUME):
-#   CACHED   → Primary data in S3, frequently accessed data cached locally
-#   STORED   → Primary data stored locally, async backup to S3
-#
-# PREREQUISITES:
-#   1. CFN stack "sgw-datasync-demo-network" deployed (03-network.yaml)
-#   2. IAM instance profile "ec2-instance-role" exists with SSM permissions
-#   3. AWS CLI configured with sufficient EC2 permissions
-#   4. Fill in all variables in the INPUT VARIABLES section below
-#
-# HOW TO ACTIVATE AFTER LAUNCH:
-#   METHOD A — Console (recommended):
-#     1. Go to Storage Gateway console → Create gateway
-#     2. Choose gateway type matching GATEWAY_TYPE
-#     3. Hypervisor: Amazon EC2
-#     4. Enter the PUBLIC IP of the instance as the activation URL
-#     5. Complete setup: name, timezone, assign cache disk
-#
-#   METHOD B — CLI:
-#     ACTIVATION_KEY=$(curl -s \
-#       "http://<PUBLIC_IP>/?activationRegion=${REGION}&gatewayType=${GATEWAY_TYPE}&no_redirect")
-#     aws storagegateway activate-gateway \
-#       --region "$REGION" \
-#       --activation-key "$ACTIVATION_KEY" \
-#       --gateway-name "$INSTANCE_NAME" \
-#       --gateway-timezone "GMT+7:00" \
-#       --gateway-region "$REGION" \
-#       --gateway-type "$GATEWAY_TYPE"
-# =============================================================================
 
 # =============================================================================
 # GATEWAY SWITCHER — set GATEWAY_TYPE and VOLUME_MODE before running
@@ -57,12 +15,12 @@ REGION="us-east-1"
 DEMO_PREFIX="sgw-datasync-demo"
 
 # OnPrem VPC networking (from CFN stack outputs)
-VPC_ID="vpc-0b5aa307d88df28d8"               # e.g. vpc-0abc1234567890abc
-SUBNET_ID="subnet-033e49de64a701a27"          # e.g. subnet-0abc1234567890abc
+VPC_ID="VPC_ID"               # e.g. vpc-0abc1234567890abc
+SUBNET_ID="SUBNET_ID"          # e.g. subnet-0abc1234567890abc
 
 # Security Groups — one per gateway type (from CFN stack outputs)
-SG_FILE_S3="sg-028c5abc1eca4bf8d"   # used when GATEWAY_TYPE=FILE_S3
-SG_VOLUME="sg-028c5abc1eca4bf8d"    # used when GATEWAY_TYPE=VOLUME
+SG_FILE_S3="SG_FILE_S3"   # used when GATEWAY_TYPE=FILE_S3
+SG_VOLUME="SG_VOLUME"    # used when GATEWAY_TYPE=VOLUME
 
 # AMI ID — leave empty to auto-resolve from SSM (recommended)
 # Or set explicitly to pin a specific version
