@@ -1,6 +1,5 @@
 # OnPrem App Server (op-app) Commands
 
-Replace `<NFS_SERVER_IP>`, `<SMB_SERVER_IP>`, `<SGW_APPLIANCE_IP>` with actual private IPs.
 
 ---
 
@@ -111,7 +110,7 @@ df -h /mnt/smb
 aws ssm start-session --target <op-app-instance-id> --region us-east-1
 ```
 
-### Phase 1 → Phase 2: Switch to SGW File Gateway NFS
+### Switch to SGW File Gateway NFS
 
 ```bash
 SGW_IP="<sgw-appliance-private-ip>"
@@ -128,7 +127,7 @@ systemctl restart demo-app
 systemctl is-active demo-app
 ```
 
-### Phase 2 → Phase 1: Switch back to op-nfs-server
+### Switch back to op-nfs-server
 
 ```bash
 NFS_IP="<op-nfs-server-private-ip>"
@@ -175,7 +174,7 @@ systemctl restart demo-app
 systemctl is-active demo-app
 ```
 
-### Phase 2 → Phase 1: Switch back to op-smb-server
+### Switch back to op-smb-server
 
 ```bash
 SMB_IP="<op-smb-server-private-ip>"
