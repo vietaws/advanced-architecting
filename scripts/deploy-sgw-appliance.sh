@@ -92,8 +92,8 @@ fi
 # STEP 3 — Build block device mappings
 #
 # FILE_S3  : root (80 GB) + cache disk (20 GB)
-# VOLUME CACHED  : root (80 GB) + cache disk (20 GB) + upload buffer (20 GB)
-# VOLUME STORED  : root (80 GB) + local storage (20 GB) + upload buffer (20 GB)
+# VOLUME CACHED  : root (80 GB) + cache disk (25 GB) + upload buffer (20 GB)
+# VOLUME STORED  : root (80 GB) + local storage (25 GB) + upload buffer (20 GB)
 # =============================================================================
 
 if [[ "$GATEWAY_TYPE" == "FILE_S3" ]]; then
@@ -124,7 +124,7 @@ else
     },
     {
       "DeviceName": "/dev/sdg",
-      "Ebs": { "VolumeSize": 20, "VolumeType": "gp3", "DeleteOnTermination": true, "Encrypted": true }
+      "Ebs": { "VolumeSize": 25, "VolumeType": "gp3", "DeleteOnTermination": true, "Encrypted": true }
     }
   ]'
 fi
