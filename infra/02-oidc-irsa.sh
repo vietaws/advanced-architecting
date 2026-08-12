@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# 03-oidc-irsa.sh — Create IAM policies + roles for IRSA
-#
-# Run AFTER: 02-addons.sh
-#
-# Creates:
-#   - ProductServicePolicy  → eks-product-service-role  → product-service-sa
-#   - OrderServicePolicy    → eks-order-service-role    → order-service-sa
-#
-# provider-service has no AWS SDK calls (uses RDS via pg driver + EFS via PVC)
-# so it does not need an IRSA role.
-#
-# Usage:
-#   chmod +x infra/03-oidc-irsa.sh
-#   AWS_ACCOUNT_ID=123456789012 \
-#   PRODUCT_IMAGES_BUCKET=demo-product-images-xxxx \
-#   ./infra/03-oidc-irsa.sh
-# =============================================================================
 set -euo pipefail
 
 export AWS_PAGER=""
@@ -190,5 +172,4 @@ echo ""
 echo "  NOTE: provider-service does not need IRSA."
 echo "        It uses K8s Secret for RDS and EFS PVC for storage."
 echo ""
-echo "  Next step:  ./infra/04-k8s-setup.sh"
 echo "============================================================"

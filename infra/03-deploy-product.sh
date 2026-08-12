@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 04-deploy-product.sh — Deploy product-service to EKS
 #
 # All service-specific variables are managed here.
 # The YAML files under infra/k8s/product-service/ use placeholders and are
 # never modified directly — values are injected at deploy time via temp files.
 #
-# Prerequisites:
-#   - Namespace 'app' exists  (kubectl apply -f infra/k8s/01-namespace.yaml)
-#   - IRSA role created       (run 03-oidc-irsa.sh)
-#   - DAX cluster running     (Phase 0)
-#   - Image pushed to registry
 #
-# Usage:
-#   ./infra/04-deploy-product.sh
+# AWS Resources required for product-service: 
+#   1. S3 Product Bucket
+#   2. Product DynamoDB Table
+#   3. DAX Cluster
+#   
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""

@@ -1,21 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# teardown-eks.sh — Delete all Kubernetes and EKS resources
-#
-# Deletes (in order):
-#   1. Scale down pods, delete Ingress, wait for ALB, force-delete ALB if needed
-#   2. EKS add-ons (parallel, no-wait)           [parallel]
-#   3. Add-on IAM roles + app IAM roles          [parallel]
-#   4. EKS cluster via eksctl (node groups, iamserviceaccount stacks, OIDC, VPC)
-#
-# eksctl delete cluster handles its own CloudFormation stacks automatically,
-# including iamserviceaccount stacks — no need to delete them separately.
-#
-# Does NOT delete: DynamoDB, SQS, Aurora, EFS, S3, DAX, CloudFront, ECR
-#
-# Usage:
-#   export AWS_ACCOUNT_ID=123456789012
-#   ./infra/teardown-eks.sh
+# DELETE All AWS Resources that created manually before run this script
+# Aurora, EFS, VPC Endpoints, S3 buckets, CloudFront, ECR repos, etc.
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""

@@ -1,6 +1,5 @@
 # Phase 3 — IAM & IRSA
 
-> ← [Back to main guide](../README.md#deployment-workflow)
 
 ---
 
@@ -9,7 +8,7 @@ IRSA (IAM Roles for Service Accounts) lets each pod assume a least-privilege IAM
 ```bash
 # PRODUCT_IMAGES_BUCKET is printed by infra/01-aws-resources.sh
 export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
-./infra/03-oidc-irsa.sh
+./infra/02-oidc-irsa.sh
 ```
 
 ---
@@ -66,5 +65,3 @@ aws iam list-attached-role-policies --role-name eks-product-service-role
 ```
 
 ---
-
-→ Next: [Phase 5 — Container Images](phase-5-images.md)

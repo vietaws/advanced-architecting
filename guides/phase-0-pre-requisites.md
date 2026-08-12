@@ -1,6 +1,4 @@
-# Phase 5 — Container Images
-
-> ← [Back to main guide](../README.md#deployment-workflow)
+# Pre-requisites
 
 ---
 

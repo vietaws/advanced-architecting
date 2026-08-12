@@ -1,6 +1,4 @@
-# Phase 6 — Kubernetes Deploy
-
-> ← [Back to main guide](../README.md#deployment-workflow)
+# Phase 5 — Kubernetes Deploy
 
 ---
 
@@ -8,8 +6,9 @@
 
 All service configuration is managed as Kubernetes Secret YAML files, grouped inside each service folder. Edit each file and replace every `REPLACE_*` placeholder with your real values.
 
-Values for `DAX_ENDPOINT`, `S3_BUCKET`, `SQS_QUEUE_URL` come from the output of `infra/01-aws-resources.sh`.
-Values for `RDS_HOST`, `RDS_PASSWORD`, `EFS_FILE_SYSTEM_ID` come from manual steps in [Phase 0](phase-0-aws-resources.md).
+Values for `DAX_ENDPOINT`, `S3_BUCKET`, `SQS_QUEUE_URL`
+
+Values for `RDS_HOST`, `RDS_PASSWORD`, `EFS_FILE_SYSTEM_ID`
 
 **`infra/k8s/product-service/01-secret.yaml`**
 ```yaml
@@ -49,7 +48,6 @@ stringData:
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export EFS_FILE_SYSTEM_ID="fs-0123456789abcdef0"   # from Phase 0 Step 6
 
-./infra/04-k8s-setup.sh
 ```
 
 ### Option B — Deploy one service at a time

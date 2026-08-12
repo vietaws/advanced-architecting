@@ -1,12 +1,10 @@
-# Phase 3 — EKS Add-ons
-
-> ← [Back to main guide](../README.md#deployment-workflow)
+# Phase 2 — EKS Add-ons
 
 ---
 
 ```bash
 chmod +x infra/*.sh
-./infra/02-addons.sh
+./infra/01-addons.sh
 ```
 
 The script installs all add-ons and creates the required IAM roles automatically. No manual IAM steps needed.
@@ -52,7 +50,6 @@ aws iam get-role --role-name eks-alb-controller-role  --query 'Role.RoleName' --
 
 ---
 
-→ Next: [Phase 4 — IAM & IRSA](phase-4-irsa.md)
 
 ## Cleanup Addon Commands (For reference)
 
@@ -108,7 +105,5 @@ aws iam get-role --role-name eks-alb-controller-role  --query 'Role.RoleName' --
   kubectl delete crd ingressclassparams.networking.k8s.aws 2>/dev/null || true
 
   kubectl get crd | grep elbv2
-  
-  # ── 6. Re-run addon script ────────────────────────────────────────────────────
-  ./infra/02-addons.sh
+
 ```

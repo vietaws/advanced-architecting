@@ -6,13 +6,8 @@
 # The YAML files under infra/k8s/order-service/ use placeholders and are
 # never modified directly — values are injected at deploy time via temp files.
 #
-# Prerequisites:
-#   - Namespace 'app' exists  (kubectl apply -f infra/k8s/01-namespace.yaml)
-#   - IRSA role created       (run 03-oidc-irsa.sh)
-#   - Image pushed to registry
-#
-# Usage:
-#   ./infra/04-deploy-order.sh
+# AWS Resources required for order-service:
+#   1. SQS Queue
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""

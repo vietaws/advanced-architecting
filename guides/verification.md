@@ -1,6 +1,5 @@
 # Verification
 
-> ← [Back to main guide](../README.md#verification--teardown)
 
 ---
 
@@ -109,5 +108,3 @@ kubectl logs -n app -l app=product-service --tail=20
 ```
 
 ---
-
-→ [Teardown](teardown.md) — delete all resources when done

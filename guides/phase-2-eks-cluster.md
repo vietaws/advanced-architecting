@@ -1,7 +1,5 @@
 # Phase 1 — EKS Cluster
 
-> ← [Back to main guide](../README.md#deployment-workflow)
-
 ---
 
 One command creates the control plane, a new VPC (`10.2.0.0/16`), public + private subnets in 2 AZs, subnet tags for ALB, and the IAM OIDC provider for IRSA.
@@ -109,5 +107,3 @@ kubectl get nodes -o wide
 ```
 
 ---
-
-→ Next: [Phase 3 — EKS Add-ons](phase-3-addons.md)

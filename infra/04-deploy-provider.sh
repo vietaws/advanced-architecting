@@ -6,14 +6,9 @@
 # The YAML files under infra/k8s/provider-service/ use placeholders and are
 # never modified directly — values are injected at deploy time via temp files.
 #
-# Prerequisites:
-#   - Namespace 'app' exists  (kubectl apply -f infra/k8s/01-namespace.yaml)
-#   - Aurora cluster running  (Phase 0)
-#   - EFS file system and mount targets exist (Phase 0)
-#   - Image pushed to registry
-#
-# Usage:
-#   ./infra/04-deploy-provider.sh
+# AWS Resources required for provider-service:
+#   1. EFS File System
+#   2. Aurora RDS Cluster
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""
@@ -25,8 +20,8 @@ NAMESPACE="app"
 SVC="provider-service"
 
 # ── Service variables (edit here) ─────────────────────────────────────────────
-EFS_FILE_SYSTEM_ID="fs-055647870a7a8c2c2"
-RDS_HOST="eks-demo-aurora-cluster.cluster-cvi6ygywwao2.ap-southeast-1.rds.amazonaws.com"
+EFS_FILE_SYSTEM_ID="EFS_FILE_SYSTEM_ID_PLACEHOLDER" # e.g. fs-12345678
+RDS_HOST="RDS_HOST_PLACEHOLDER" # e.g. mydb.cluster-123456789012.ap-southeast-1.rds.amazonaws.com
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"
