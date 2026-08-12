@@ -6,6 +6,9 @@ Install aws cli, eksctl, kubectl, helm
 ---
 ## Install pre-requisites
 
+```bash
+# Sources:
+
 eksctl: https://docs.aws.amazon.com/eks/latest/eksctl/installation.html
 
 Docker: https://docs.docker.com/engine/install/
@@ -14,9 +17,8 @@ aws-cli: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-instal
 
 helm: https://helm.sh/docs/intro/install/
 
-## Verify
 
-```bash
+# Verify
 eksctl info
 
 docker info
