@@ -1,4 +1,4 @@
-# Phase 1 — Frontend
+# Frontend
 
 
 ---

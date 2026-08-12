@@ -1,4 +1,4 @@
-# Phase 5 — Kubernetes Deploy
+# Deploy 3 Services on Amazon EKS
 
 ---
 

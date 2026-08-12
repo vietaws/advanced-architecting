@@ -1,4 +1,4 @@
-# Phase 2 — EKS Cluster
+# Provisioning EKS Cluster
 
 ---
 

@@ -1,4 +1,4 @@
-# Phase 0 — AWS Resources
+# Aurora Cluster
 
 ---
 

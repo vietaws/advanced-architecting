@@ -1,4 +1,4 @@
-# Phase 3 — EKS Add-ons
+# Install & Configure EKS Add-ons
 
 ---
 
