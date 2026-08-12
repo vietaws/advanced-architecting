@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 02-addons.sh — Install EKS add-ons and AWS Load Balancer Controller
-#
-# Run AFTER: EKS cluster and node group are created (Phase 1)
-#
 # IAM roles created by this script (via eksctl create iamserviceaccount):
 #   eks-ebs-csi-driver-role  — EBS CSI driver      (AmazonEBSCSIDriverPolicy)
 #   eks-efs-csi-driver-role  — EFS CSI driver      (AmazonEFSCSIDriverPolicy)
 #   eks-alb-controller-role  — ALB Controller      (AWSLoadBalancerControllerIAMPolicy)
 #
-# Usage:
-#   export AWS_ACCOUNT_ID=123456789012
-#   ./infra/02-addons.sh
 # =============================================================================
 set -euo pipefail
 export AWS_PAGER=""
@@ -21,7 +14,7 @@ REGION="ap-southeast-1"
 NAMESPACE_SYSTEM="kube-system"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
-ALB_CHART_VERSION="3.4.3"
+ALB_CHART_VERSION="3.5.0"
 # Check latest: https://artifacthub.io/packages/helm/aws/aws-load-balancer-controller
 
 # Image registry per region: https://docs.aws.amazon.com/eks/latest/userguide/add-ons-images.html

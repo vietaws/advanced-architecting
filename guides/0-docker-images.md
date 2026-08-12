@@ -13,7 +13,7 @@ Edit these once before running any commands below:
 ```bash
 # Docker Hub (update your actual user and repo)
 DOCKER_USER="vietaws"                  
-DOCKER_REPO="examples"         
+DOCKER_REPO="architecting-pro"  
 
 # AWS / ECR
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"

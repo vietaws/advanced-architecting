@@ -18,7 +18,7 @@ spec:
       serviceAccountName: order-service-sa
       containers:
         - name: order-service
-          image: vietaws/examples:order-service
+          image: vietaws/architecting-pro:order-service
           imagePullPolicy: Always
           ports:
             - containerPort: 3003

@@ -37,6 +37,10 @@ echo "  Deploying: ${SVC}"
 echo "  Cluster:   ${CLUSTER_NAME} / namespace: ${NAMESPACE}"
 echo "============================================================"
 
+# ── Namespace ────────────────────────────────────────────────────────────────────
+kubectl apply -f "${K8S_DIR}/${SVC}/00-namespace.yaml"
+echo "  Namespace applied"
+
 # ── Secret (inject variables via temp file — YAML stays pristine) ─────────────
 SECRET_TMP="$(mktemp).yaml"
 sed \
@@ -51,7 +55,7 @@ echo "  Secret applied"
 SA_TMP="$(mktemp).yaml"
 sed \
   "s|arn:aws:iam::AWS_ACCOUNT_ID:|arn:aws:iam::${AWS_ACCOUNT_ID}:|g" \
-  "${K8S_DIR}/${SVC}/03-serviceaccount.yaml" > "${SA_TMP}"
+  "${K8S_DIR}/${SVC}/02-serviceaccount.yaml" > "${SA_TMP}"
 kubectl apply -f "${SA_TMP}"
 rm -f "${SA_TMP}"
 echo "  ServiceAccount applied"
@@ -60,14 +64,18 @@ echo "  ServiceAccount applied"
 DEPLOY_TMP="$(mktemp).yaml"
 sed \
   "s|AWS_ACCOUNT_ID\.dkr\.ecr|${AWS_ACCOUNT_ID}.dkr.ecr|g" \
-  "${K8S_DIR}/${SVC}/05-deployment.yaml" > "${DEPLOY_TMP}"
+  "${K8S_DIR}/${SVC}/04-deployment.yaml" > "${DEPLOY_TMP}"
 kubectl apply -f "${DEPLOY_TMP}"
 rm -f "${DEPLOY_TMP}"
 echo "  Deployment applied"
 
 # ── Service ────────────────────────────────────────────────────────────────────
-kubectl apply -f "${K8S_DIR}/${SVC}/04-service.yaml"
+kubectl apply -f "${K8S_DIR}/${SVC}/03-service.yaml"
 echo "  Service applied"
+
+# ── Ingress ────────────────────────────────────────────────────────────────────
+kubectl apply -f "${K8S_DIR}/${SVC}/05-ingress.yaml"
+echo "  Ingress applied"
 
 # ── Rollout ────────────────────────────────────────────────────────────────────
 echo ""

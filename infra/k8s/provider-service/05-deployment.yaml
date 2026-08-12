@@ -18,7 +18,7 @@ spec:
       serviceAccountName: provider-service-sa
       containers:
         - name: provider-service
-          image: vietaws/examples:provider-service
+          image: vietaws/architecting-pro:provider-service
           imagePullPolicy: Always
           ports:
             - containerPort: 3002

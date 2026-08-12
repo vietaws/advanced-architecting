@@ -10,7 +10,7 @@ NAMESPACE="app"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 
 # S3 bucket name for product images — must be set
-PRODUCT_IMAGES_BUCKET="${PRODUCT_IMAGES_BUCKET:-REPLACE_WITH_YOUR_BUCKET_NAME}"
+PRODUCT_IMAGES_BUCKET="product-images-274595021951-ap-southeast-1-an"
 
 INFRA_DIR="$(dirname "$0")"
 
