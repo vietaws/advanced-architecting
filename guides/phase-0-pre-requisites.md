@@ -16,6 +16,7 @@ helm: https://helm.sh/docs/intro/install/
 
 ## Verify
 
+```bash
 eksctl info
 
 docker info
@@ -23,6 +24,7 @@ docker info
 aws --version
 
 helm version
+```
 
 ---
 
