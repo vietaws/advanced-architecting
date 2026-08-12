@@ -1,6 +1,30 @@
 # Pre-requisites
 
 ---
+Install aws cli, eksctl, kubectl, helm
+
+---
+## Install pre-requisites
+
+eksctl: https://docs.aws.amazon.com/eks/latest/eksctl/installation.html
+
+Docker: https://docs.docker.com/engine/install/
+
+aws-cli: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+
+helm: https://helm.sh/docs/intro/install/
+
+## Verify
+
+eksctl info
+
+docker info
+
+aws --version
+
+helm version
+
+---
 
 Build multi-platform images locally and push to **Docker Hub** first. Then re-tag and push the same images to **ECR** — no rebuild needed.
 
