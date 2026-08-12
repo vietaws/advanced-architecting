@@ -51,7 +51,7 @@ The demo runs both services in a **single shared environment** so the leaners ca
 
 ---
 
-## 5. Key Differentiators
+## 4. Key Differentiators
 
 ### DataSync — "Intelligent Data Mover"
 - Explicitly **task-based**: you define what to move, where, and when
