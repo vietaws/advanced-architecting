@@ -5,7 +5,7 @@
 # =============================================================================
 
 GATEWAY_TYPE="FILE_S3"    # FILE_S3 | VOLUME
-VOLUME_MODE="STORED"      # CACHED | STORED (only applies when GATEWAY_TYPE=VOLUME)
+VOLUME_MODE="CACHED"      # CACHED | STORED (only applies when GATEWAY_TYPE=VOLUME)
 
 # =============================================================================
 # INPUT VARIABLES — fill these in before running
@@ -15,12 +15,12 @@ REGION="us-east-1"
 DEMO_PREFIX="sgw-datasync-demo"
 
 # OnPrem VPC networking (from CFN stack outputs)
-VPC_ID="vpc-00f82edfe210aeb73"               # e.g. vpc-0abc1234567890abc
-SUBNET_ID="subnet-042758d416d4c7a53"          # e.g. subnet-0abc1234567890abc
+VPC_ID="VPC_ID"               # e.g. vpc-0abc1234567890abc
+SUBNET_ID="SUBNET_ID"          # e.g. subnet-0abc1234567890abc
 
 # Security Groups — one per gateway type (from CFN stack outputs)
-SG_FILE_S3="sg-006138f8a383927f6"   # used when GATEWAY_TYPE=FILE_S3
-SG_VOLUME="sg-006138f8a383927f6"    # used when GATEWAY_TYPE=VOLUME
+SG_FILE_S3="SG_FILE_S3"   # used when GATEWAY_TYPE=FILE_S3
+SG_VOLUME="SG_VOLUME"    # used when GATEWAY_TYPE=VOLUME
 
 # AMI ID — leave empty to auto-resolve from SSM (recommended)
 # Or set explicitly to pin a specific version

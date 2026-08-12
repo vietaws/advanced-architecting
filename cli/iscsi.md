@@ -30,7 +30,7 @@ Expected results:
 ```powershell
 New-Item -ItemType Directory -Force -Path "C:\demo-iscsi" | Out-Null
 
-$images = @("flower-1.jpg", "flower-2.jpg", "flower-3.jpg", "flower-4.jpg", "flower-5.jpg")
+$images = @("flower-1.jpg", "flower-2.jpg", "flower-3.jpg", "flower-4.jpg", "flower-5.png")
 $baseUrl = "https://raw.githubusercontent.com/vietaws/images/main"
 foreach ($img in $images) {
   Invoke-WebRequest -Uri "$baseUrl/$img" -OutFile "C:\demo-iscsi\$img" -UseBasicParsing
@@ -113,6 +113,9 @@ Get-ChildItem Z:\ | Select-Object Name, Length, LastWriteTime
 ### Step 7 — Clean disconnect before snapshot (IMPORTANT)
 
 ```powershell
+# Remove a specific portal by IP
+Remove-IscsiTargetPortal -TargetPortalAddress "<SGW_APPLIANCE_PRIVATE_IP>"
+
 # Disconnect cleanly to flush NTFS journal — prevents dirty NTFS on Linux mount
 Disconnect-IscsiTarget -NodeAddress "iqn.1997-05.com.amazon:cloud-iscsi" -Confirm:$false
 

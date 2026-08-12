@@ -51,20 +51,6 @@ The demo runs both services in a **single shared environment** so the leaners ca
 
 ---
 
-## 4. Demo Scenarios
-
-- DS-01 — DataSync: NFS → Amazon S3
-- DS-02 — DataSync: SMB → Amazon EFS
-- DS-03 — DataSync: Filtering, Bandwidth Throttling & Transfer Options
-- DS-04 — DataSync: Integrity Verification + CloudWatch Monitoring
-- SGW-01 — S3 File Gateway: NFS Share → Amazon S3 (Product Images)
-- SGW-02 — S3 File Gateway: SMB Share → Amazon S3 (Provider Images)
-- SGW-03 — S3 File Gateway: Cache Behavior & Refresh
-- SGW-04 — Volume Gateway: STORED Mode → EBS Snapshot
-- SGW-05 — Volume Gateway: CACHED Mode → S3 System Bucket
-
----
-
 ## 5. Key Differentiators
 
 ### DataSync — "Intelligent Data Mover"

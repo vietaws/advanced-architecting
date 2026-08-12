@@ -62,37 +62,9 @@ aws s3 ls "s3://${S3_BUCKET}/providers/" --region us-east-1
 
 ---
 
-## 4. SGW Cache Refresh
 
-Run after DataSync syncs data to S3 — SGW needs to be told to re-read the bucket.
 
-```bash
-# Get file share ARNs
-aws storagegateway list-file-shares \
-  --region us-east-1 \
-  --query 'FileShareInfoList[*].{Type:FileShareType,ARN:FileShareARN,Status:FileShareStatus}' \
-  --output table
-
-# Refresh NFS file share cache
-aws storagegateway refresh-cache \
-  --region us-east-1 \
-  --file-share-arn "<NFS_FILE_SHARE_ARN>"
-
-# Refresh SMB file share cache
-aws storagegateway refresh-cache \
-  --region us-east-1 \
-  --file-share-arn "<SMB_FILE_SHARE_ARN>"
-```
-
-Then on op-app, wait ~30 seconds and check:
-```bash
-ls -lh /mnt/nfs
-ls -lh /mnt/smb
-```
-
----
-
-## 5. Switch Storage Mode (EFS ↔ EBS)
+## 4. Switch Storage Mode (EFS ↔ EBS)
 
 **Connect to cloud-app via SSM first:**
 ```bash
@@ -135,7 +107,7 @@ systemctl is-active demo-app
 
 ---
 
-## 6. Troubleshooting
+## 5. Troubleshooting
 
 ### EFS DNS not resolving (NXDOMAIN)
 ```bash
