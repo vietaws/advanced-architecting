@@ -1,4 +1,4 @@
-# Pre-requisites
+# Phase 0 - Pre-requisites
 
 ---
 Install aws cli, eksctl, kubectl, helm

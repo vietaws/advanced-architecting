@@ -1,4 +1,4 @@
-# Phase 2 — EKS Add-ons
+# Phase 3 — EKS Add-ons
 
 ---
 

@@ -1,4 +1,4 @@
-# Phase 1 — EKS Cluster
+# Phase 2 — EKS Cluster
 
 ---
 

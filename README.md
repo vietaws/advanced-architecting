@@ -7,25 +7,9 @@ Three Node.js services run on **Amazon EKS**, fronted by an **AWS ALB** and a **
 
 ## Architecture
 
+![hello@viet.vn](./images/architecture.png)
+
 ```
-Browser
-  └── CloudFront ←── S3 (frontend/)
-        │
-        ▼  api.yourdomain.com
-      ALB  (internet-facing, ap-southeast-1)
-        │
-    ┌───┴──────────────────────────────────────┐
-    │  EKS Cluster — namespace: app            │
-    │                                          │
-    │  /products*   ──► product-service:3001   │
-    │  /products-dax*    DynamoDB + DAX + S3   │
-    │                                          │
-    │  /providers*  ──► provider-service:3002  │
-    │  /efs*             RDS Aurora + EFS PVC  │
-    │                                          │
-    │  /orders*     ──► order-service:3003     │
-    │                    SQS + DynamoDB        │
-    └──────────────────────────────────────────┘
 
 AWS Managed Resources
   ├── DynamoDB:  products_table, orders_table
