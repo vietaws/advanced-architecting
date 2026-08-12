@@ -29,7 +29,7 @@ The demo runs both services in a **single shared environment** so the leaners ca
 
 ## 2. Architecture
 
-![hello@viet.vn](./images/sgw-vs-datasync.png)
+![hello@viet.vn](./images/sgw-vs-datasync-v2.png)
 
 ---
 
