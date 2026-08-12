@@ -184,5 +184,3 @@ kubectl -n app logs deployments/product-service -f --all-pods=true
 # 5. Check if cluster autoscaler fired and what it decided
   kubectl logs -n kube-system -l app.kubernetes.io/name=cluster-autoscaler --tail=50
 ```
-
-→ Next: [Verification](verification.md)

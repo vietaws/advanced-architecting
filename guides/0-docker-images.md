@@ -131,5 +131,3 @@ done
 Edit `infra/k8s/*/05-deployment.yaml` — set the `image:` field to your chosen registry (ECR or Docker Hub) before Phase 6.
 
 ---
-
-→ Next: [Phase 6 — Kubernetes Deploy](phase-6-deploy.md)
