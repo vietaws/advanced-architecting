@@ -6,7 +6,7 @@ import pg from 'pg';
 const { Client } = pg;
 
 const DB_CONFIG = {
-  host: 'db.cloud.viet.vn',
+  host: '10.1.0.50',
   port: 5432,
   database: 'demo',
   user: 'dbadmin',
@@ -392,7 +392,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('Cloud Inventory', body, statusBar));
+  res.end(layout('Cloud-App Inventory', body, statusBar));
 }
 
 function newForm(res, err = null) {

@@ -1,24 +1,24 @@
 #!/bin/bash
 # =============================================================================
-# Hybrid DNS Demo — On-Premises DB Server
-# VPC OP | IP: 10.2.1.30 | Hostname: db.op.viet.vn
+# Hybrid DNS Demo — Cloud DB Server
+# VPC Cloud | IP: 10.1.0.50 | Hostname: db.cloud.viet.vn
 #
 # After first boot, verify with:
-#   nc -zv 10.2.1.30 5432
-#   PGPASSWORD=demoPassword psql -h 10.2.1.30 -U dbadmin -d demo -c '\dt'
+#   nc -zv 10.1.0.50 5432
+#   PGPASSWORD=DemoPassword psql -h 10.1.0.50 -U dbadmin -d demo -c '\dt'
 # =============================================================================
 
 set -e
 
 DB_NAME="demo"
 DB_USER="dbadmin"
-DB_PASSWORD="demoPassword"
+DB_PASSWORD="DemoPassword"
 TABLE_NAME="products"
 
 dnf update -y
 dnf install -y postgresql18-server bind-utils nc
 
-hostnamectl set-hostname db.op.viet.vn
+hostnamectl set-hostname db.cloud.viet.vn
 
 # Initialize and start database
 postgresql-setup --initdb
@@ -70,34 +70,6 @@ sed -i '$a host    demo    dbadmin    0.0.0.0/0    md5' \
   /var/lib/pgsql/data/pg_hba.conf
 
 systemctl restart postgresql
-
-# DNS + DB test helper
-cat > /usr/local/bin/dns-test << 'SCRIPT'
-#!/bin/bash
-echo "============================================"
-echo " DNS Test — db.op.viet.vn (10.2.1.30)"
-echo "============================================"
-echo ""
-echo "-- Current DNS server --"
-grep nameserver /etc/resolv.conf
-echo ""
-echo "-- On-prem records (via BIND directly @ 10.2.1.10) --"
-dig @10.2.1.10 +noall +answer app.op.viet.vn
-dig @10.2.1.10 +noall +answer db.op.viet.vn
-dig @10.2.1.10 +noall +answer dns.op.viet.vn
-echo ""
-echo "-- On-prem records (via configured DNS) --"
-dig +noall +answer app.op.viet.vn
-dig +noall +answer db.op.viet.vn
-echo ""
-echo "-- Cloud records (via configured DNS) --"
-dig +noall +answer app.cloud.viet.vn
-echo ""
-echo "-- DB self-check --"
-PGPASSWORD=demoPassword psql -h 127.0.0.1 -U dbadmin -d demo \
-  -c "SELECT * FROM products;" 2>/dev/null || echo "DB not ready"
-SCRIPT
-chmod +x /usr/local/bin/dns-test
 
 echo "[$(date)] DB Server setup complete."
 echo "DB: ${DB_NAME} | User: ${DB_USER} | Password: ${DB_PASSWORD} | Port: 5432"

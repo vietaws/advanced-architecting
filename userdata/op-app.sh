@@ -3,9 +3,6 @@
 # Hybrid DNS Demo — On-Premises App Server
 # VPC OP | IP: 10.2.1.20 | Hostname: app.op.viet.vn
 #
-# Simulates an on-premises application server. Runs a simple HTTP server
-# so cross-environment connectivity can be tested end-to-end (DNS + TCP).
-#
 # After first boot, verify with:
 #   curl http://10.2.1.20        # direct IP — should work immediately
 #   curl http://app.op.viet.vn   # DNS — works after DNS scenario is configured
@@ -18,7 +15,7 @@ echo "[$(date)] Starting App Server (on-prem) setup..."
 
 # ── 1. System update ─────────────────────────────────────────────────────────
 dnf update -y
-dnf install -y bind-utils nc python3
+dnf install -y bind-utils nc python3 postgresql18
 
 # ── 2. Set hostname ──────────────────────────────────────────────────────────
 hostnamectl set-hostname app.op.viet.vn
@@ -30,9 +27,9 @@ mkdir -p /var/www/app
 cat > /var/www/app/index.html << 'EOF'
 <!DOCTYPE html>
 <html>
-<head><title>On-Prem App Server</title></head>
+<head><title>OP-App Server</title></head>
 <body>
-  <h1>On-Premises App Server</h1>
+  <h1>OP-App Server</h1>
   <p><strong>Hostname:</strong> app.op.viet.vn</p>
   <p><strong>IP:</strong> 10.2.1.20</p>
   <p><strong>Environment:</strong> VPC OP (simulated on-premises)</p>

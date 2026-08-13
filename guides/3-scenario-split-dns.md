@@ -1,12 +1,10 @@
-# Foundation Setup & Scenario 3: Split DNS
+# Scenario 3: Split DNS
 
 ## Overview
 
 ## BIND Config
 
 ```bash
-
-
 # DNS Server (VPC OP) Config
 
 cat > /etc/named.conf << 'EOF'
@@ -25,9 +23,9 @@ zone "op.viet.vn" IN {
     allow-update { none; };
 };
 
-zone "2.10.in-addr.arpa" IN {
+zone "1.2.10.in-addr.arpa" IN {
     type master;
-    file "/var/named/10.2.rev";
+    file "/var/named/10.2.1.rev";
     allow-update { none; };
 };
 EOF
@@ -42,7 +40,7 @@ app     IN  A   10.2.1.20
 db      IN  A   10.2.1.30
 EOF
 
-cat > /var/named/10.2.rev << 'EOF'
+cat > /var/named/10.2.1.rev << 'EOF'
 $TTL 300
 @   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
@@ -52,7 +50,7 @@ $TTL 300
 30  IN  PTR db.op.viet.vn.
 EOF
 
-chown named:named /var/named/op.viet.vn.zone /var/named/10.2.rev
+chown named:named /var/named/op.viet.vn.zone /var/named/10.2.1.rev
 systemctl start named
 ```
 
@@ -234,9 +232,9 @@ zone "op.viet.vn" IN {
     allow-update { none; };
 };
 
-zone "2.10.in-addr.arpa" IN {
+zone "1.2.10.in-addr.arpa" IN {
     type master;
-    file "/var/named/10.2.rev";
+    file "/var/named/10.2.1.rev";
     allow-update { none; };
 };
 

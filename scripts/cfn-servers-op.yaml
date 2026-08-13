@@ -85,7 +85,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Sub "${EnvironmentName}-sg-db-server"
-      GroupDescription: "DB Server - MySQL from App Server only"
+      GroupDescription: "DB Server - PostgreSQL from App Server only"
       VpcId:
         Fn::ImportValue: !Sub "${EnvironmentName}-VpcOP-Id"
       SecurityGroupIngress:
@@ -360,9 +360,9 @@ Resources:
 
           sudo -u postgres psql -d ${DB_NAME} -c "
           INSERT INTO ${TABLE_NAME} (name, price, sku) VALUES
-            ('Mouse',    19.99,   50),
-            ('Laptop',   2999.99,  10),
-            ('Keyboard', 39.99,   30);"
+            ('Mouse',    19.99,   'SKU001'),
+            ('Laptop',   2999.99, 'SKU002'),
+            ('Keyboard', 39.99,   'SKU003');"
 
           sudo -u postgres psql -d ${DB_NAME} -c "
             GRANT ALL ON SCHEMA public TO ${DB_USER};

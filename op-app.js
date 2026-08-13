@@ -6,7 +6,7 @@ import pg from 'pg';
 const { Client } = pg;
 
 const DB_CONFIG = {
-  host: 'db.op.viet.vn',
+  host: '10.2.1.30',
   port: 5432,
   database: 'demo',
   user: 'dbadmin',
@@ -397,7 +397,7 @@ async function listProducts(req, res) {
     </div>`;
 
   res.writeHead(200, { 'Content-Type': 'text/html' });
-  res.end(layout('OP Inventory', body, statusBar));
+  res.end(layout('OP-App Inventory', body, statusBar));
 }
 
 function newForm(res, err = null) {

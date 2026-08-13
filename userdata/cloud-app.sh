@@ -3,10 +3,6 @@
 # Hybrid DNS Demo — EC2 Cloud App Server
 # VPC A | IP: 10.1.0.40 | Hostname: app.cloud.viet.vn
 #
-# Simulates a cloud-hosted application. Runs a simple HTTP server so that
-# on-premises servers can test connectivity in both directions.
-# Also pre-installs all tools needed for DNS testing during the demo.
-#
 # After first boot, verify with:
 #   curl http://10.1.0.40              # direct IP
 #   curl http://app.cloud.viet.vn   # via DNS (after scenario configured)
@@ -20,7 +16,7 @@ echo "[$(date)] Starting EC2-Cloud setup..."
 
 # ── 1. System update ─────────────────────────────────────────────────────────
 dnf update -y
-dnf install -y bind-utils nc python3 postgresql15 awscli
+dnf install -y bind-utils nc python3 postgresql18 awscli
 
 # ── 2. Set hostname ──────────────────────────────────────────────────────────
 hostnamectl set-hostname app.cloud.viet.vn

@@ -4,30 +4,6 @@
 
 Route 53 is the single DNS authority for **both** environments. It hosts private hosted zones for both `cloud.viet.vn` (cloud resources) and `op.viet.vn` (on-premises resources). BIND on-premises becomes a pure forwarder — it forwards every query to the Route 53 Inbound Resolver Endpoint and has no authoritative zones of its own.
 
-```
-EC2-Cloud queries app.cloud.viet.vn
-  → VPC DNS (10.1.0.2)
-  → Route 53 PHZ: cloud.viet.vn
-  → Returns 10.1.0.40  ✓  (instant, never leaves VPC A)
-
-EC2-Cloud queries app.op.viet.vn
-  → VPC DNS (10.1.0.2)
-  → Route 53 PHZ: op.viet.vn (hosted in AWS)
-  → Returns 10.2.1.20  ✓
-
-App Server queries app.cloud.viet.vn
-  → BIND (10.2.1.10) — forwarder only
-  → Inbound Endpoint (10.1.1.10)
-  → Route 53 PHZ: cloud.viet.vn
-  → Returns 10.1.0.40  ✓
-
-App Server queries app.op.viet.vn
-  → BIND (10.2.1.10) — forwarder only
-  → Inbound Endpoint (10.1.1.10)
-  → Route 53 PHZ: op.viet.vn
-  → Returns 10.2.1.20  ✓
-```
-
 **No Outbound Resolver needed** — queries never need to travel from AWS back to BIND.
 
 ---

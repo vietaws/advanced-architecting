@@ -4,27 +4,6 @@
 
 BIND on-premises is the single DNS authority for **both** environments. VPC A is configured via custom DHCP options to use BIND as its DNS server. BIND holds authoritative zones for both `op.viet.vn` and `cloud.viet.vn`, and conditionally forwards AWS service queries back to the VPC A built-in resolver (`10.1.0.2`) to avoid breaking S3, EC2 metadata, and other AWS-managed endpoints.
 
-```
-EC2-Cloud queries app.cloud.viet.vn
-  → Custom DHCP → BIND (10.2.1.10) via VPC Peering
-  → Authoritative zone: cloud.viet.vn
-  → Returns 10.1.0.40  ✓
-
-EC2-Cloud queries app.op.viet.vn
-  → Custom DHCP → BIND (10.2.1.10) via VPC Peering
-  → Authoritative zone: op.viet.vn
-  → Returns 10.2.1.20  ✓
-
-EC2-Cloud queries s3.ap-southeast-1.amazonaws.com
-  → Custom DHCP → BIND (10.2.1.10)
-  → Conditional forwarder: amazonaws.com → 10.1.0.2
-  → VPC A built-in resolver → AWS-managed answer  ✓
-
-App Server queries app.cloud.viet.vn
-  → DHCP → BIND (10.2.1.10) (local, same VPC)
-  → Authoritative zone: cloud.viet.vn
-  → Returns 10.1.0.40  ✓
-```
 
 **No Route 53 Resolver Endpoints needed.** The only Route 53 component used is the Private Hosted Zone, and even that is optional in this scenario.
 
@@ -67,6 +46,11 @@ zone "op.viet.vn" IN {
     file "/var/named/op.viet.vn.zone";
     allow-update { none; };
 };
+zone "1.2.10.in-addr.arpa" IN {
+    type master;
+    file "/var/named/10.2.1.rev";
+    allow-update { none; };
+};
 
 zone "cloud.viet.vn" IN {
     type master;
@@ -74,15 +58,9 @@ zone "cloud.viet.vn" IN {
     allow-update { none; };
 };
 
-zone "2.10.in-addr.arpa" IN {
+zone "0.1.10.in-addr.arpa" IN {
     type master;
-    file "/var/named/10.2.rev";
-    allow-update { none; };
-};
-
-zone "1.10.in-addr.arpa" IN {
-    type master;
-    file "/var/named/10.1.rev";
+    file "/var/named/10.1.0.rev";
     allow-update { none; };
 };
 
@@ -134,7 +112,7 @@ db      IN  A   10.1.0.50
 api     IN  CNAME app.cloud.viet.vn.
 EOF
 
-sudo tee /var/named/10.1.rev > /dev/null << 'EOF'
+sudo tee /var/named/10.1.0.rev > /dev/null << 'EOF'
 $TTL 300
 @   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
         2026080401 3600 1800 604800 300 )
@@ -143,9 +121,9 @@ $TTL 300
 50  IN  PTR db.cloud.viet.vn.
 EOF
 
-sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.rev
+sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.0.rev
 
-sudo tee /var/named/10.2.rev << 'EOF'
+sudo tee /var/named/10.2.1.rev << 'EOF'
 $TTL 300
 @   IN  SOA dns.op.viet.vn. admin.op.viet.vn. (
               2026080401 3600 1800 604800 300 )
@@ -153,13 +131,13 @@ $TTL 300
 @   IN  NS  dns.op.viet.vn.
   
 ; PTR records — format: <third-octet>.<fourth-octet>
-1.10  IN  PTR dns.op.viet.vn.
-1.20  IN  PTR app.op.viet.vn.
-1.30  IN  PTR db.op.viet.vn.
+10  IN  PTR dns.op.viet.vn.
+20  IN  PTR app.op.viet.vn.
+30  IN  PTR db.op.viet.vn.
 EOF
 
-sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.rev
-sudo chown named:named /var/named/op.viet.vn.zone /var/named/10.2.rev
+sudo chown named:named /var/named/cloud.viet.vn.zone /var/named/10.1.0.rev
+sudo chown named:named /var/named/op.viet.vn.zone /var/named/10.2.1.rev
 
 
 # Validate and reload
@@ -194,7 +172,7 @@ echo "DHCP Options: $DHCP_OPT_ID"
 > **Note:** Existing EC2 instances need to renew their DHCP lease before the new DNS server takes effect. Either reboot or run `sudo dhclient -r && sudo dhclient` on each instance.
 
 ```bash
-# On EC2-Cloud: renew DHCP lease without reboot
+# On Cloud-App: renew DHCP lease without reboot
 sudo dhclient -r && sudo dhclient
 
 # Confirm new DNS server is active
