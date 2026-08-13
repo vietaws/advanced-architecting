@@ -8,7 +8,7 @@ A hands-on demo covering hybrid DNS resolution between AWS (Amazon Route 53) and
 
 ## Architecture
 
-To be updated
+![hello@viet.vn](./images/architecture.png)
 
 ### Infra Detail
 
