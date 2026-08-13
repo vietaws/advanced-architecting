@@ -111,6 +111,8 @@ dig app.cloud.viet.vn
 dig app.op.viet.vn
 dig db.op.viet.vn
 
+dig -x 10.2.1.30
+
 # Check DNS
 dig app.op.viet.vn NS
 
