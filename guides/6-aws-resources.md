@@ -64,3 +64,12 @@ INSERT INTO providers (name, city) VALUES
 ```
 
 ---
+
+### Change DAX Cluster Security Group
+
+```bash
+aws dax update-cluster \
+    --cluster-name dax-demo \
+    --security-group-ids SECURITY_GROUP_ID
+```
+

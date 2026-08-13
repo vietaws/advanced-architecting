@@ -22,8 +22,8 @@ NAMESPACE="app"
 SVC="product-service"
 
 # ── Service variables (edit here) ─────────────────────────────────────────────
-DAX_ENDPOINT="daxs://dax-demo.kqensy.dax-clusters.ap-southeast-1.amazonaws.com"
-S3_BUCKET="demo-product-images-d4b776b9"
+DAX_ENDPOINT="dax-demo.kqensy.dax-clusters.ap-southeast-1.amazonaws.com"
+S3_BUCKET="product-images-274595021951-ap-southeast-1-an"
 
 # ── Derived ───────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

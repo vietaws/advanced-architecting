@@ -20,8 +20,8 @@ NAMESPACE="app"
 SVC="provider-service"
 
 # ── Service variables (edit here) ─────────────────────────────────────────────
-EFS_FILE_SYSTEM_ID="EFS_FILE_SYSTEM_ID_PLACEHOLDER" # e.g. fs-12345678
-RDS_HOST="RDS_HOST_PLACEHOLDER" # e.g. mydb.cluster-123456789012.ap-southeast-1.rds.amazonaws.com
+EFS_FILE_SYSTEM_ID="EFS_FILE_SYSTEM_ID" # e.g. fs-12345678
+RDS_HOST="AURORA_CLUSTER_ENDPOINT" # e.g. mydb.cluster-123456789012.ap-southeast-1.rds.amazonaws.com
 RDS_PORT="5432"
 RDS_DATABASE="providers_db"
 RDS_USER="dbadmin"

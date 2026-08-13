@@ -107,8 +107,8 @@ done
 
 # Pull from Docker Hub, re-tag, push to ECR
 for SVC in product-service provider-service order-service; do
-  docker pull "${DOCKER_USER}/${DOCKER_REPO}:${SVC}-latest"
-  docker tag  "${DOCKER_USER}/${DOCKER_REPO}:${SVC}-latest" "${ECR_REGISTRY}/${SVC}:latest"
+  docker pull "${DOCKER_USER}/${DOCKER_REPO}:${SVC}"
+  docker tag  "${DOCKER_USER}/${DOCKER_REPO}:${SVC}" "${ECR_REGISTRY}/${SVC}"
   docker push "${ECR_REGISTRY}/${SVC}:latest"
   echo "✓ Pushed ${ECR_REGISTRY}/${SVC}:latest"
 done

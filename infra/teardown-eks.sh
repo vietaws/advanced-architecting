@@ -36,9 +36,18 @@ echo "[1/4] Removing ALB and K8s app resources..."
 echo "  Scaling down deployments..."
 kubectl scale deployment --all -n app --replicas=0 2>/dev/null || true
 
-# b. Delete Ingress
-echo "  Deleting Ingress..."
-kubectl delete ingress app-ingress -n app --ignore-not-found 2>/dev/null || true
+# b. Delete Ingress — signal the ALB controller, then immediately strip the
+#    finalizer so kubectl does not block waiting for ALB deprovisioning.
+#    The ALB itself is force-deleted via AWS CLI in the next step.
+echo "  Deleting Ingress (no-wait)..."
+kubectl delete ingress app-ingress -n app --ignore-not-found --wait=false 2>/dev/null || true
+kubectl patch ingress app-ingress -n app \
+  --type=json -p='[{"op":"remove","path":"/metadata/finalizers"}]' \
+  2>/dev/null || true  # no-op if already gone
+
+# Give the ALB controller a moment to register the deletion before we look up the ALB.
+echo "  Waiting 15s for ALB controller to start deprovisioning..."
+sleep 15
 
 # c. Delete ALB directly via AWS CLI — find all ALBs in the EKS VPC
 echo "  Looking up ALBs in cluster VPC..."
@@ -72,12 +81,14 @@ if [[ -n "${EKS_VPC_ID}" && "${EKS_VPC_ID}" != "None" ]]; then
         --region "${REGION}" \
         && echo "  ✓ ALB delete initiated" || echo "  ⚠ could not delete ALB"
 
-      # Wait for ALB to be fully gone before deleting target groups
-      echo "  Waiting for ALB deletion..."
-      aws elbv2 wait load-balancers-deleted \
+      # Wait for ALB to be fully gone before deleting target groups (max 3 min)
+      echo "  Waiting for ALB deletion (up to 3 min)..."
+      timeout 180 aws elbv2 wait load-balancers-deleted \
         --load-balancer-arns "${ARN}" \
-        --region "${REGION}" 2>/dev/null || sleep 30
-      echo "  ✓ ALB deleted"
+        --region "${REGION}" 2>/dev/null || {
+        echo "  ⚠ ALB wait timed out — continuing anyway (target groups may need manual cleanup)"
+      }
+      echo "  ✓ ALB deletion confirmed (or timed out)"
 
       # Delete target groups
       for TG_ARN in ${TG_ARNS}; do

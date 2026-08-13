@@ -2,6 +2,8 @@
 
 - Aurora Cluster
 - DB Subnet Parameter
+- DAX Cluster
+- DAX subnet group
 - DynamoDB Tables
 - SQS Queue
 - EFS
