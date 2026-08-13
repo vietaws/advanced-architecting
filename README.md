@@ -2,7 +2,7 @@
 
 A hands-on demo covering hybrid DNS resolution between AWS (Amazon Route 53) and an on-premises environment simulated via VPC Peering.
 
-> `cloud.viet.vn` is treated as a **private** hosted zone throughout this demo — it resolves only inside the VPCs, not on the public internet. In a real environment this would be a domain you own, with a separate public hosted zone for external traffic.
+> `cloud.viet.vn` is treated as a **private** hosted zone throughout this demo — it resolves only inside the Cloud VPC. `op.viet.vn` is repsentated for On-Premises resources (App & DB)
 
 ---
 
