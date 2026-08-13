@@ -1,25 +1,4 @@
 #!/bin/bash
-# =============================================================================
-# Hybrid DNS Demo — DNS Server (BIND)
-# VPC OP | IP: 10.2.1.10 | Hostname: dns.op.viet.vn
-#
-# This script is used as EC2 user-data. It installs BIND and configures it
-# as the authoritative DNS server for op.viet.vn (on-premises zone).
-#
-# The forwarder section is intentionally left pointing to 10.1.0.2 (VPC A
-# built-in resolver) as a safe default. Each demo scenario will SSH in and
-# swap /etc/named.conf for the scenario-specific config:
-#
-#   Scenario 1 (All AWS)  : BIND forwards everything to Inbound Endpoint
-#   Scenario 2 (All On-prem): BIND authoritative for both zones
-#   Scenario 3 (Split DNS): BIND authoritative for op.viet.vn only,
-#                            forwards cloud.viet.vn to Inbound Endpoint
-#
-# After first boot, verify with:
-#   systemctl status named
-#   dig @10.2.1.10 app.op.viet.vn       # should return 10.2.1.20
-#   dig @10.2.1.10 db.op.viet.vn        # should return 10.2.1.30
-# =============================================================================
 
 set -euo pipefail
 exec > >(tee /var/log/userdata-dns-server.log) 2>&1
