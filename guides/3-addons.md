@@ -29,7 +29,7 @@ The script installs all add-ons and creates the required IAM roles automatically
 | Role | Policy attached | Used by |
 |---|---|---|
 | `eks-ebs-csi-driver-role` | `AmazonEBSCSIDriverPolicy` (AWS managed) | EBS CSI driver pods |
-| `eks-efs-csi-driver-role` | `AmazonEFSCSIDriverPolicy` (custom, inline) | EFS CSI driver pods |
+| `eks-efs-csi-driver-role` | `AmazonEFSCSIDriverPolicy` (AWS managed) | EFS CSI driver pods |
 | `eks-alb-controller-role` | `AWSLoadBalancerControllerIAMPolicy` (from `infra/iam/`) | ALB Controller pods |
 
 Each role is created via `eksctl create iamserviceaccount --role-name <name>` which builds the OIDC trust policy automatically and binds the role to the corresponding K8s ServiceAccount in `kube-system`.

@@ -5,12 +5,6 @@
 
 IRSA (IAM Roles for Service Accounts) lets each pod assume a least-privilege IAM role without static credentials. The OIDC provider created in Phase 1 bridges K8s service accounts to IAM roles.
 
-```bash
-# PRODUCT_IMAGES_BUCKET is printed by infra/01-aws-resources.sh
-export PRODUCT_IMAGES_BUCKET="demo-product-images-xxxx"
-./infra/02-oidc-irsa.sh
-```
-
 ---
 
 ## How IRSA works
