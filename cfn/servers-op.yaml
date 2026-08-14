@@ -4,7 +4,7 @@ Description: >
   Deploys three EC2 instances in VPC OP public subnet 1a (10.2.1.0/24):
     - DNS Server  (10.2.1.10)  BIND, op.viet.vn authoritative
     - App Server  (10.2.1.20)  Express.js HTTP server, public internet access
-    - DB Server   (10.2.1.30)  MariaDB, accessible from App Server only
+    - DB Server   (10.2.1.30)  PostgreSQL, accessible from App Server only
   All instances use Amazon Linux 2023 ARM64 on t4g.micro with SSM access.
   Depends on: hybrid-dns-demo-network stack (cfn-network.yaml)
 
